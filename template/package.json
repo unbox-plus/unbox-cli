@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "prebuild": "node scripts/check-unbox-brand.mjs",
+    "prebuild": "node scripts/check-unbox-brand.mjs && node scripts/medir-sistema.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
@@ -16,7 +16,12 @@
     "unbox:webhook:subscribe": "tsx scripts/subscribe-webhook.ts",
     "unbox:order:pix": "tsx scripts/place-order-pix.ts",
     "unbox:abandoned": "tsx scripts/abandoned-cart.ts",
-    "unbox:qa": "node scripts/qa-screenshots.mjs"
+    "unbox:qa": "node scripts/qa-screenshots.mjs",
+    "unbox:sistema": "python3 scripts/sistema.py .",
+    "unbox:vocabulario": "python3 scripts/vocabulario.py .",
+    "unbox:medir": "node scripts/medir-sistema.mjs",
+    "unbox:placeholder": "node scripts/check-placeholder.mjs",
+    "unbox:editavel": "node scripts/check-editable.mjs --url ${UNBOX_URL:-http://localhost:3000}"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
@@ -26,6 +31,7 @@
     "cmdk": "^1.1.1",
     "embla-carousel-react": "^8.6.0",
     "input-otp": "^1.4.2",
+    "jose": "^6.2.12",
     "next": "15.5.19",
     "qrcode": "^1.5.4",
     "react": "19.1.0",
@@ -48,6 +54,7 @@
     "@types/sanitize-html": "^2.16.1",
     "eslint": "^9",
     "eslint-config-next": "15.5.19",
+    "playwright-core": "^1.63.0",
     "tailwindcss": "^4",
     "tsx": "^4.22.4",
     "typescript": "^5"

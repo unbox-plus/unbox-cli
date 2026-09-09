@@ -1,20 +1,22 @@
 import type { Metadata, Viewport } from "next";
-import Script from "next/script";
 import "./globals.css";
-import { RouteAnalytics } from "@/components/analytics/route-analytics";
 import { Toaster } from "@/components/ui/sonner";
+// EDITOR DE LOJA: o conteúdo publicado pelo lojista entra aqui e os primitivos o aplicam por cima do
+// que está escrito no código. Sem EDITOR_URL no ambiente, `conteudo` é null e a loja renderiza
+// exatamente o código: o editor fica desligado, sem efeito nenhum.
+import { EditableProvider } from "@/lib/editable";
+import { getPublishedContent, presencaNoAmbiente } from "@/lib/editable/server";
+// RASTREIO E MARKETING: a foundation renderiza tudo (GTM da Unbox e do lojista, GA4, Meta Pixel, TikTok,
+// Pinterest, page_view por rota, botão de WhatsApp) numa linha, `<Rastreio>`; este layout não conhece
+// provedor nenhum, e o próximo entra por versão da foundation. Ela lê as MESMAS variáveis de sempre
+// (NEXT_PUBLIC_GTM_ID, NEXT_PUBLIC_GA_ID, NEXT_PUBLIC_META_PIXEL_ID) com a mesma régua (placeholder e
+// formato errado são ausência; Pixel só sem GTM próprio), então nenhuma loja perde rastreio.
+import { Rastreio } from "@/lib/editable/rastreio";
+import { EDITABLE_TOKENS } from "@/lib/editable/tokens";
+import { EDITOR_ORIGIN, STORE_SLUG } from "@/lib/editable/config";
 
 // UNBOX-FONTS-BEGIN (bloco reescrito pelo create-unbox-store conforme o estilo escolhido — não renomear os markers)
 import { Geist_Mono, Poppins, Plus_Jakarta_Sans } from "next/font/google";
-
-/** ID de analytics só vale se tiver a CARA de um ID. Placeholder ("x", "todo", "G-XXXX") é
- *  truthy e passa em `if (id)`, então o script carrega, inicializa com lixo e não reporta em
- *  lugar nenhum, sem dar sinal no painel nem no DevTools. */
-function idValido(bruto: string | undefined, formato: RegExp): string | null {
-  const id = bruto?.trim();
-  if (!id || /^(x+|todo|placeholder|seu[-_]?id|sua[-_]?id|G-XXXX.*|GTM-XXXX.*|AW-XXXX.*)$/i.test(id)) return null;
-  return formato.test(id) ? id : null;
-}
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 const sans = Plus_Jakarta_Sans({ variable: "--font-sans", subsets: ["latin"], weight: ["400", "500", "600", "700"], display: "swap" });
 const displayFont = Poppins({ variable: "--font-display", subsets: ["latin"], weight: ["500", "600", "700", "800"], display: "swap" });
@@ -25,9 +27,14 @@ const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 // ═══════════════════════════════════════════════════════════════════════════
 // GTM CENTRAL DA UNBOX — OBRIGATÓRIO EM TODA LOJA. NÃO REMOVA NEM TROQUE O ID.
 // É o container central da Unbox para captura de dados da plataforma (parte do
-// contrato da loja). Tags próprias da marca NÃO entram aqui: use os campos
-// opcionais NEXT_PUBLIC_GA_ID / NEXT_PUBLIC_META_PIXEL_ID abaixo (ou um
-// container GTM adicional próprio), nunca editando/substituindo este ID.
+// contrato da loja). Tags próprias da marca NÃO entram aqui: o lojista configura
+// os IDs dele (GTM próprio, GA4, Meta Pixel, TikTok, Pinterest, WhatsApp) na aba
+// Apps do painel do editor, ou o cadastro da loja os traz do ambiente
+// (NEXT_PUBLIC_GTM_ID / NEXT_PUBLIC_GA_ID / NEXT_PUBLIC_META_PIXEL_ID …), e a
+// foundation injeta (`<Rastreio>`, lib/editable/rastreio.tsx), nunca
+// editando/substituindo este ID. Este literal vai para o `<Rastreio>` como o
+// contêiner contratual, e o prebuild (scripts/check-unbox-brand.mjs) cobra que
+// ele continue aqui.
 // ═══════════════════════════════════════════════════════════════════════════
 const UNBOX_GTM_ID = "GTM-PZLT336";
 
@@ -62,62 +69,21 @@ export const viewport: Viewport = {
   initialScale: 1,
 };
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  // Placeholder que passa em validação é pior que campo vazio: uma loja rodou 31 DIAS com
-  // NEXT_PUBLIC_GA_ID="x", os scripts carregando, o painel mostrando a variável preenchida e
-  // nada chegando em conta nenhuma. Vazio quebra visivelmente; "x" quebra em silêncio.
-  const gaId = idValido(process.env.NEXT_PUBLIC_GA_ID, /^(G|AW|UA)-/);
-  const gtmDaLoja = idValido(process.env.NEXT_PUBLIC_GTM_ID, /^GTM-/);
-  // Pixel no container E no código = PageView contado duas vezes, e a inflação é silenciosa.
-  // Com o container da loja configurado, o Pixel entra por ele (é o que a agência espera mexer).
-  const metaPixelId = gtmDaLoja ? null : idValido(process.env.NEXT_PUBLIC_META_PIXEL_ID, /^\d{5,}$/);
+export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  const conteudo = await getPublishedContent();
   return (
     <html lang="pt-BR">
       <body className={`${sans.variable} ${geistMono.variable} ${displayFont.variable} antialiased`}>
-        {/* GTM central da Unbox — obrigatório, não remover (ver comentário em UNBOX_GTM_ID) */}
-        <noscript>
-          <iframe
-            src={`https://www.googletagmanager.com/ns.html?id=${UNBOX_GTM_ID}`}
-            height="0"
-            width="0"
-            style={{ display: "none", visibility: "hidden" }}
-          />
-        </noscript>
-        {/* Container da PRÓPRIA loja (NEXT_PUBLIC_GTM_ID), quando a marca tem um. Convive com o
-            central da Unbox: são dois containers independentes lendo o mesmo dataLayer. */}
-        {gtmDaLoja && (
-          <>
-            <noscript>
-              <iframe src={`https://www.googletagmanager.com/ns.html?id=${gtmDaLoja}`} height="0" width="0" style={{ display: "none", visibility: "hidden" }} />
-            </noscript>
-            <Script id="gtm-loja" strategy="afterInteractive">
-              {`(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','${gtmDaLoja}');`}
-            </Script>
-          </>
-        )}
-        <Script id="unbox-gtm" strategy="afterInteractive">
-          {`(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','${UNBOX_GTM_ID}');`}
-        </Script>
-        {gaId && (
-          <>
-            <Script src={`https://www.googletagmanager.com/gtag/js?id=${gaId}`} strategy="afterInteractive" />
-            <Script id="ga4" strategy="afterInteractive">
-              {`window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${gaId}');`}
-            </Script>
-          </>
-        )}
-        {metaPixelId && (
-          <Script id="meta-pixel" strategy="afterInteractive">
-            {`!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');fbq('init','${metaPixelId}');fbq('track','PageView');`}
-          </Script>
-        )}
-        {/* sempre ativo: alimenta o dataLayer do GTM central com page_view nas navegações SPA
-            (e GA4/Meta quando configurados) */}
-        <RouteAnalytics />
         {/* Header/rodapé/nav da loja NÃO ficam aqui: moram em app/(loja)/layout.tsx (route
             group). Página criada fora de (loja) — acesso, erro, landing — nasce sem chrome. */}
-        {children}
+        <EditableProvider doc={conteudo} shop={STORE_SLUG} tokens={EDITABLE_TOKENS} editorOrigin={EDITOR_ORIGIN || undefined} apps={presencaNoAmbiente(process.env, { unboxGtmId: UNBOX_GTM_ID })}>
+          {children}
+        </EditableProvider>
         <Toaster position="top-center" />
+        {/* rastreio e marketing: o que o lojista publicou na aba Apps vence o ambiente, provedor a provedor,
+            e cada provedor dispara UMA vez; o contêiner da Unbox entra sempre. Só muda quando ele PUBLICA.
+            Nada de script de GA/Pixel/GTM escrito à mão neste arquivo: seria o mesmo provedor duas vezes. */}
+        <Rastreio doc={conteudo} ambiente={process.env} unboxGtmId={UNBOX_GTM_ID} />
       </body>
     </html>
   );

@@ -34,6 +34,9 @@
 - [ ] `/privacidade` — substituídos todos os `[PLACEHOLDERS]` com dados reais da empresa
 - [ ] `/termos` — substituídos todos os `[PLACEHOLDERS]`, incluindo foro e CNPJ
 - [ ] `/devolucoes` — canal de contato atualizado com o e-mail/WhatsApp real da loja
+- [ ] `npm run unbox:placeholder` — ANTES de publicar. Varre o HTML SERVIDO (build de produção) atrás de `[NOME DA LOJA]`, `[CNPJ]`, `TODO:`, "Minha Loja" e logo placeholder. Scaffold novo REPROVA de propósito: é gate de publicação, não de build
+- [ ] Contraste: cole `scripts/contraste.js` no console e rode `contraste()` na home, PDP e checkout. Texto sobre foto não é aprovado pela conta: mede à mão
+- [ ] `npm run unbox:medir` — leia o relatório de sistema visual: tamanhos de tipo, raios, hex fora de token e larguras de container. Não bloqueia, mas número que cresceu desde o scaffold é gordura que a marca não pediu
 - [ ] `/llms.txt` — é ROTA (`app/llms.txt/route.ts`), montada do catálogo real: confira que lista os produtos com preço, marca os esgotados e traz links absolutos (precisa de `NEXT_PUBLIC_SITE_URL`). Nada em `public/llms.txt`, que esconderia a rota
 
 ## Catálogo

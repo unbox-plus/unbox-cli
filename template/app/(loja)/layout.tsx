@@ -1,11 +1,10 @@
-// Layout do GRUPO DE ROTAS da loja: header, barra de anúncio, rodapé e nav mobile vivem
+// Layout do GRUPO DE ROTAS da loja: header, barra de anúncio e rodapé vivem
 // AQUI, não no layout raiz. Assim qualquer página fora da loja (tela de acesso, erro,
 // landing avulsa) nasce limpa, sem chrome vazando por trás — basta criá-la fora de (loja).
 // O grupo não muda as URLs: app/(loja)/produtos/page.tsx continua sendo /produtos.
 import { CartProvider } from "@/components/cart/cart-provider";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
-import { MobileBottomNav } from "@/components/mobile-bottom-nav";
 
 export default function StoreLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
@@ -18,7 +17,6 @@ export default function StoreLayout({ children }: Readonly<{ children: React.Rea
         <main className="site-main mx-auto w-full max-w-[1240px] flex-1 px-4 py-6 sm:px-6">{children}</main>
         <SiteFooter />
       </div>
-      <MobileBottomNav />
     </CartProvider>
   );
 }

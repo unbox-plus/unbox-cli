@@ -32,6 +32,9 @@ export default async function CategoryPage({ params }: { params: Promise<{ tagSl
 
   const tagMap = buildTagMap(tags as any[]);
   const itens = mapCatalogItems(catalog.nodes ?? [], tagMap);
+  // EDITOR: a categoria REAPROVEITA o container "catalogo" de /produtos (mesma faixa de confiança, mesmo
+  // cabeçalho de kits, mesmo aviso de lista vazia) sem mandar na ordem dele: `layout={false}` faz o
+  // manifesto desta página sair com `semLayout`, e o painel explica que a ordem se edita em /produtos.
   return (
     <>
     <DataLayerReady pageType="category" products={itens.slice(0, 12).map((i) => ({ id: i.productId, name: i.title, price: i.price }))} />
@@ -39,6 +42,7 @@ export default async function CategoryPage({ params }: { params: Promise<{ tagSl
       items={itens}
       categories={buildCategories(tags as any[])}
       initialCategory={tag.displayTitle || tag.name}
+      layout={false}
     />
     </>
   );

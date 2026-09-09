@@ -7,9 +7,10 @@ import { getCatalog, getTopTags } from "@/lib/queries";
 import { buildTagMap, buildCategories, mapCatalogItems } from "@/lib/catalog-map";
 import { FREE_SHIPPING_THRESHOLD } from "@/lib/store-config";
 import { resolveCombos } from "@/lib/enrichment/combos";
-import { landingRecipe } from "@/components/landing/landing-recipe";
-import { SECTIONS, type HomeData } from "@/components/home/sections/registry";
-import { PurchaseHeroSection } from "@/components/home/sections/purchase-hero";
+import type { HomeData } from "@/components/home/sections/registry";
+// EDITOR: a pilha da landing dentro do container PRÓPRIO dela ("oferta", declarado em
+// lib/rotas-editaveis.ts). Renderizada solta, nada nela é editável e o gate reprova a página.
+import { OfertaSections } from "@/components/landing/oferta-sections";
 import { mockupOr } from "@/lib/mockup";
 
 export const revalidate = 300;
@@ -49,11 +50,7 @@ export default async function OfertaPage() {
   return (
     <div className="store-layout full-bleed bg-white text-[var(--store-ink)]">
       <h1 className="sr-only">Oferta especial</h1>
-      <PurchaseHeroSection data={data} />
-      {landingRecipe.map((entry, i) => {
-        const Section = SECTIONS[entry.section];
-        return <Section key={`${entry.section}-${i}`} data={data} variant={entry.variant} sectionProps={entry.props} />;
-      })}
+      <OfertaSections data={data} />
       <div className="pb-14" />
     </div>
   );

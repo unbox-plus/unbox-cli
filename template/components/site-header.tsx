@@ -6,6 +6,11 @@
 // renderizasse o próprio wrapper, uma variante nova que esquecesse a classe faria o header
 // da loja aparecer no checkout, sem erro de build. Aqui isso é impossível.
 //
+// EDITOR: a casca também é dona da SEÇÃO do editor. O cabeçalho vive no container "chrome" e é
+// `fixed`: o lojista edita o conteúdo (logo), mas não tira o cabeçalho do lugar nem o oculta. Toda
+// variante herda o escopo `chrome.header` daqui, então trocar de variante na receita não muda o
+// caminho do logo (`chrome.header.logo`) que o lojista já editou.
+//
 // Pra mudar o header desta loja: troque `header` em components/chrome/chrome-recipe.ts.
 // Variante nova: arquivo em components/chrome/headers/ + registry + agents/PADROES.md.
 import { getShopData, getTopTags } from "@/lib/queries";
@@ -15,6 +20,9 @@ import { AnnounceBar } from "@/components/chrome/announce-bar";
 import { HEADERS, HEADER_SHELL, type ChromeData } from "@/components/chrome/registry";
 import { chromeRecipe } from "@/components/chrome/chrome-recipe";
 import { mockupOr } from "@/lib/mockup";
+// Exports NOMEADOS: este arquivo é server component e não consegue usar `Editable.*`
+// (o objeto vem de um módulo "use client" e chega como undefined).
+import { EditableSection } from "@/lib/editable";
 
 export async function SiteHeader() {
   const [shop, tags] = await Promise.all([mockupOr(getShopData(), null, "chrome/getShopData"), mockupOr(getTopTags(), [], "chrome/getTopTags")]);
@@ -44,9 +52,11 @@ export async function SiteHeader() {
       {/* header fixo — é filho direto do body, então gruda na página inteira.
           data-chrome: as regras do modo sobreposto em globals.css exigem que a variante
           escolhida CONCORDE (senão um header claro ficaria transparente sobre a foto). */}
-      <header data-chrome={chromeRecipe.header} className={base + skin}>
-        <Header data={data} />
-      </header>
+      <EditableSection id="header" kind="cabecalho" container="chrome" fixed label="Cabeçalho">
+        <header data-chrome={chromeRecipe.header} className={base + skin}>
+          <Header data={data} />
+        </header>
+      </EditableSection>
 
       <MiniCart />
     </>

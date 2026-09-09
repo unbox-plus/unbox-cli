@@ -42,11 +42,11 @@ export function mapCatalogItems(nodes: any[], tagMap: Map<string, string>): Cata
         productId: p.productId,
         variantId: v0?._id ?? null,
         badge: p.isSoldOut
-          ? { label: "ESGOTADO", bg: "#EFEADD", fg: "#85816F" }
+          ? { label: "ESGOTADO", bg: "var(--store-surface-2)", fg: "var(--store-muted)" }
           : hasOld
-            ? { label: "OFERTA", bg: "#FBE7E7", fg: "#D2222A" }
+            ? { label: "OFERTA", bg: "var(--store-sale-soft)", fg: "var(--store-sale)" }
             : p.isLowQuantity
-              ? { label: "ÚLTIMAS", bg: "#FDF0DC", fg: "#8A6A00" }
+              ? { label: "ÚLTIMAS", bg: "var(--store-cta-soft)", fg: "var(--store-cta-dark)" }
               : null,
         soldOut: !!p.isSoldOut,
       };

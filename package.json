@@ -1,6 +1,6 @@
 {
   "name": "create-unbox-store",
-  "version": "0.17.1",
+  "version": "0.20.1",
   "description": "Scaffold a new Unbox storefront (Next.js) from the official template",
   "license": "UNLICENSED",
   "type": "module",
@@ -10,7 +10,8 @@
   "files": [
     "bin",
     "src",
-    "template"
+    "template",
+    "tools"
   ],
   "engines": {
     "node": ">=20.11"

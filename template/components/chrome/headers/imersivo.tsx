@@ -9,11 +9,17 @@
 //
 // Quando usar: marca com fotografia boa, catálogo curto, posicionamento premium.
 // Quando NÃO usar: catálogo grande (a navegação fica toda no drawer) ou loja sem foto real.
+//
+// EDITOR: o escopo (`chrome.header`) vem da casca (components/site-header.tsx). O logo é o único
+// ponto de marca desta variante (`logo`, o mesmo caminho da barra do celular: aqui as duas usam
+// logo-chrome.svg, o legível sobre a cor do chrome). Menu, busca, conta e carrinho são INTERFACE:
+// ficam fora dos primitivos (README do editor, §8).
 import Link from "next/link";
 import { MagnifyingGlass } from "@phosphor-icons/react/dist/ssr";
 import { CartButton } from "@/components/cart-button";
 import { AccountNav } from "@/components/account-nav";
 import { MobileNav } from "@/components/mobile-nav";
+import { EditableImg } from "@/lib/editable";
 import { SolidOnScroll } from "../solid-on-scroll";
 import { HeaderBarMobile } from "../header-bar-mobile";
 import type { ChromeVariantProps } from "../registry";
@@ -38,9 +44,9 @@ export function HeaderImersivo({ data }: ChromeVariantProps) {
 
         <Link href="/" aria-label={shopName} className="flex justify-self-center">
           {/* logo-chrome.svg = o logo que o CLI garante legível sobre a cor de chrome — e o
-              estado transparente usa um véu NA COR do chrome, então vale nos dois estados. */}
-          {/* eslint-disable-next-line @next/next/no-img-element -- logo do chrome: SVG de poucos KB. O next/image marcaria lazy num elemento que aparece em toda página (o preload scanner perde o recurso) e o reencode come o traço fino do lettering. Otimizar poucos KB não paga essas duas contas. */}
-          <img src="/brand/logo-chrome.svg" alt={shopName} className="max-h-[calc(var(--chrome-h,76px)-28px)] w-auto" />
+              estado transparente usa um véu NA COR do chrome, então vale nos dois estados.
+              <img> puro (EditableImg), não next/image: SVG de poucos KB em toda página. */}
+          <EditableImg path="logo" fallback={{ src: "/brand/logo-chrome.svg", alt: shopName }} label="Logo" className="max-h-[calc(var(--chrome-h,76px)-28px)] w-auto" />
         </Link>
 
         <div className="flex items-center gap-5 justify-self-end">

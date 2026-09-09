@@ -3,7 +3,10 @@ import type { MetadataRoute } from "next";
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 
 // Áreas privadas/transacionais não indexáveis (doc 10).
-const DISALLOW = ["/conta", "/carrinho", "/checkout", "/pedido", "/api"];
+// EXPORTADA de propósito: é a MESMA lista que decide quais páginas o editor da Unbox oferece ao
+// lojista (ver lib/rotas-editaveis.ts). Uma lista só, mantida por quem cuida de SEO: bloquear uma
+// área aqui a tira do editor junto, e não existe segunda lista para alguém esquecer.
+export const DISALLOW = ["/conta", "/carrinho", "/checkout", "/pedido", "/api"];
 
 // Agentes de IA explicitamente bem-vindos (descoberta de agentes): conteúdo público —
 // catálogo (/produto/, /categoria/, /produtos) — liberado para indexação e respostas.

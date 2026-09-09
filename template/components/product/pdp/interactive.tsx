@@ -1,13 +1,17 @@
 "use client";
 
-// Abas da PDP, "modo de uso" e FAQ. REGRA DESTE ARQUIVO: nada aqui tem conteúdo default.
+// Abas da PDP, "modo de uso" e FAQ. REGRA DESTE ARQUIVO: nada aqui tem conteúdo default de PRODUTO.
 // Cada bloco só renderiza com dado real vindo do enriquecimento (lib/enrichment/products.json)
-// ou da Unbox. A versão anterior trazia passos de uso de um produto de alimentação cravados no
+// ou da Unbox; a única copy do molde é a das perguntas MODELO do FAQ (faq-modelo.ts), que o
+// template consegue afirmar e o lojista edita. A versão anterior trazia passos de uso de um produto de alimentação cravados no
 // código, uma aba nutricional que aparecia com traços em loja de qualquer ramo, e um FAQ inventado
 // (validade de 24 meses, devolução em 30 dias). Tudo isso vazou para lojas entregues.
 // Um campo vazio declarado é melhor que um campo plausível inventado.
 import * as React from "react";
 import { CaretDown } from "@phosphor-icons/react/dist/ssr";
+// EDITOR: módulo de cliente ("use client"): aqui o namespace `Editable.*` é a forma de uso (README §4).
+import { Editable } from "@/lib/editable";
+import { FAQ_MODELO, CAMINHO_PERGUNTA, CAMINHO_RESPOSTA, type PerguntaResposta } from "@/components/product/pdp/faq-modelo";
 
 export interface KV { k: string; v: string }
 
@@ -125,28 +129,72 @@ export function ProductTabs({
   );
 }
 
-/** FAQ do produto — SÓ com perguntas reais do enriquecimento. Sem itens, não renderiza nada. */
-export function FaqList({ items }: { items?: { question: string; answer: string }[] | null }) {
-  const [open, setOpen] = React.useState<number>(0);
-  if (!items || items.length === 0) return null;
+const CLASSE_RESPOSTA = "px-4 pb-[15px] text-[13.5px] leading-[1.6] text-[var(--store-ink-2)]";
+
+function FaqItem({ open, onToggle, pergunta, resposta }: {
+  open: boolean;
+  onToggle: () => void;
+  pergunta: React.ReactNode;
+  /** já com `hidden` quando fechada: a resposta fica no HTML para o painel listar todas sem abrir cada uma */
+  resposta: React.ReactNode;
+}) {
+  return (
+    <div className="overflow-hidden rounded-xl border border-[var(--store-line)] bg-white">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex w-full cursor-pointer items-center justify-between gap-3 border-none bg-transparent px-4 py-[15px] text-left text-sm font-semibold text-[var(--store-ink)]"
+      >
+        {pergunta}
+        <CaretDown weight="bold" className="shrink-0 text-[15px] text-[var(--store-primary,#18181B)] transition-transform" style={{ transform: open ? "rotate(180deg)" : "rotate(0)" }} />
+      </button>
+      {resposta}
+    </div>
+  );
+}
+
+/**
+ * FAQ do produto: as perguntas do ENRIQUECIMENTO (por produto) e as perguntas MODELO do molde
+ * (faq-modelo.ts). Sem nenhuma das duas, não renderiza nada.
+ *
+ * EDITOR: a PDP é um MOLDE, um valor para todos os produtos. As perguntas do enriquecimento são dado
+ * do catálogo e ficam fora do editor (`data-editor-ignore`, README §8). As perguntas modelo são copy
+ * e formam uma LISTA editável (reordenar, ocultar, duplicar, reescrever), com id por PAPEL. O título
+ * do cartão fica em quem renderiza esta lista (pdp-view.tsx). O FAQPage da página é lido do MESMO
+ * lugar (`faqNaTela`, faq-modelo.ts): o que muda aqui muda lá.
+ */
+export function FaqList({ items }: { items?: readonly PerguntaResposta[] | null }) {
+  const doEnriquecimento = items ?? [];
+  const [open, setOpen] = React.useState<string | null>(doEnriquecimento.length ? "0" : (FAQ_MODELO[0]?.id ?? null));
+  const toggle = (chave: string) => setOpen((atual) => (atual === chave ? null : chave));
+  if (doEnriquecimento.length === 0 && FAQ_MODELO.length === 0) return null;
   return (
     <div className="flex flex-col gap-3">
-      {items.map((f, i) => {
-        const isOpen = open === i;
-        return (
-          <div key={i} className="overflow-hidden rounded-xl border border-[var(--store-line)] bg-white">
-            <button
-              type="button"
-              onClick={() => setOpen(isOpen ? -1 : i)}
-              className="flex w-full cursor-pointer items-center justify-between gap-3 border-none bg-transparent px-4 py-[15px] text-left text-sm font-semibold text-[var(--store-ink)]"
-            >
-              {f.question}
-              <CaretDown weight="bold" className="shrink-0 text-[15px] text-[var(--store-primary,#18181B)] transition-transform" style={{ transform: isOpen ? "rotate(180deg)" : "rotate(0)" }} />
-            </button>
-            {isOpen && <div className="px-4 pb-[15px] text-[13.5px] leading-[1.6] text-[var(--store-ink-2)]">{f.answer}</div>}
-          </div>
-        );
-      })}
+      {doEnriquecimento.length > 0 && (
+        <div className="flex flex-col gap-3" data-editor-ignore>
+          {doEnriquecimento.map((x, i) => (
+            <FaqItem
+              key={i}
+              open={open === String(i)}
+              onToggle={() => toggle(String(i))}
+              pergunta={x.question}
+              resposta={<div className={CLASSE_RESPOSTA} hidden={open !== String(i)}>{x.answer}</div>}
+            />
+          ))}
+        </div>
+      )}
+      <Editable.Sections nested>
+        {FAQ_MODELO.map((f) => (
+          <Editable.Section key={f.id} item id={f.id} label={f.label}>
+            <FaqItem
+              open={open === f.id}
+              onToggle={() => toggle(f.id)}
+              pergunta={<Editable.Text path={CAMINHO_PERGUNTA} fallback={f.question} label="Pergunta" />}
+              resposta={<Editable.Text as="div" path={CAMINHO_RESPOSTA} fallback={f.answer} label="Resposta" className={CLASSE_RESPOSTA} hidden={open !== f.id} />}
+            />
+          </Editable.Section>
+        ))}
+      </Editable.Sections>
     </div>
   );
 }

@@ -7,6 +7,9 @@ import { CombosHome } from "@/components/home/combos-home";
 import { mockupOr } from "@/lib/mockup";
 import { DataLayerReady } from "@/components/analytics/data-layer-ready";
 import { ldJson } from "@/lib/json-ld";
+// EDITOR: o documento publicado (só a ESCOLHA das vitrines) e quem a transforma em produtos
+import { getPublishedContent } from "@/lib/editable/server";
+import { resolverVitrinesDoDocumento } from "@/lib/vitrine";
 
 // Canonical por página: o layout raiz não declara (seria herdado por todas as rotas).
 export const metadata: Metadata = { alternates: { canonical: "/" } };
@@ -41,6 +44,18 @@ export default async function HomePage() {
   // Kits temáticos (combos de linha, edição de data…) montados a partir do products.json.
   const bundles = resolveCombos((catalog.nodes ?? []).map((n: any) => n.product ?? n));
 
+  // ── AS VITRINES DA HOME (editor de loja) ─────────────────────────────────
+  // O documento publicado guarda só a ESCOLHA do lojista ("quais produtos esta vitrine mostra");
+  // quem a transforma em produto com preço e estoque é a LOJA, aqui, com o cliente da Unbox de
+  // sempre. Quais caminhos existem sai do PRÓPRIO DOCUMENTO, não de constante escrita à mão: a
+  // vitrine também é uma seção ADICIONÁVEL, cujo id só nasce quando o lojista clica no "+"
+  // (`novo-vitrine-de-produtos-2`), e nenhuma constante do repositório o conheceria.
+  //
+  // Sem editor, sem escolha, ou com a Unbox fora: `{}`, e cada vitrine mostra os produtos do
+  // CÓDIGO. Ligar isto não muda um pixel enquanto ninguém escolher nada.
+  const doc = await getPublishedContent();
+  const vitrines = await resolverVitrinesDoDocumento(doc, "home");
+
   // Organization + WebSite: dá à marca uma entidade citável (busca e resposta de IA) e liga a
   // busca interna ao Google (SearchAction). Só fatos deriváveis: nome, URL, logo, busca.
   const jsonLd = [
@@ -64,6 +79,7 @@ export default async function HomePage() {
       categories={buildCategories(tags as any[])}
       combosTitle={title}
       freeShipLabel={FREE_SHIPPING_THRESHOLD != null ? `R$${FREE_SHIPPING_THRESHOLD}` : null}
+      vitrines={vitrines}
     />
     </>
   );

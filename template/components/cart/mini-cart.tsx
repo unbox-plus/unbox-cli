@@ -118,7 +118,7 @@ export function MiniCart() {
                     const on = net >= t.threshold;
                     return (
                       <div key={t.threshold} className="absolute top-1/2 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center" style={{ left: `${(t.threshold / LADDER_MAX) * 100}%` }}>
-                        <span className="h-4 w-4 rounded-full border-2 border-white shadow-[0_0_0_1px_var(--store-line-2)]" style={{ background: on ? "var(--store-primary,#18181B)" : "#CFC9B8" }} />
+                        <span className="h-4 w-4 rounded-full border-2 border-white shadow-[0_0_0_1px_var(--store-line-2)]" style={{ background: on ? "var(--store-primary,#18181B)" : "var(--store-line-2)" }} />
                         <span className="absolute top-5 whitespace-nowrap text-[10.5px] font-extrabold" style={{ color: on ? "var(--store-primary,#18181B)" : "var(--store-muted)" }}>R$ {t.threshold}</span>
                       </div>
                     );

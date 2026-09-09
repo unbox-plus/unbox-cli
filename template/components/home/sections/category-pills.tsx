@@ -1,6 +1,11 @@
 "use client";
 
 // PILLS de categorias — chips com thumb, quebram em várias linhas pra exibir todas.
+//
+// EDITOR: nada aqui é copy da marca. Nome, ordem e imagem das categorias vêm do catálogo da Unbox
+// (o lojista muda no painel da plataforma), então a seção não abre ponto editável e sai do gate por
+// `data-editor-ignore` (README do editor, §8: produto do catálogo não vira primitivo). O que o
+// lojista edita nela é o lugar na página: ordem e ocultar, pela seção.
 import Link from "next/link";
 import Image from "next/image";
 import { collImageSrc } from "@/components/catalog/catalog-client";
@@ -10,7 +15,7 @@ export function CategoryPillsSection({ data }: SectionComponentProps) {
   if (data.categories.length === 0) return null;
   return (
     <div className="mx-auto max-w-[var(--container-max,1240px)] px-4 pt-[18px] sm:px-6">
-      <div className="flex flex-wrap gap-2.5">
+      <div className="flex flex-wrap gap-2.5" data-editor-ignore="">
         {data.categories.map((c) => (
           <Link
             key={c.slug}

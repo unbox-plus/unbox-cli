@@ -4,6 +4,13 @@
 // pelo agente de branding no briefing (é AQUI que o layout muda — não reescreva
 // o JSX das seções; catálogo de seções/variantes em agents/PADROES.md).
 // `npm run typecheck` acusa seção/variante inexistente.
+//
+// EDITOR DE LOJA: cada entrada vira uma seção editável com id, tipo e nome próprios. Os três saem de
+// IDENTIDADE_PADRAO (components/home/sections/registry.ts) quando a entrada não os declara: o hero
+// vira "banner", o combos-carousel vira "vitrine", e assim por diante. Declare `id` à mão só numa
+// seção REPETIDA na receita, ou num bloco com nome próprio (`{ section: "product-story", id:
+// "tradicional", label: "Tradicional" }`): o id é chave primária depois que a loja publica, e o
+// derivado das repetidas é posicional (`banner-2`), o que faz reordenar renomear.
 // ═══════════════════════════════════════════════════════════════════════════
 import type { HomeRecipe } from "@/components/home/sections/registry";
 

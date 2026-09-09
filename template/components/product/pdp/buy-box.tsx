@@ -14,6 +14,8 @@ import { formatBRL, maskCep, onlyDigits } from "@/lib/format";
 import { PaymentChips } from "@/components/product/pdp/payment-chips";
 import { FREE_SHIPPING_THRESHOLD, PIX_DISCOUNT_PCT } from "@/lib/store-config";
 import { goToCheckout } from "@/lib/checkout-nav";
+// EDITOR: módulo de cliente ("use client"): aqui o namespace `Editable.*` é a forma de uso (README §4).
+import { Editable } from "@/lib/editable";
 
 export interface PdpVariant {
   id: string;
@@ -63,6 +65,17 @@ const BENEFIT_ICONS: Record<string, React.ComponentType<any>> = {
 // NÃO existe selo default. A foundation mostrava "Sem MSG · Sem glúten · Ingredientes naturais"
 // em todo produto sem enriquecimento — afirmação de alimento aparecendo em loja de cosmético,
 // roupa ou eletrônico, e inventada mesmo em loja de alimento. Sem dado, sem selo.
+
+// EDITOR: a PDP é um MOLDE (um valor para todos os produtos). Aqui dentro, nome, preço, variantes,
+// tamanhos, assinatura, quantidade, frete e os botões de compra são DADO do catálogo ou MECÂNICA da
+// loja, e ficam fora do editor (`data-editor-ignore`, README do editor §8). O que é copy da marca
+// vira primitivo: o chapéu acima do nome, os selos de confiança abaixo do botão e o "Pague com:".
+// Os selos são uma lista editável com id por PAPEL (não por posição), como os da faixa de confiança.
+const SELOS = [
+  { id: "selo-seguranca", label: "Selo de compra segura", icon: ShieldCheck, texto: "Compra 100% segura" },
+  { id: "selo-troca", label: "Selo de troca", icon: ArrowsClockwise, texto: "Troca garantida" },
+  { id: "selo-entrega", label: "Selo de entrega", icon: Package, texto: "Entrega para todo o Brasil" },
+];
 
 export function BuyBox({
   productId,
@@ -160,17 +173,18 @@ export function BuyBox({
 
   return (
     <div>
-      <div className="text-xs font-extrabold tracking-[1.5px] text-[var(--store-primary,#18181B)]">PRODUTO</div>
-      <h1 className="font-display mt-2 mb-2.5 text-[27px] font-extrabold leading-[1.12] text-[var(--store-ink)] sm:text-[34px]">
+      <Editable.Text as="div" path="chapeu" fallback="PRODUTO" label="Chapéu acima do nome do produto" className="text-xs font-extrabold tracking-[1.5px] text-[var(--store-primary,#18181B)]" />
+      {/* nome do produto: dado do catálogo */}
+      <h1 data-editor-ignore className="font-display mt-2 mb-2.5 text-[27px] font-extrabold leading-[1.12] text-[var(--store-ink)] sm:text-[34px]">
         {title}
       </h1>
 
       {/* rating — SÓ com avaliação real. A foundation não exibe nota, contagem nem contador de
           vendas sem dado: os valores fixos que existiam aqui foram ao ar em loja real e saíram. */}
       {ratingAverage != null && ratingCount != null && ratingCount > 0 && (
-        <div className="mb-4 flex flex-wrap items-center gap-3.5">
+        <div className="mb-4 flex flex-wrap items-center gap-3.5" data-editor-ignore>
           <div className="flex items-center gap-1.5">
-            <span className="flex items-center text-[17px] text-[#B45309]" aria-label={`${ratingAverage.toFixed(1)} de 5`}>
+            <span className="flex items-center text-[17px] text-[var(--store-cta-dark)]" aria-label={`${ratingAverage.toFixed(1)} de 5`}>
               {[1, 2, 3, 4, 5].map((i) =>
                 ratingAverage >= i - 0.25 ? <Star key={i} weight="fill" /> : ratingAverage >= i - 0.75 ? <StarHalf key={i} weight="fill" /> : <Star key={i} weight="regular" />,
               )}
@@ -182,12 +196,12 @@ export function BuyBox({
       )}
 
       {shortDescription && (
-        <p className="mb-4 text-[15px] leading-[1.6] text-[var(--store-ink-2)]">{shortDescription}</p>
+        <p className="mb-4 text-[15px] leading-[1.6] text-[var(--store-ink-2)]" data-editor-ignore>{shortDescription}</p>
       )}
 
       {/* benefit icons — atributos POSITIVOS do enriquecimento (máx. 4) */}
       {benefitList.length > 0 && (
-        <div className="mb-[22px] grid gap-2" style={{ gridTemplateColumns: `repeat(${benefitList.length}, minmax(0,1fr))` }}>
+        <div className="mb-[22px] grid gap-2" style={{ gridTemplateColumns: `repeat(${benefitList.length}, minmax(0,1fr))` }} data-editor-ignore>
           {benefitList.map((b, i) => {
             const Icon = BENEFIT_ICONS[b.icon] ?? SealCheck;
             return (
@@ -205,20 +219,20 @@ export function BuyBox({
         </div>
       )}
 
-      {/* price */}
+      {/* price: dado e mecânica, fora do editor */}
       {savings > 0 && (
-        <div className="mb-2.5 inline-flex items-center gap-1.5 rounded-lg bg-[var(--store-sale-soft)] px-3 py-1.5 text-[13px] font-extrabold text-[var(--store-sale)]">
+        <div data-editor-ignore className="mb-2.5 inline-flex items-center gap-1.5 rounded-lg bg-[var(--store-sale-soft)] px-3 py-1.5 text-[13px] font-extrabold text-[var(--store-sale)]">
           <Tag weight="fill" /> Economize {formatBRL(savings)} (-{savingsPct}%)
         </div>
       )}
-      <div className="flex flex-wrap items-end gap-3">
+      <div className="flex flex-wrap items-end gap-3" data-editor-ignore>
         <span className="font-display text-[33px] font-extrabold leading-none text-[var(--store-primary,#18181B)] sm:text-[40px]">{formatBRL(pix)}</span>
         {hasRealDiscount && <span className="mb-1.5 text-[18px] text-[var(--store-faint)] line-through">{formatBRL(old)}</span>}
         {PIX_DISCOUNT_PCT > 0 && (
           <span className="mb-1.5 rounded-md bg-[var(--store-primary-soft,#F1F1F3)] px-2.5 py-1 text-[13px] font-extrabold text-[var(--store-primary,#18181B)]">no Pix · {PIX_DISCOUNT_PCT}% OFF</span>
         )}
       </div>
-      <div className="mt-2 text-sm text-[var(--store-ink-2)]">
+      <div className="mt-2 text-sm text-[var(--store-ink-2)]" data-editor-ignore>
         <b>3x de {formatBRL(eff / 3)}</b> sem juros ou <b className="text-base text-[var(--store-ink)]">{formatBRL(eff)}</b> no crédito.
       </div>
 
@@ -228,7 +242,7 @@ export function BuyBox({
 
       {/* size selector — produtos da MESMA família (cada tamanho é uma página própria) */}
       {sizeOptions.length > 1 && (
-        <div className="mt-6">
+        <div className="mt-6" data-editor-ignore>
           <div className="mb-2.5 text-sm font-bold text-[var(--store-ink-2)]">Escolha o tamanho</div>
           <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
             {sizeOptions.map((o) => {
@@ -264,7 +278,7 @@ export function BuyBox({
 
       {/* related selector — produtos DIFERENTES da mesma linha (RELATED_GROUPS), p/ navegar entre eles */}
       {relatedOptions.length > 1 && (
-        <div className="mt-6">
+        <div className="mt-6" data-editor-ignore>
           <div className="mb-2.5 text-sm font-bold text-[var(--store-ink-2)]">{relatedTitle ?? "Veja também"}</div>
           <div className="grid grid-cols-2 gap-2.5">
             {relatedOptions.map((o) => {
@@ -300,12 +314,12 @@ export function BuyBox({
 
       {/* subscription */}
       {subscription && (
-        <div className="mt-[22px] flex flex-col gap-2.5">
+        <div className="mt-[22px] flex flex-col gap-2.5" data-editor-ignore>
           <button
             type="button"
             onClick={() => setSub(false)}
             className="flex w-full cursor-pointer items-center justify-between gap-3 rounded-xl border-[1.5px] px-4 py-3.5 text-left"
-            style={{ background: !sub ? "var(--store-primary-soft,#F1F1F3)" : "#fff", borderColor: !sub ? "var(--store-primary,#18181B)" : "var(--store-line-2)" }}
+            style={{ background: !sub ? "var(--store-primary-soft,#F1F1F3)" : "var(--store-surface)", borderColor: !sub ? "var(--store-primary,#18181B)" : "var(--store-line-2)" }}
           >
             <span className="flex items-center gap-2.5">
               <Radio on={!sub} />
@@ -317,7 +331,7 @@ export function BuyBox({
             type="button"
             onClick={() => setSub(true)}
             className="flex w-full cursor-pointer items-center justify-between gap-3 rounded-xl border-[1.5px] px-4 py-3.5 text-left"
-            style={{ background: sub ? "var(--store-primary-soft,#F1F1F3)" : "#fff", borderColor: sub ? "var(--store-primary,#18181B)" : "var(--store-line-2)" }}
+            style={{ background: sub ? "var(--store-primary-soft,#F1F1F3)" : "var(--store-surface)", borderColor: sub ? "var(--store-primary,#18181B)" : "var(--store-line-2)" }}
           >
             <span className="flex items-center gap-2.5">
               <Radio on={sub} />
@@ -333,7 +347,7 @@ export function BuyBox({
           </button>
 
           {sub && subscription.frequencies.length > 0 && (
-            <div className="mt-0.5 rounded-xl border border-[#DCEADF] bg-[#FAFAFA] p-3.5">
+            <div className="mt-0.5 rounded-xl border border-[var(--store-line)] bg-[var(--store-bg)] p-3.5">
               <div className="mb-2.5 text-[12.5px] font-bold text-[var(--store-ink-2)]">Frequência de entrega</div>
               {subscription.frequencies.length > 1 && (
                 <p className="mb-2.5 text-[11.5px] leading-[1.4] text-[var(--store-muted)]">A frequência vale para todos os itens assinados deste pedido.</p>
@@ -347,7 +361,7 @@ export function BuyBox({
                       type="button"
                       onClick={() => setFreqId(f.id)}
                       className="cursor-pointer rounded-md border-[1.5px] px-3 py-3 text-left text-[var(--store-ink)]"
-                      style={{ background: on ? "var(--store-primary-soft,#F1F1F3)" : "#fff", borderColor: on ? "var(--store-primary,#18181B)" : "var(--store-line-2)" }}
+                      style={{ background: on ? "var(--store-primary-soft,#F1F1F3)" : "var(--store-surface)", borderColor: on ? "var(--store-primary,#18181B)" : "var(--store-line-2)" }}
                     >
                       <span className="flex items-center gap-2">
                         <Radio on={on} />
@@ -363,8 +377,8 @@ export function BuyBox({
         </div>
       )}
 
-      {/* qty + CTA */}
-      <div className="mt-5 flex items-stretch gap-3">
+      {/* qty + CTA: mecânica de compra ("Adicionar ao carrinho" não é copy, README §8) */}
+      <div className="mt-5 flex items-stretch gap-3" data-editor-ignore>
         <div className="flex items-center overflow-hidden rounded-xl border-[1.5px] border-[var(--store-line-2)] bg-white">
           <button type="button" onClick={() => setQty((q) => Math.max(minQty || 1, q - 1))} className="h-[58px] w-[46px] cursor-pointer border-none bg-transparent text-xl text-[var(--store-ink-2)]">−</button>
           <span className="w-[42px] text-center text-base font-extrabold">{qty}</span>
@@ -383,6 +397,7 @@ export function BuyBox({
         type="button"
         onClick={() => handleAdd(true)}
         disabled={!canBuy || busy}
+        data-editor-ignore
         className="font-display mt-[11px] flex h-[54px] w-full cursor-pointer items-center justify-center rounded-xl bg-[var(--store-cta,#D97706)] text-[15px] font-extrabold tracking-[0.5px] text-[var(--store-cta-fg,#1C1207)] transition-colors hover:bg-[var(--store-cta-dark,#B45309)] disabled:opacity-60"
       >
         COMPRAR AGORA
@@ -390,7 +405,7 @@ export function BuyBox({
 
       {/* free shipping progress — só renderiza com regra real de frete grátis configurada */}
       {FREE_SHIP_THRESHOLD != null && (
-        <div className="mt-4 rounded-xl border border-[var(--store-line)] bg-white px-[15px] py-[13px]">
+        <div className="mt-4 rounded-xl border border-[var(--store-line)] bg-white px-[15px] py-[13px]" data-editor-ignore>
           <div className="flex items-center gap-2 text-[13px] font-semibold text-[var(--store-ink-2)]">
             <Truck weight="bold" className="text-[17px] text-[var(--store-primary,#18181B)]" />
             {remaining > 0 ? (
@@ -408,14 +423,24 @@ export function BuyBox({
       {/* shipping calculator */}
       <ShippingCalc productId={productId} variantId={variant?.id ?? ""} price={variant?.price ?? null} />
 
-      {/* mini trust */}
+      {/* mini trust: selos de confiança são copy da marca, lista editável com id por papel */}
       <div className="mt-4 flex flex-wrap gap-[18px] text-[12.5px] font-semibold text-[var(--store-ink-2)]">
-        <span className="flex items-center gap-1.5"><ShieldCheck className="text-[17px] text-[var(--store-primary,#18181B)]" />Compra 100% segura</span>
-        <span className="flex items-center gap-1.5"><ArrowsClockwise className="text-[17px] text-[var(--store-primary,#18181B)]" />Troca garantida</span>
-        <span className="flex items-center gap-1.5"><Package className="text-[17px] text-[var(--store-primary,#18181B)]" />Entrega para todo o Brasil</span>
+        <Editable.Sections nested>
+          {SELOS.map((s) => (
+            <Editable.Section key={s.id} item id={s.id} label={s.label}>
+              <span className="flex items-center gap-1.5">
+                <Editable.Icon path="icone" label="Ícone do selo" size={17} className="text-[17px] text-[var(--store-primary,#18181B)]">
+                  <s.icon />
+                </Editable.Icon>
+                <Editable.Text path="texto" fallback={s.texto} label="Texto do selo" />
+              </span>
+            </Editable.Section>
+          ))}
+        </Editable.Sections>
       </div>
       <div className="mt-3.5 flex flex-wrap items-center gap-2 text-xs text-[var(--store-muted)]">
-        <span className="font-semibold">Pague com:</span>
+        <Editable.Text path="pagamento" fallback="Pague com:" label="Texto antes das bandeiras" className="font-semibold" />
+        {/* bandeiras: selo de terceiro, fora do editor (o próprio componente se marca) */}
         <PaymentChips />
       </div>
 
@@ -441,7 +466,7 @@ function Radio({ on }: { on: boolean }) {
       className="inline-block h-[18px] w-[18px] shrink-0 rounded-full border-2"
       style={{
         borderColor: on ? "var(--store-primary,#18181B)" : "var(--store-faint)",
-        background: on ? "radial-gradient(var(--store-primary,#18181B) 0 38%, #fff 42%)" : "#fff",
+        background: on ? "radial-gradient(var(--store-primary,#18181B) 0 38%, var(--store-surface) 42%)" : "var(--store-surface)",
       }}
     />
   );
@@ -478,8 +503,9 @@ function ShippingCalc({ productId, variantId, price }: { productId: string; vari
     }
   }
 
+  // calculadora de frete: formulário e resultado da cotação, mecânica da loja
   return (
-    <div className="mt-3 rounded-xl border border-[var(--store-line)] bg-white px-[15px] py-3.5">
+    <div className="mt-3 rounded-xl border border-[var(--store-line)] bg-white px-[15px] py-3.5" data-editor-ignore>
       <div className="flex items-center justify-between gap-2.5">
         <div className="flex items-center gap-2 text-[13px] font-bold text-[var(--store-ink-2)]">
           <MapPin weight="bold" className="text-[17px] text-[var(--store-primary,#18181B)]" /> Calcular frete e prazo
@@ -540,8 +566,10 @@ function StickyBar({
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  // barra fixa de compra: nome, total e botão são dado e mecânica
   return (
     <div
+      data-editor-ignore
       className="pointer-events-none fixed inset-x-0 bottom-0 z-[60] flex justify-center px-4 pb-4 transition-all duration-300 ease-out max-md:bottom-[78px]"
       style={{ transform: show ? "translateY(0)" : "translateY(140%)", opacity: show ? 1 : 0 }}
     >
