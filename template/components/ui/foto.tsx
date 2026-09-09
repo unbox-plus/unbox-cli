@@ -1,7 +1,8 @@
+import * as React from "react";
 import Image from "next/image";
 
 // Hosts que o next.config.ts autoriza no otimizador. Manter em sincronia com `images.remotePatterns`.
-const HOSTS_OTIMIZADOS = [/(^|\.)unbox\.com\.br$/i, /(^|\.)s3\.amazonaws\.com$/i];
+const HOSTS_OTIMIZADOS = [/(^|\.)unbox\.com\.br$/i, /(^|\.)s3\.amazonaws\.com$/i, /(^|\.)public\.blob\.vercel-storage\.com$/i, /(^|\.)myunbox\.com\.br$/i];
 
 /**
  * Foto de seção: passa pelo otimizador do Next quando dá, e cai em `<img>` quando não dá.
@@ -13,9 +14,14 @@ const HOSTS_OTIMIZADOS = [/(^|\.)unbox\.com\.br$/i, /(^|\.)s3\.amazonaws\.com$/i
  *
  * `sizes` é obrigatório de propósito. Sem ele o navegador não sabe o tamanho de exibição e baixa
  * uma variante grande demais (peso) ou pequena demais (borrada). Passe o tamanho REAL na tela.
+ *
+ * EDITOR: `ref` e `attrs` existem para a foto virar ponto editável SEM trocar este componente por
+ * um `<img>` puro (o que jogaria fora a otimização): a seção a envolve num `Editable.Slot` de imagem
+ * e repassa os dois argumentos do render-prop, `(v, attrs, ref) => <Foto ref={ref} attrs={attrs}
+ * src={v.src} … />`. Em produção `attrs` chega vazio e o HTML é o mesmo de antes.
  */
 export function Foto({
-  src, alt = "", width, height, sizes, className, priority = false,
+  src, alt = "", width, height, sizes, className, priority = false, ref, attrs,
 }: {
   src: string;
   alt?: string;
@@ -24,6 +30,10 @@ export function Foto({
   sizes: string;
   className?: string;
   priority?: boolean;
+  /** o ref do `Editable.Slot` (é ele que dá ao editor o elemento para selecionar) */
+  ref?: React.Ref<HTMLImageElement>;
+  /** os atributos `data-editor-*` do `Editable.Slot`; só existem em modo edição */
+  attrs?: Record<string, string | undefined>;
 }) {
   const local = src.startsWith("/");
   let otimizavel = local;
@@ -36,9 +46,9 @@ export function Foto({
   }
   if (!otimizavel) {
     // eslint-disable-next-line @next/next/no-img-element -- host fora do otimizador: ver comentário acima
-    return <img src={src} alt={alt} loading={priority ? "eager" : "lazy"} decoding="async" className={className} />;
+    return <img ref={ref} {...attrs} src={src} alt={alt} loading={priority ? "eager" : "lazy"} decoding="async" className={className} />;
   }
   return (
-    <Image src={src} alt={alt} width={width} height={height} sizes={sizes} className={className} priority={priority} />
+    <Image ref={ref} {...attrs} src={src} alt={alt} width={width} height={height} sizes={sizes} className={className} priority={priority} />
   );
 }

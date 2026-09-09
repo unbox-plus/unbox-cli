@@ -161,12 +161,25 @@ export function applyPreset(targetDir, presetName, brandTokens) {
   applyHomeRecipe(targetDir, preset);
   applyChromeRecipe(targetDir, preset);
   applyHeroAssets(targetDir, presetName, brandTokens, preset.neutrals);
-  // manifest.ts: theme_color acompanha o chrome da marca (senão o PWA abre com o verde placeholder)
-  const chromeBg = { ...preset.neutrals, ...brandTokens }["--store-chrome-bg"];
+  // manifest.ts e opengraph-image.tsx: os DOIS lugares onde a cor precisa ser hex literal, porque
+  // nem o manifest do PWA nem o satori (ImageResponse) leem variavel de CSS. Sem reescrever aqui,
+  // a loja aplica a paleta da marca em tudo e mesmo assim instala no celular e compartilha no
+  // WhatsApp com a cor default da foundation.
+  const tokens = { ...preset.neutrals, ...brandTokens };
+  const chromeBg = tokens["--store-chrome-bg"];
   const manifestPath = path.join(targetDir, "app", "manifest.ts");
   if (chromeBg && fs.existsSync(manifestPath)) {
     const content = fs.readFileSync(manifestPath, "utf8");
     fs.writeFileSync(manifestPath, content.replace(/theme_color:\s*"[^"]*"/, `theme_color: "${chromeBg}"`));
+  }
+  const ogPath = path.join(targetDir, "app", "opengraph-image.tsx");
+  const ogBg = tokens["--store-primary"];
+  const ogFg = tokens["--store-chrome-text"] || "#FFFFFF";
+  if (ogBg && fs.existsSync(ogPath)) {
+    let og = fs.readFileSync(ogPath, "utf8");
+    og = og.replace(/const PRIMARY = "[^"]*";/, `const PRIMARY = "${ogBg}";`);
+    og = og.replace(/const PRIMARY_FG = "[^"]*";/, `const PRIMARY_FG = "${ogFg}";`);
+    fs.writeFileSync(ogPath, og);
   }
   if (preset.chrome === "light") {
     fs.copyFileSync(
@@ -223,5 +236,18 @@ export function applyStoreName(targetDir, displayName) {
     if (!fs.existsSync(p)) continue;
     const content = fs.readFileSync(p, "utf8");
     fs.writeFileSync(p, content.replaceAll('"minhaloja"', `"${slug}"`));
+  }
+  // Editor da Unbox: o MESMO slug vira o STORE_SLUG de lib/editable/config.ts (a foundation traz o
+  // marcador __STORE_SLUG__; é por ele que a loja pede o conteúdo publicado ao editor). Tem de ser
+  // IGUAL ao `slug` da entrada da loja no shops.json do editor, que segue esta mesma derivação
+  // (minúsculas, sem acento, só letras e números). Marcador ausente é erro, não silêncio: uma loja
+  // com "__STORE_SLUG__" no ar pede o publicado de uma loja que não existe e nunca muda.
+  const configEditavel = path.join(targetDir, "lib", "editable", "config.ts");
+  if (fs.existsSync(configEditavel)) {
+    const content = fs.readFileSync(configEditavel, "utf8");
+    if (!content.includes("__STORE_SLUG__")) {
+      throw new Error("[create-unbox-store] marcador __STORE_SLUG__ não encontrado em lib/editable/config.ts: a foundation do editor pode ter mudado.");
+    }
+    fs.writeFileSync(configEditavel, content.replaceAll("__STORE_SLUG__", () => slug));
   }
 }

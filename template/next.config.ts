@@ -1,11 +1,21 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // A loja declara as próprias páginas varrendo `app/(loja)/` (lib/rotas-editaveis.ts). Em produção
+  // a função só recebe os arquivos que o Next rastreia, e um `page.tsx` que ninguém importa não é
+  // rastreado: sem esta linha a varredura acha zero e /api/unbox/paginas responde a falha em vez da
+  // lista. `UNBOX_ROTAS_EDITAVEIS` continua sendo a saída se algum dia isto deixar de valer.
+  outputFileTracingIncludes: {
+    "/api/unbox/paginas": ["./app/**/page.tsx", "./app/**/page.ts", "./app/**/page.jsx", "./app/**/page.js"],
+  },
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "unbox-customer-images-production.s3.amazonaws.com" },
       { protocol: "https", hostname: "**.s3.amazonaws.com" },
       { protocol: "https", hostname: "**.unbox.com.br" },
+      // imagens que o lojista sobe pelo editor da Unbox (Vercel Blob) e o próprio editor
+      { protocol: "https", hostname: "**.public.blob.vercel-storage.com" },
+      { protocol: "https", hostname: "**.myunbox.com.br" },
     ],
   },
   // URLs antigas (/p/, /c/) → novas (/produto/, /categoria/), preservando SEO/links.
@@ -24,7 +34,10 @@ const nextConfig: NextConfig = {
   async headers() {
     const securityHeaders = [
       { key: "X-Content-Type-Options", value: "nosniff" },
-      { key: "X-Frame-Options", value: "SAMEORIGIN" },
+      // Quem pode enquadrar a loja: ela mesma e o EDITOR da Unbox (o CMS visual abre a loja num
+      // iframe). X-Frame-Options não aceita origem externa; CSP frame-ancestors aceita e tem
+      // precedência. Sem NEXT_PUBLIC_EDITOR_ORIGIN vale só 'self', que é o mesmo que SAMEORIGIN.
+      { key: "Content-Security-Policy", value: `frame-ancestors 'self' ${process.env.NEXT_PUBLIC_EDITOR_ORIGIN ?? ""}`.trim() },
       { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
       { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
       // HSTS: força HTTPS por 1 ano; Vercel já faz isso mas deixar explícito é boa prática.

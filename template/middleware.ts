@@ -15,6 +15,7 @@
 //
 // O cookie guarda o SHA-256 da chave, nunca a chave em si.
 import { NextResponse, type NextRequest } from "next/server";
+import { verifyEditorToken } from "@/lib/editable/verify";
 
 const LOJA = "minhaloja"; // o CLI troca pelo slug da loja no scaffold
 
@@ -106,8 +107,35 @@ export async function middleware(req: NextRequest) {
   if (pathname === "/acesso" || pathname === "/api/acesso") return semCache(NextResponse.next());
 
   // Rotas chamadas por SERVIDOR ficam de fora — máquina não preenche formulário.
-  // (Cada uma já tem sua própria proteção: HMAC no webhook, secret no revalidate.)
-  if (pathname === "/api/webhooks/unbox" || pathname === "/api/revalidate") return NextResponse.next();
+  // (Cada uma já tem sua própria proteção: HMAC no webhook, secret ou JWT do editor no revalidate.)
+  // /api/revalidate: quem chama é também o EDITOR da Unbox (servidor), com JWT próprio; atrás da
+  // porta ele levava 307 para /acesso e a revalidação nunca acontecia.
+  // /api/unbox/catalogo: é o SELETOR de vitrine do editor pedindo categorias e produtos, servidor a
+  // servidor, com o mesmo JWT (purpose "catalogo"). Atrás da porta o lojista veria um seletor vazio.
+  // A rota valida o token por conta própria e é só leitura.
+  // /api/unbox/paginas: é a loja dizendo quais páginas ela tem, informação que o sitemap já publica.
+  // Quem pergunta é o editor (servidor, para o seletor de página e a revalidação) e o gate de
+  // cobertura, nenhum dos dois com cookie da porta. A rota é pública por contrato e só lê.
+  // (/api/unbox/vitrine NÃO entra aqui: quem a chama é a própria página da loja, dentro do iframe do
+  // editor, e ela já carrega o cookie que o token de prévia grava logo abaixo.)
+  if (
+    pathname === "/api/webhooks/unbox" ||
+    pathname === "/api/revalidate" ||
+    pathname === "/api/unbox/catalogo" ||
+    pathname === "/api/unbox/paginas"
+  ) return NextResponse.next();
+
+  // PRÉVIA DO EDITOR DA UNBOX: a loja abre dentro do iframe do editor com um token assinado por ele
+  // (ES256; a loja só busca a chave pública no JWKS do editor, não guarda segredo nenhum). Token
+  // válido passa pela porta e recebe o cookie dela, para a navegação interna da prévia também passar.
+  // `sameSite: "none"` + `secure` de propósito: dentro de um iframe de OUTRA origem, cookie `lax`
+  // não viaja, e cada clique na prévia cairia de novo na porta. Sem EDITOR_URL, nunca valida.
+  const tokenDoEditor = req.nextUrl.searchParams.get("unbox_editor_token");
+  if (tokenDoEditor && (await verifyEditorToken(tokenDoEditor, "preview"))) {
+    const res = semCache(NextResponse.next());
+    res.cookies.set(COOKIE, await tokenDaSenha(senhaDoPreview()), { path: "/", httpOnly: true, sameSite: "none", secure: true, maxAge: 60 * 60 * 8 });
+    return res;
+  }
 
   // CHAVE DO TIME: ?chave=<senha> em qualquer URL grava o cookie e redireciona pra
   // mesma página sem o parâmetro (a chave não fica no histórico/URL compartilhada).

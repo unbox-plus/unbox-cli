@@ -1,23 +1,26 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { CaretRight, ArrowRight } from "@phosphor-icons/react/dist/ssr";
 import { getCatalog, getProductBySlug, getShopData } from "@/lib/queries";
 import { sanitize } from "@/lib/sanitize";
 import { resolveProductPrice, resolveVariantPrice } from "@/lib/format";
-import { RELATED_GROUPS, FREE_SHIPPING_THRESHOLD } from "@/lib/store-config";
+import { RELATED_GROUPS } from "@/lib/store-config";
 import { getEnrichmentForProduct, getEnrichmentByName, parseSize, reviewStats, type ProductEnrichment } from "@/lib/enrichment";
-import { PdpGallery } from "@/components/product/pdp/gallery";
 import { DataLayerReady } from "@/components/analytics/data-layer-ready";
-import { BuyBox, type PdpVariant, type PdpSizeOption, type PdpRelatedOption, type PdpBenefit } from "@/components/product/pdp/buy-box";
-import { ProductTabs, FaqList } from "@/components/product/pdp/interactive";
-import {TrustStrip, SecurityBar, ReviewsCard } from "@/components/product/pdp/sections";
-import { BuyTogether, FrequentlyBought, SuggestedKits } from "@/components/product/pdp/recommendations";
-import { Newsletter } from "@/components/product/pdp/newsletter";
-import { CatalogGrid, type CatalogItem } from "@/components/product/pdp/catalog-grid";
+import type { PdpVariant, PdpSizeOption, PdpRelatedOption, PdpBenefit } from "@/components/product/pdp/buy-box";
+import type { CatalogItem } from "@/components/product/pdp/catalog-grid";
+// A PDP é um MOLDE: a view recebe tudo por prop (components/product/pdp/pdp-view.tsx) e é ela que
+// declara o container `produto` e as seções. Aqui só se busca e se prepara o dado.
+import { PdpView } from "@/components/product/pdp/pdp-view";
+import { faqNaTela } from "@/components/product/pdp/faq-modelo";
 import { mockupOr } from "@/lib/mockup";
 import { hasUnboxCredentials } from "@/lib/config";
 import { ldJson } from "@/lib/json-ld";
+// EDITOR: o documento publicado, para o FAQPage dizer o que o accordion mostra (ver `faqNaTela`)
+import { getPublishedContent } from "@/lib/editable/server";
+
+// DADO AUSENTE NA FICHA. Era um travessão, que na tela é um sinal e não uma informação, e a casa
+// proibiu travessão em texto de tela. "não informado" diz o que aconteceu: o cadastro não trouxe o dado.
+const NAO_INFORMADO = "não informado";
 
 export const revalidate = 300;
 
@@ -155,7 +158,7 @@ export default async function ProductPage({ params }: { params: Promise<{ produc
   // nome, que ignora o tamanho). O peso vem do título do produto.
   const familyCode = enr?.familyCode ?? null;
   const fmtWeight = (w: { value: number; unit: string } | null): string => {
-    if (!w) return "—";
+    if (!w) return NAO_INFORMADO;
     const v = Number.isInteger(w.value) ? String(w.value) : String(w.value).replace(".", ",");
     return `${v} ${w.unit}`;
   };
@@ -264,14 +267,10 @@ export default async function ProductPage({ params }: { params: Promise<{ produc
   }
   const nutriItems = buildNutriItems(enr);
 
-  // FAQ = perguntas reais do enriquecimento + o que o template CONSEGUE afirmar de fato: o prazo
-  // de arrependimento do CDC (lei, vale para toda loja online) e a regra de frete grátis SE
-  // configurada. Prazo de entrega e validade não entram: eram inventados.
-  const faqItems = [
-    ...(enr?.faq ?? []),
-    ...(FREE_SHIPPING_THRESHOLD != null ? [{ question: "Tem frete grátis?", answer: `Sim, para compras a partir de R$ ${FREE_SHIPPING_THRESHOLD}. Abaixo disso o frete é calculado pelo CEP no carrinho.` }] : []),
-    { question: "Posso desistir da compra?", answer: "Sim. Você tem 7 dias corridos a partir do recebimento para desistir, com reembolso integral, conforme o art. 49 do Código de Defesa do Consumidor. Os detalhes estão na página de trocas e devoluções." },
-  ];
+  // FAQ do PRODUTO: as perguntas do enriquecimento (dado). As perguntas MODELO do molde (o prazo de
+  // arrependimento do CDC e a regra de frete grátis, se configurada) moram em faq-modelo.ts: a FaqList
+  // as renderiza como lista editável, e o FAQPage abaixo as lê do documento publicado.
+  const faq = enr?.faq ?? [];
 
   // ----- Catálogo relacionado (produtos reais) -----
   const recItems: CatalogItem[] = (catalog.nodes ?? [])
@@ -301,19 +300,15 @@ export default async function ProductPage({ params }: { params: Promise<{ produc
     });
   const catalogItems: CatalogItem[] = recItems.slice(0, 5);
 
-  // Blocos de recomendação recebem o que EXISTE. Antes eram fatias fixas (0-3, 3-6, 6-9): com
-  // catálogo de 3 SKUs as duas últimas vinham vazias, os componentes retornavam null e a PDP
-  // ficava com um rombo de três blocos invisíveis. Cada bloco só existe com ≥2 itens.
-  const rec1 = recItems.slice(0, 3);
-  const rec2 = recItems.length >= 5 ? recItems.slice(3, 6) : [];
-  const rec3 = recItems.length >= 8 ? recItems.slice(6, 9) : [];
-
   // FAQPage a partir da MESMA lista que o accordion renderiza: se o bloco some da tela, some
-  // do dado estruturado junto. Pergunta que a loja não responde não vira schema.
-  const faqJsonLd = faqItems.length > 0 ? {
+  // do dado estruturado junto. Pergunta que a loja não responde não vira schema. Com o editor, o que
+  // o accordion renderiza depende do publicado (seção oculta, pergunta reordenada, reescrita ou
+  // duplicada), então a lista é lida do documento, do mesmo jeito que os primitivos a leem.
+  const faqPublicado = faqNaTela(await getPublishedContent(), faq);
+  const faqJsonLd = faqPublicado.length > 0 ? {
     "@context": "https://schema.org",
     "@type": "FAQPage",
-    mainEntity: faqItems.map((f) => ({
+    mainEntity: faqPublicado.map((f) => ({
       "@type": "Question",
       name: f.question,
       acceptedAnswer: { "@type": "Answer", text: f.answer },
@@ -340,106 +335,38 @@ export default async function ProductPage({ params }: { params: Promise<{ produc
   };
 
   return (
-    <div className="full-bleed store-layout bg-white text-[var(--store-ink)]">
+    <>
+      {/* dataLayerReady: o gatilho de tipo de página do container central da Unbox (não renderiza nada) */}
+      <DataLayerReady pageType="product" products={[{ id: p.productId ?? p._id, name: p.title, price: price.price ?? undefined }]} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ldJson(jsonLd) }} />
       {faqJsonLd && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ldJson(faqJsonLd) }} />}
-
-      <div className="mx-auto max-w-[1240px] px-4 pb-2 sm:px-6">
-        {/* breadcrumb */}
-        <div className="flex items-center gap-2 pt-4 text-[13px] font-medium text-[var(--store-muted)]">
-          <Link href="/" className="no-underline hover:text-[var(--store-ink)]">Início</Link>
-          <CaretRight className="text-[11px]" />
-          <Link href="/produtos" className="no-underline hover:text-[var(--store-ink)]">Produtos</Link>
-          <CaretRight className="text-[11px]" />
-          <span className="font-semibold text-[var(--store-ink)] line-clamp-1">{p.title}</span>
-        </div>
-
-        {/* main grid */}
-        <div className="grid grid-cols-1 items-start gap-7 pt-4 lg:grid-cols-[1.05fr_0.95fr] lg:gap-12">
-          <DataLayerReady pageType="product" products={[{ id: p.productId ?? p._id, name: p.title, price: price.price ?? undefined }]} />
-          <PdpGallery images={p.imageUrls ?? []} videos={p.videoUrls ?? []} title={p.title} discountPct={discountPct} />
-          <BuyBox
-            ratingAverage={rstats ? Number(rstats.average) : undefined}
-            ratingCount={rstats ? Number(rstats.count) : undefined}
-            productId={p.productId}
-            title={p.title}
-            shortDescription={shortDescription}
-            imageUrl={p.imageUrls?.[0]}
-            variants={variants}
-            benefits={benefits}
-            sizeOptions={sizeOptions}
-            relatedTitle={relatedTitle}
-            relatedOptions={relatedOptions}
-            subscription={subscription}
-            minQty={p.minOrderQuantity ?? 1}
-            maxQty={p.maxOrderQuantity ?? null}
-            isSoldOut={!!p.isSoldOut}
-          />
-        </div>
-
-        {/* trust strip */}
-        <div className="mt-10"><TrustStrip /></div>
-
-        {/* compre junto + frequentemente comprados (produtos reais) */}
-        {rec1.length > 0 && (
-          <div className={`mt-10 grid items-stretch gap-[22px] ${rec2.length ? "lg:grid-cols-[1.22fr_1fr]" : ""}`}>
-            <BuyTogether items={rec1} />
-            {rec2.length > 0 && <FrequentlyBought items={rec2} />}
-          </div>
-        )}
-
-        {/* green security bar */}
-        <div className="mt-5"><SecurityBar /></div>
-
-        {/* tabs */}
-        <div className="mt-12">
-          <ProductTabs
-            descHtml={descHtml}
-            infoHtml={infoHtml}
-            specItems={specItems}
-            nutriItems={nutriItems}
-            nutriBase={enr?.nutrition?.base}
-            usageSteps={enr?.usage}
-          />
-        </div>
-
-        {/* leve também (produtos reais) */}
-        {rec3.length > 0 && <div className="mt-10"><SuggestedKits items={rec3} /></div>}
-
-        {/* reviews · qualidade · faq */}
-        {/* avaliações (só reais) · faq — grade que se adapta ao que existe */}
-        <div id="avaliacoes" className="mt-12 grid items-start gap-[22px] lg:grid-cols-[repeat(auto-fit,minmax(320px,1fr))]">
-          {rstats && rstats.count > 0 && enr?.reviews?.length ? (
-            <ReviewsCard ratingCount={Number(rstats.count)} average={Number(rstats.average)} reviews={enr.reviews} />
-          ) : null}
-          {faqItems.length > 0 && (
-            <div className="rounded-xl border border-[var(--store-line)] bg-white p-[28px]">
-              <h2 className="font-display mb-[22px] text-[21px] font-extrabold italic leading-tight text-[var(--store-primary,#18181B)]">Perguntas frequentes</h2>
-              <FaqList items={faqItems} />
-            </div>
-          )}
-        </div>
-
-        {/* catalog */}
-        {catalogItems.length > 0 && (
-          <div className="mt-[52px]">
-            <div className="mb-1.5 flex items-end justify-between">
-              <div>
-                <div className="text-xs font-extrabold tracking-[1.5px] text-[var(--store-primary,#18181B)]">CATÁLOGO</div>
-                <h2 className="font-display mt-1.5 text-[26px] font-extrabold">Explore mais do catálogo</h2>
-              </div>
-              <Link href="/produtos" className="flex items-center gap-1.5 text-sm font-bold text-[var(--store-primary,#18181B)] no-underline max-sm:hidden">
-                Ver todos os produtos <ArrowRight weight="bold" />
-              </Link>
-            </div>
-            <p className="mb-[22px] mt-1 text-sm text-[var(--store-muted)]">Clientes que viram este produto também levam:</p>
-            <CatalogGrid items={catalogItems} />
-          </div>
-        )}
-
-        {/* newsletter */}
-        <div className="mt-12"><Newsletter /></div>
-      </div>
-    </div>
+      <PdpView
+        produto={{
+          id: p.productId,
+          titulo: p.title,
+          imagens: p.imageUrls ?? [],
+          videos: p.videoUrls ?? [],
+          descontoPct: discountPct,
+          descricaoCurta: shortDescription,
+          esgotado: !!p.isSoldOut,
+          minQty: p.minOrderQuantity ?? 1,
+          maxQty: p.maxOrderQuantity ?? null,
+        }}
+        compra={{
+          variants,
+          benefits,
+          sizeOptions,
+          relatedTitle,
+          relatedOptions,
+          subscription,
+          ratingAverage: rstats ? Number(rstats.average) : undefined,
+          ratingCount: rstats ? Number(rstats.count) : undefined,
+        }}
+        detalhes={{ descHtml, infoHtml, specItems, nutriItems, nutriBase: enr?.nutrition?.base, usageSteps: enr?.usage }}
+        avaliacoes={rstats && enr?.reviews?.length ? { ratingCount: Number(rstats.count), average: Number(rstats.average), reviews: enr.reviews } : null}
+        faq={faq}
+        catalogo={catalogItems}
+      />
+    </>
   );
 }

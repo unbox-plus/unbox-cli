@@ -69,6 +69,7 @@ Orçamento por rodada completa — **~20 frames**, desktop 1440 e mobile 390:
 | Checkout | 1 | 1 | primeira tela | `unbox:qa` |
 
 ```bash
+npm run unbox:placeholder   # antes de publicar: placeholder no HTML servido
 npm run unbox:qa                                  # home, catálogo, carrinho, checkout (14 frames)
 QA_PDP=/produto/<slug> npm run unbox:qa           # + PDP do produto principal (18 frames)
 ```

@@ -21,8 +21,10 @@ export function PdpGallery({
   const hasVideo = (videos?.length ?? 0) > 0;
   const current = imgs[active];
 
+  // EDITOR: fotos e vídeo são do produto (catálogo da Unbox), não copy do molde: a galeria inteira
+  // fica fora do editor (`data-editor-ignore`, README §8).
   return (
-    <div className="grid grid-cols-[74px_1fr] gap-4 max-md:flex max-md:flex-col-reverse lg:sticky lg:top-[150px]">
+    <div className="grid grid-cols-[74px_1fr] gap-4 max-md:flex max-md:flex-col-reverse lg:sticky lg:top-[150px]" data-editor-ignore>
       {/* thumbnails */}
       <div className="flex flex-col gap-3 max-md:flex-row max-md:overflow-x-auto">
         {imgs.slice(0, 4).map((src, i) => (
@@ -51,7 +53,7 @@ export function PdpGallery({
       </div>
 
       {/* main image */}
-      <div className="relative h-[360px] overflow-hidden rounded-xl border border-[#E2E1DC] bg-[var(--store-line)] sm:h-[560px]">
+      <div className="relative h-[360px] overflow-hidden rounded-xl border border-[var(--store-line)] bg-[var(--store-line)] sm:h-[560px]">
         <div className="absolute left-4 top-4 z-[2] flex flex-col items-start gap-2">
           {/* Sem selo "MAIS VENDIDO" fixo: aparecia em todo produto de toda loja, sem dado de venda.
               O selo de desconto abaixo fica porque vem do compareAtPrice real. */}

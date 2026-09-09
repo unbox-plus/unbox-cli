@@ -3,8 +3,10 @@
 import * as React from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Plus, Heart, Spinner } from "@phosphor-icons/react/dist/ssr";
+import { Plus, Heart, Spinner, ArrowRight } from "@phosphor-icons/react/dist/ssr";
 import { useCart } from "@/components/cart/cart-provider";
+// EDITOR: módulo de cliente ("use client"): aqui o namespace `Editable.*` é a forma de uso (README §4).
+import { Editable } from "@/lib/editable";
 
 export interface CatalogItem {
   slug: string;
@@ -18,9 +20,37 @@ export interface CatalogItem {
   badge?: { label: string; bg: string; fg: string } | null;
 }
 
+/**
+ * Link "Ver todos os produtos" do bloco de catálogo da PDP. É `Slot` de tipo link (e não `Link`
+ * editável) porque o rótulo divide o elemento com o ícone: no `Editable.Link`, editar o rótulo
+ * apagaria a seta. Vive aqui, num módulo de cliente, porque o render-prop não atravessa a fronteira
+ * de servidor da view (pdp-view.tsx).
+ */
+export function CatalogCta() {
+  return (
+    <Editable.Slot path="cta" type="link" fallback={{ href: "/produtos", label: "Ver todos os produtos" }} label="Link para o catálogo completo">
+      {(v, attrs, ref, estilo) => (
+        <Link
+          ref={ref}
+          href={v.href}
+          {...attrs}
+          style={estilo}
+          className="flex items-center gap-1.5 text-sm font-bold text-[var(--store-primary,#18181B)] no-underline max-sm:hidden"
+        >
+          {v.label ?? "Ver todos os produtos"}{" "}
+          <Editable.Icon path="cta-icone" label="Ícone do link" size={14}>
+            <ArrowRight weight="bold" />
+          </Editable.Icon>
+        </Link>
+      )}
+    </Editable.Slot>
+  );
+}
+
+// EDITOR: os produtos da grade são dado do catálogo, não copy do molde: fora do editor (README §8).
 export function CatalogGrid({ items }: { items: CatalogItem[] }) {
   return (
-    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5" data-editor-ignore>
       {items.map((p) => (
         <Card key={p.slug} item={p} />
       ))}

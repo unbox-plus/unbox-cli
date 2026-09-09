@@ -112,7 +112,7 @@ export function SubscriptionActions({
           <AlertDialogFooter>
             <AlertDialogCancel className={BTN_OUTLINE}>Voltar</AlertDialogCancel>
             <AlertDialogAction
-              className="font-display inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-xl bg-[var(--store-sale)] px-5 text-[14px] font-bold text-white transition-colors hover:bg-[#A21F25]"
+              className="font-display inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-xl bg-[var(--store-sale)] px-5 text-[14px] font-bold text-white transition-colors hover:bg-[var(--store-sale)]"
               onClick={() => run("cancel", {}, "Assinatura cancelada.").then((ok) => ok && setCancelOpen(false))}
             >
               Cancelar assinatura

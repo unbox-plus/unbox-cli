@@ -63,7 +63,7 @@ export default function EntrarPage() {
           </p>
 
           {error && (
-            <div className="mt-5 flex items-start gap-2.5 rounded-xl border border-[var(--store-sale-soft)] bg-[var(--store-sale-soft)] px-4 py-3 text-[13.5px] font-semibold text-[#A21F25]" role="alert">
+            <div className="mt-5 flex items-start gap-2.5 rounded-xl border border-[var(--store-sale-soft)] bg-[var(--store-sale-soft)] px-4 py-3 text-[13.5px] font-semibold text-[var(--store-sale)]" role="alert">
               <Warning weight="fill" className="mt-px shrink-0 text-[17px] text-[var(--store-sale)]" />
               <span>{error}</span>
             </div>

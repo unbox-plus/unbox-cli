@@ -64,6 +64,7 @@ isso.
 | Recuperação de carrinho abandonado | `lib/cart-recovery.ts` (o link com id e token nasce aí) |
 | Tracking (GA4, GTM, Meta Pixel, CAPI) | `lib/analytics.ts`, a camada ÚNICA; nenhum outro arquivo empurra no dataLayer |
 | O que o cliente respondeu no formulário do CLI | `marca/briefing.json` |
+| Editor da Unbox: o que o lojista edita sem código | `lib/editable/` (foundation, não edite à mão), `lib/rotas-editaveis.ts` (páginas e containers), `app/api/unbox/*`, `app/api/revalidate` |
 
 ## Comandos
 
@@ -75,11 +76,62 @@ npm run unbox:honestidade # promessas comerciais sem lastro
 npm run unbox:receita    # variedade da receita (mede, não bloqueia)
 npm run unbox:qa         # screenshots do QA (emulação de dispositivo, servidor no ar)
 npm run unbox:dump       # imprime o catálogo e as promoções REAIS da loja
+npm run unbox:editavel   # gate do editor: cobertura editável por página (servidor no ar)
 ```
 
 Ordem barata → cara: `typecheck` → `unbox:honestidade` → `unbox:receita` → `build` → só então
 subir o servidor e capturar tela. Screenshot é o passo mais caro do ciclo; não use como primeiro
 diagnóstico.
+
+## Medidores de sistema visual (relatório, ainda não gate)
+
+`npm run unbox:medir` roda dois medidores de Python que contam o que faz uma loja ter "cara de
+template": quantos tamanhos de tipo, raios, hex fora de token e larguras de container existem
+(`scripts/sistema.py`), e se o vocabulário gráfico da marca foi distribuído ou vive numa seção só
+(`scripts/vocabulario.py`). Rodam no `prebuild` e **não bloqueiam**: imprimem e saem 0.
+
+Não são gate ainda de propósito. Medido em cinco lojas geradas e na própria foundation, todas
+estouram os tetos que vieram no script, a foundation inclusive: ligar como gate hoje reprovaria
+até um scaffold recém-criado. Os números servem para escolher a régua depois, e para o agente de
+branding ver o custo do que acrescenta enquanto trabalha.
+
+Sem python3 na máquina, os medidores são pulados com aviso. Nunca derrubam build.
+
+## Placeholder no ar (antes de publicar)
+
+`npm run unbox:placeholder` varre o **HTML servido**, não o código-fonte. É a diferença que
+decide dois casos: varredura de fonte acusa `TODO` em comentário de componente que nem está na
+receita, e não acha o texto que vaza sem existir como string, como `[NOME DA LOJA]` vindo do
+conteúdo ou um logotipo com o nome errado dentro de um SVG.
+
+Precisa de build de produção. Sem base explícita ele sobe o próprio servidor a partir do `.next`
+e mede a si mesmo: **nunca** aponte para "o que estiver na porta 3000", que foi como a primeira
+versão deste gate mediu outro projeto e quase aprovou a loja errada. Para medir o que está no ar:
+`PLACEHOLDER_BASE=https://a-loja.com.br npm run unbox:placeholder`.
+
+**Scaffold recém-criado reprova de propósito**, porque as páginas legais nascem com `[NOME DA
+LOJA]` e `[CNPJ]` para o lojista preencher. Por isso o gate NÃO está no `prebuild`: ele é da
+publicação, não do build. Imagem raster não é varrida por texto, e o script avisa quando existe
+alguma: logotipo errado dentro de um PNG só aparece olhando.
+
+## Contraste e classificação de cor
+
+`scripts/contraste.js` é para COLAR no console do DevTools com a loja aberta. Duas funções:
+`contraste()` varre o texto visível e lista o que reprova; `classificar("#HEX")` diz se a cor
+pode receber texto (**superfície**) ou só serve para contorno, ícone e faixa (**acento**).
+
+A classificação é o uso principal: ao receber a paleta, meça cada cor contra a tinta e contra o
+branco. Passa em algum dos dois (≥4,5) é superfície; não passa em nenhum é acento e **nunca**
+vira fundo de texto. Se a marca quiser aquela cor como fundo, gere a versão funda e ponha branco
+em cima. **Escreva o número ao lado do token no CSS**, senão o próximo agente refaz a mesma
+avaliação e erra de novo.
+
+O CLI não escolhe cor sozinho "para passar no WCAG": corrigir cor de marca em silêncio
+descaracteriza a marca. Mede, aplica o que a marca pediu, e deixa o número e o custo escritos.
+
+Duas coisas que a ferramenta não resolve, e estão ditas no cabeçalho dela: texto sobre foto (é
+preciso amostrar os pixels da imagem) e conclusão tirada de captura de tela (esqueleto de
+carregamento já enganou a leitura; confirme no DOM).
 
 ## Não negociável
 
@@ -90,6 +142,40 @@ O prebuild (`scripts/check-unbox-brand.mjs`) **bloqueia o build** se faltar:
 Ele também avisa (sem bloquear) sobre logo, ícones, manifest e paleta ainda no placeholder, a
 paleta default é canvas provisória, não escolha estética, e trocar pelas cores reais da marca é
 o primeiro ato do briefing.
+
+## Editor: o que não pode quebrar
+
+A loja nasce ligada ao editor da Unbox (`editor.myunbox.com.br`): o lojista edita texto, foto, cor
+e vitrine no painel, e a loja lê o publicado por HTTP e aplica por cima do código. A fiação é do
+scaffold e tem oito pontos; mexer em qualquer um deles sem saber o que faz desliga o editor em
+silêncio, sem erro de build:
+
+- `lib/editable/` é cópia da foundation do editor. Não edite à mão: correção entra por versão da
+  foundation. A exceção é `lib/editable/tokens.ts`, a lista de cores que o lojista pode mudar.
+- `lib/editable/config.ts` carrega o slug desta loja no editor (o CLI carimba). Tem de ser IGUAL ao
+  `slug` da entrada dela no `shops.json` do editor, senão o lojista publica e a loja nunca muda.
+- `app/robots.ts` EXPORTA `DISALLOW`, e é essa lista que decide quais páginas o editor oferece
+  (`lib/rotas-editaveis.ts` varre `app/(loja)/` e tira o que o robots bloqueia). Não há segunda lista.
+- Rota nova em `app/(loja)/` entra em `CONTAINERS_POR_ROTA` (e em `SO_CHROME` se for só texto legal
+  ou mecânica de compra), ou o gate reprova dizendo a rota.
+- `next.config.ts`: `frame-ancestors` com `NEXT_PUBLIC_EDITOR_ORIGIN` (o editor abre a loja num
+  iframe; `X-Frame-Options` não aceita origem externa) e `outputFileTracingIncludes` dos `page.tsx`
+  (sem isso a varredura acha zero em produção).
+- `middleware.ts` deixa passar `?unbox_editor_token=` (a prévia atrás da porta) e as rotas que o
+  editor chama de servidor (`/api/revalidate`, `/api/unbox/catalogo`, `/api/unbox/paginas`).
+- `/api/revalidate` aceita `x-editor-token`, purga a tag `unbox-editor-content` e devolve o recibo
+  com `conteudo`: é com ele que o editor afirma "a loja está no ar com a versão N".
+- `app/layout.tsx`: `EditableProvider` em volta do chrome e a linha única `<Rastreio>` no fim do
+  `<body>`. Nenhum snippet de GTM, GA4 ou Pixel escrito à mão fora dela, senão o provedor dispara
+  duas vezes.
+
+Toda seção nova nasce editável pelos primitivos (`Editable.Text`, `Editable.Image`, `Editable.Icon`,
+`Editable.Section` com `kind` e `label`). As regras completas, com o modo de falha de cada uma, estão
+no README do editor da Unbox. O que NÃO vira primitivo: preço, produto do catálogo, texto legal,
+rótulo de formulário e "Powered by Unbox".
+
+Gate: `npm run unbox:editavel` com o servidor no ar e `NEXT_PUBLIC_EDITOR_ORIGIN` preenchida. Saída
+`2` é NÃO RODOU, nunca aprovação.
 
 ## Subagentes disponíveis
 

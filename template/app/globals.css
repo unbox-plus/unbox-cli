@@ -354,11 +354,6 @@ body:has(.checkout-root) .site-main { max-width: none; padding: 0; min-height: 0
 .site-main:has(.full-bleed) { padding-top: 0; padding-bottom: 0; }
 body:has(.site-main .full-bleed) footer.site-chrome { margin-top: 0; }
 
-/* Espaço para a barra de navegação inferior (mobile), exceto no checkout (chrome próprio). */
-@media (max-width: 767px) {
-  body:not(:has(.checkout-root)) { padding-bottom: 84px; }
-}
-
 /* ── Header SOBREPOSTO (variante "imersivo" do chrome) ───────────────────────────────────
    SÓLIDO é o default: a transparência é o ramo OPT-IN do :has() e exige acordo dos DOIS
    lados — o hero marca `.hero-imersivo` E a receita escolheu o header imersivo

@@ -161,3 +161,21 @@ de propósito, para não tomar essa decisão no lugar de quem está publicando.
 Todo projeto gerado já vem com `agents/MANAGER.md` — descreve exatamente o que cada agente
 resolve e a ordem recomendada dos passos manuais: **15 (Branding) primeiro**, depois os opcionais
 13 (CRO) e 14 (SEO), e por último 12 (Deploy).
+
+## Editor da loja (a partir da 0.20.0)
+
+A loja gerada nasce editável pelo editor da Unbox (chat e painel visual sobre um documento de conteúdo). O que o template traz, e que não pode ser removido sem desligar o editor em silêncio:
+
+- `lib/editable/` (a foundation do editor, cópia byte a byte; correção entra por versão, nunca à mão), com o slug da loja carimbado em `config.ts` no scaffold.
+- `next.config.ts` com `frame-ancestors` para `NEXT_PUBLIC_EDITOR_ORIGIN` (variável de BUILD: precisa existir antes do `next build`).
+- `app/api/revalidate` aceitando o token do editor e devolvendo o recibo com `conteudo`.
+- `middleware.ts` deixando passar o token de prévia e as rotas `/api/unbox/*`.
+- `app/api/unbox/paginas`, `catalogo` e `vitrine`, e `lib/rotas-editaveis.ts` com as tabelas `SO_CHROME` e `CONTAINERS_POR_ROTA`: rota nova entra na tabela ou o gate reprova.
+- `app/layout.tsx` com o `EditableProvider` e a linha única `<Rastreio />` (GTM, GA4, Meta Pixel, TikTok, Pinterest e WhatsApp decididos pela foundation).
+- Home, cabeçalho, rodapé, catálogo e página de produto com primitivos; ids de seção são chaves de arquivo e não têm renomear.
+
+Gate: `npm run unbox:editavel` mede toda página que a loja declara. Saída 0 = aprovado; 1 = reprovado dizendo qual página; 2 = não rodou (rota dinâmica sem exemplo, por exemplo sem catálogo), nunca aprovação.
+
+Variáveis: `EDITOR_URL`, `NEXT_PUBLIC_EDITOR_ORIGIN`, `UNBOX_EDITOR_SHOP` (opcional: sobrepõe o slug carimbado). `META_CAPI_TOKEN` é segredo de servidor e nunca entra no documento do editor.
+
+A seção "Editor: o que não pode quebrar" do `CLAUDE.md` do template lista cada ponto com o que acontece se for tocado.

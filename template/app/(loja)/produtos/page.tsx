@@ -18,6 +18,8 @@ export default async function ProdutosPage() {
   const tagMap = buildTagMap(tags as any[]);
   const bundles = resolveCombos((catalog.nodes ?? []).map((n: any) => n.product ?? n));
   const itens = mapCatalogItems(catalog.nodes ?? [], tagMap);
+  // EDITOR: /produtos é a dona do container "catalogo" (layout padrão: manda na ordem, oculta e copia
+  // seções); /categoria/[tagSlug] reaproveita a mesma copy com layout={false}.
   return (
     <>
     <DataLayerReady pageType="category" products={itens.slice(0, 12).map((i) => ({ id: i.productId, name: i.title, price: i.price }))} />

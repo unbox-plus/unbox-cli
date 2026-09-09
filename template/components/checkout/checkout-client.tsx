@@ -746,7 +746,7 @@ export function CheckoutClient({
             <div className="flex flex-col items-end gap-[3px]">
               <span className="whitespace-nowrap text-[13.5px] font-extrabold text-[var(--store-ink)]">{it.isBonus ? "GRÁTIS" : formatBRL(it.unitPrice * it.quantity)}</span>
               {!it.isBonus && (
-                <button type="button" disabled={loading} onClick={() => remove(it.id)} className="border-none bg-transparent p-0 text-[10.5px] font-bold text-[#C7836A] disabled:cursor-not-allowed disabled:opacity-50">remover</button>
+                <button type="button" disabled={loading} onClick={() => remove(it.id)} className="border-none bg-transparent p-0 text-[10.5px] font-bold text-[var(--store-muted)] disabled:cursor-not-allowed disabled:opacity-50">remover</button>
               )}
             </div>
           </div>
@@ -829,7 +829,7 @@ export function CheckoutClient({
         {/* LEFT */}
         <div>
           {error && (
-            <div className="mb-4 flex items-start gap-2.5 rounded-md border border-[var(--store-sale-soft)] bg-[var(--store-sale-soft)] px-4 py-3 text-sm font-semibold text-[#9B1C1C]" role="alert">
+            <div className="mb-4 flex items-start gap-2.5 rounded-md border border-[var(--store-sale-soft)] bg-[var(--store-sale-soft)] px-4 py-3 text-sm font-semibold text-[var(--store-sale)]" role="alert">
               <Warning weight="fill" className="mt-0.5 shrink-0 text-base" />{error}
             </div>
           )}
@@ -979,7 +979,7 @@ export function CheckoutClient({
                           disabled={loading}
                           onClick={() => chooseShipping(g.groupId, o.methodId)}
                           className="flex w-full items-center justify-between gap-3 rounded-md border-[1.5px] px-4 py-3.5 text-left disabled:cursor-not-allowed disabled:opacity-50"
-                          style={{ background: on ? "var(--store-primary-soft,#F1F1F3)" : "#fff", borderColor: on ? "var(--store-primary,#18181B)" : "var(--store-line-2)" }}>
+                          style={{ background: on ? "var(--store-primary-soft,#F1F1F3)" : "var(--store-surface)", borderColor: on ? "var(--store-primary,#18181B)" : "var(--store-line-2)" }}>
                           <span className="flex items-center gap-3">
                             <Radio on={on} />
                             <span className="flex flex-col items-start">
@@ -1021,7 +1021,7 @@ export function CheckoutClient({
                 <div className="flex flex-wrap items-center gap-3.5">
                   <div className="inline-flex items-center gap-3 rounded-xl bg-[var(--store-sale)] px-[18px] py-[11px]">
                     <Alarm weight="fill" className="text-2xl text-white" />
-                    <span className="text-[12px] font-extrabold uppercase leading-[1.1] tracking-[1px] text-[#FFD7D7]">Oferta some<br />em</span>
+                    <span className="text-[12px] font-extrabold uppercase leading-[1.1] tracking-[1px] text-[var(--store-sale-soft)]">Oferta some<br />em</span>
                     <span className={`font-display text-[30px] font-extrabold tabular-nums text-white ${offerExpiring ? "animate-store-pulse" : ""}`}>{offerTimer}</span>
                   </div>
                   {offerExpiring && (
@@ -1084,7 +1084,7 @@ export function CheckoutClient({
                   {pixAllowed && (
                     <button type="button" onClick={() => setPayType("pix")}
                       className="flex items-center justify-between gap-2 rounded-md border-[1.5px] px-4 py-3.5"
-                      style={{ background: payType === "pix" ? "var(--store-primary-soft,#F1F1F3)" : "#fff", borderColor: payType === "pix" ? "var(--store-primary,#18181B)" : "var(--store-line-2)" }}>
+                      style={{ background: payType === "pix" ? "var(--store-primary-soft,#F1F1F3)" : "var(--store-surface)", borderColor: payType === "pix" ? "var(--store-primary,#18181B)" : "var(--store-line-2)" }}>
                       <span className="flex items-center gap-2.5"><Radio on={payType === "pix"} /><QrCode weight="fill" className="text-[22px] text-[var(--store-primary,#18181B)]" /><span className="text-[15px] font-bold">Pix</span></span>
                       {PIX_DISCOUNT_PCT > 0 && <span className="rounded-md bg-[var(--store-primary-soft,#F1F1F3)] px-2 py-1 text-[11px] font-extrabold text-[var(--store-primary,#18181B)]">{PIX_DISCOUNT_PCT}% OFF</span>}
                     </button>
@@ -1092,7 +1092,7 @@ export function CheckoutClient({
                   {cardAllowed && (
                     <button type="button" onClick={() => setPayType("card")}
                       className="flex items-center justify-between gap-2 rounded-md border-[1.5px] px-4 py-3.5"
-                      style={{ background: payType === "card" ? "var(--store-primary-soft,#F1F1F3)" : "#fff", borderColor: payType === "card" ? "var(--store-primary,#18181B)" : "var(--store-line-2)" }}>
+                      style={{ background: payType === "card" ? "var(--store-primary-soft,#F1F1F3)" : "var(--store-surface)", borderColor: payType === "card" ? "var(--store-primary,#18181B)" : "var(--store-line-2)" }}>
                       <span className="flex items-center gap-2.5"><Radio on={payType === "card"} /><CreditCard weight="fill" className="text-[22px] text-[var(--store-primary,#18181B)]" /><span className="text-[15px] font-bold">Cartão</span></span>
                       <span className="text-[11px] font-bold text-[var(--store-muted)]">até {maxInstallments}x</span>
                     </button>
@@ -1110,7 +1110,7 @@ export function CheckoutClient({
                       </div>
                     ) : pixResult ? (
                       pixExpired ? (
-                        <div className="rounded-2xl border border-[var(--store-sale-soft)] bg-[var(--store-sale-soft)] p-5 text-sm font-semibold text-[#9B1C1C]">
+                        <div className="rounded-2xl border border-[var(--store-sale-soft)] bg-[var(--store-sale-soft)] p-5 text-sm font-semibold text-[var(--store-sale)]">
                           O tempo para pagamento terminou. <Link href="/checkout" className="underline">Refaça o pedido</Link> para gerar um novo Pix.
                         </div>
                       ) : (
@@ -1273,12 +1273,12 @@ function StepBar({ step, maxStep, onGo }: { step: number; maxStep: number; onGo:
           <React.Fragment key={label}>
             <div onClick={() => reachable && onGo(n)} className="flex w-[108px] shrink-0 flex-col items-center gap-2" style={{ cursor: reachable ? "pointer" : "default" }}>
               <span className="font-display flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full text-sm font-extrabold"
-                style={active ? { background: "var(--store-primary,#18181B)", color: "#fff", boxShadow: "0 0 0 4px var(--store-primary-soft)" } : done ? { background: "var(--store-primary,#18181B)", color: "#fff" } : { background: "var(--store-surface-2)", color: "var(--store-faint)" }}>
+                style={active ? { background: "var(--store-primary,#18181B)", color: "var(--store-surface)", boxShadow: "0 0 0 4px var(--store-primary-soft)" } : done ? { background: "var(--store-primary,#18181B)", color: "var(--store-surface)" } : { background: "var(--store-surface-2)", color: "var(--store-faint)" }}>
                 {done ? <Check weight="bold" className="text-[17px]" /> : n}
               </span>
               <span className="whitespace-nowrap text-[12.5px]" style={{ fontWeight: active || done ? 700 : 500, color: active ? "var(--store-primary,#18181B)" : done ? "var(--store-ink-2)" : "var(--store-faint)" }}>{label}</span>
             </div>
-            {n < 3 && <div className="mb-[26px] h-[2.5px] flex-1 rounded-full" style={{ background: step > n ? "var(--store-primary,#18181B)" : "#E5E0D4", margin: "0 -10px 26px" }} />}
+            {n < 3 && <div className="mb-[26px] h-[2.5px] flex-1 rounded-full" style={{ background: step > n ? "var(--store-primary,#18181B)" : "var(--store-line)", margin: "0 -10px 26px" }} />}
           </React.Fragment>
         );
       })}
@@ -1310,7 +1310,7 @@ function Labeled({ label, locked, children }: { label: string; locked?: boolean;
 
 function Radio({ on }: { on: boolean }) {
   return (
-    <span className="inline-block h-5 w-5 shrink-0 rounded-full border-2" style={{ borderColor: on ? "var(--store-primary,#18181B)" : "var(--store-faint)", background: on ? "radial-gradient(var(--store-primary,#18181B) 0 40%, #fff 44%)" : "#fff" }} />
+    <span className="inline-block h-5 w-5 shrink-0 rounded-full border-2" style={{ borderColor: on ? "var(--store-primary,#18181B)" : "var(--store-faint)", background: on ? "radial-gradient(var(--store-primary,#18181B) 0 40%, var(--store-surface) 44%)" : "var(--store-surface)" }} />
   );
 }
 

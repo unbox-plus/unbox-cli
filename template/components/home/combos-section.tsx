@@ -2,6 +2,11 @@
 
 // Seção de combos da home (abaixo dos reviews). Layout em 3 colunas inspirado na referência:
 // imagem + selo · nome/descrição/destaques/preço/CTA · lista "Este combo contém".
+//
+// EDITOR: o cabeçalho (chapéu, título, subtítulo) é copy da marca e vira caminho da seção que
+// renderiza esta lista (a seção "kits" da home). Os kits em si são DADO da loja (lib/enrichment/
+// combos.ts: nome, itens, preço, desconto): ficam fora dos primitivos (README do editor, §8) e
+// fora do gate por `data-editor-ignore`.
 import * as React from "react";
 import Link from "next/link";
 import Image from "next/image";
@@ -11,6 +16,7 @@ import {
 } from "@phosphor-icons/react/dist/ssr";
 import { useCart } from "@/components/cart/cart-provider";
 import { formatBRL } from "@/lib/format";
+import { Editable } from "@/lib/editable";
 import { ComboCardCompact } from "@/components/home/combo-card-compact";
 import type { ResolvedCombo, ComboHighlight } from "@/lib/enrichment/combos";
 
@@ -55,9 +61,9 @@ export function CombosSection({ combos }: { combos: ResolvedCombo[] }) {
     <div className="mx-auto max-w-[1240px] px-4 pt-[42px] sm:px-6">
       <div className="mb-[18px] flex items-end justify-between gap-3">
         <div>
-          <div className="text-xs font-extrabold tracking-[1.5px] text-[var(--store-primary,#18181B)]">KITS DA LOJA</div>
-          <h2 className="font-display mt-1.5 text-[26px] font-extrabold">Monte seu kit com nossos combos</h2>
-          <p className="mt-1 text-sm text-[var(--store-muted)]">Tudo combinado, com desconto e pronto pro carrinho.</p>
+          <Editable.Text as="div" path="chapeu" fallback="KITS DA LOJA" label="Chapéu acima do título" className="text-xs font-extrabold tracking-[1.5px] text-[var(--store-primary,#18181B)]" />
+          <Editable.Text as="h2" path="titulo" fallback="Monte seu kit com nossos combos" label="Título" className="font-display mt-1.5 text-[26px] font-extrabold" />
+          <Editable.Text as="p" path="subtitulo" fallback="Tudo combinado, com desconto e pronto pro carrinho." label="Subtítulo" className="mt-1 text-sm text-[var(--store-muted)]" />
         </div>
         {combos.length > 1 && (
           <div className="hidden gap-2.5 sm:flex">
@@ -67,15 +73,15 @@ export function CombosSection({ combos }: { combos: ResolvedCombo[] }) {
         )}
       </div>
 
-      {/* desktop: card grande em 3 colunas */}
-      <div ref={rowRef} className="hidden snap-x gap-5 overflow-x-auto pb-3.5 [scrollbar-width:thin] md:flex">
+      {/* desktop: card grande em 3 colunas (dado da loja: fora do editor) */}
+      <div ref={rowRef} className="hidden snap-x gap-5 overflow-x-auto pb-3.5 [scrollbar-width:thin] md:flex" data-editor-ignore="">
         {combos.map((c) => (
           <ComboCard key={c.id} combo={c} busy={busyId === c.id} onAdd={() => addCombo(c)} />
         ))}
       </div>
 
       {/* mobile: versão compacta em carrossel */}
-      <div className="flex snap-x gap-3.5 overflow-x-auto pb-3.5 [scrollbar-width:none] md:hidden">
+      <div className="flex snap-x gap-3.5 overflow-x-auto pb-3.5 [scrollbar-width:none] md:hidden" data-editor-ignore="">
         {combos.map((c) => (
           <ComboCardCompact key={c.id} combo={c} className="w-[230px] flex-none snap-start" />
         ))}

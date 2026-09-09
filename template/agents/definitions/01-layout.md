@@ -15,7 +15,6 @@ colunas de links + pagamento) e navegação mobile. Usado em toda página via `a
 | `components/site-header.tsx` | Barra de anúncio + header sticky (logo, busca, conta, carrinho) + nav de categorias |
 | `components/site-footer.tsx` | Trust strip, colunas de links, `PaymentChips`, logo em fundo escuro |
 | `components/mobile-nav.tsx` | Drawer mobile com categorias (`NavCategory[]`) |
-| `components/mobile-bottom-nav.tsx` | Tab bar fixa mobile (Home / Buscar / Carrinho / Conta) |
 | `components/account-nav.tsx` | Ícone/menu de conta no header desktop |
 
 ## Regra de ouro — degradação sem credenciais
@@ -38,8 +37,7 @@ layout inteiro.
 ## Categorias (nav)
 `NavCategory[]` vem de `getTopTags()` — **sem** filtro `isTopLevel` (ver doc 05-cart/lib/unbox/client.ts:
 forçar `isTopLevel: true` esconde categorias reais marcadas `false` no admin). Filtra por
-`isVisible !== false`, ordena por `position`. Reusado pelo header desktop, `mobile-nav.tsx` e
-`mobile-bottom-nav.tsx`.
+`isVisible !== false` e ordena por `position`. Reusado pelo header desktop e pelo `mobile-nav.tsx`.
 
 ## Tokens de marca
 Logo: `public/brand/logo.svg` (fundo claro, header) e `logo-white.svg` (fundo escuro, footer).

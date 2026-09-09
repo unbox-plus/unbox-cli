@@ -1,5 +1,202 @@
 ## Changelog
 
+### v0.20.1 — o changelog volta a descrever o que foi entregue
+
+Correção de release, sem mudança de comportamento na loja.
+
+As versões 0.19.0 e 0.20.0 saíram **sem entrada de changelog**: o cabeçalho da 0.18.2 tinha sido
+renomeado para "v0.20.0" no README do zip (dentro do tarball ele ainda dizia 0.18.2), então o
+changelog anunciava como novidade o gate de placeholder, que era de duas versões antes, e não
+dizia uma palavra sobre o editor, que é o maior item já entregue nesta linha. As duas entradas
+estão escritas abaixo, a partir do diff dos pacotes, e o rótulo da 0.18.2 voltou ao lugar.
+
+**`tools/` passa a viajar no pacote.** O `files` listava só `bin`, `src` e `template`, mas o
+`prepack` do próprio `package.json` chama `tools/check-template-neutro.mjs`: o pacote publicado
+referenciava um arquivo que não publicava, e `npm pack` a partir dele quebrava. Agora o pacote é
+consistente consigo mesmo.
+
+**Para quem quer o código-fonte** (e não o artefato de uso), passou a sair um segundo zip,
+`CLI - Unbox v0.20.1 (fonte).zip`, com a pasta inteira: `bin/`, `src/`, `template/`, `tools/`,
+`package.json`, `package-lock.json` e o README. O tarball continua sendo o artefato de uso.
+
+Arquivo: `CLI - Unbox v0.20.1.zip`.
+
+### v0.20.0 — a loja nasce editável pelo editor da Unbox
+
+O maior acréscimo desta linha, e o que estava sem registro. A loja gerada passa a ser editável
+pelo editor da Unbox (chat e painel visual sobre um documento de conteúdo), em vez de só pelo
+código.
+
+- **`lib/editable/`**: provider, primitivos, tokens, documento, verificação e servidor. É cópia
+  byte a byte da foundation do editor, com o slug da loja carimbado em `config.ts` no scaffold;
+  correção entra por versão, nunca à mão.
+- **`app/api/unbox/paginas`, `catalogo` e `vitrine`**: a loja passa a declarar quais páginas tem,
+  e a servir catálogo e vitrine para o seletor do editor.
+- **`lib/rotas-editaveis.ts`** com as tabelas `SO_CHROME` e `CONTAINERS_POR_ROTA`: rota nova entra
+  na tabela, senão o gate acusa.
+- **Home, chrome, catálogo e PDP reescritos com primitivos**; ids de seção viram chave de arquivo
+  e por isso não se renomeiam. Entraram `bloco-html`, `catalogo` como seção, `oferta-sections`,
+  `pdp-view` e `faq-modelo`.
+- **Rastreio consolidado numa linha só.** `components/analytics/route-analytics.tsx` saiu; GTM,
+  GA4, Meta Pixel, TikTok, Pinterest, page_view por rota e o botão de WhatsApp passam a ser
+  decididos pela foundation em `lib/editable/rastreio.tsx`, montado por `<Rastreio />`.
+- **Infra do editor**: `frame-ancestors` com `NEXT_PUBLIC_EDITOR_ORIGIN` (variável de BUILD),
+  `/api/revalidate` aceitando o token do editor, e o middleware deixando passar `/api/unbox/*`.
+- **Gate novo, `npm run unbox:editavel`**: mede, em TODA página que a loja declara, quanto do que
+  aparece na tela o lojista consegue editar. Lista o que ficou de fora dizendo em que página, e
+  separa as rotas que são só cabeçalho e rodapé por regra (texto legal, rótulo de formulário,
+  mecânica de compra) para não reprovar para sempre o que é assim por desenho. Mantém a saída 2
+  para "não rodou".
+
+Variáveis novas: `EDITOR_URL`, `NEXT_PUBLIC_EDITOR_ORIGIN`, `UNBOX_EDITOR_SHOP`. Sem `EDITOR_URL`
+a camada editável fica desligada e a loja renderiza só o que está no código.
+
+Arquivo: `CLI - Unbox v0.20.0.zip`.
+
+### v0.19.0 — a loja gerada voltava a não compilar: corrigido
+
+Regressão introduzida na v0.18.0 e presente também na 0.18.1 e na 0.18.2.
+
+A função `idValido()` (a que recusa placeholder em ID de analytics) tinha sido escrita **dentro do
+bloco `UNBOX-FONTS`** do `app/layout.tsx`. Esse bloco é reescrito pelo `create-unbox-store` com o
+par tipográfico do preset, então tudo que estava lá dentro sumia na loja gerada: o arquivo nascia
+com **três chamadas** de uma função que não existia mais, e o `tsc` quebrava na primeira delas.
+
+Medido agora, para não ficar em suposição: loja gerada com a 0.18.2 tem 0 definições de
+`idValido` e 3 usos. Loja gerada com a 0.20.1 passa em `typecheck` e `build`.
+
+A recusa de ID placeholder que a 0.18.0 tinha introduzido não se perdeu no caminho: na 0.20 ela
+mora em `lib/editable/document.ts`, com régua por provedor e motivo legível ("isso parece um
+exemplo, não um ID de verdade"). Conferido rodando: `x` e `G-XXXXXXX` são recusados, `G-ABC1234567`
+e um Pixel de 15 dígitos passam.
+
+**Quem gerou loja com 0.18.0, 0.18.1 ou 0.18.2 precisa regerar** ou mover a função para fora dos
+marcadores. A verificação da época não pegou porque o template cru era sincronizado por cima do
+scaffold antes de testar, o que restaurava a função e escondia justamente o efeito do CLI.
+
+Arquivo: `CLI - Unbox v0.19.0.zip`.
+
+### v0.18.2 — gate de placeholder, rodando no HTML servido
+
+O item 3 do documento da esteira. `npm run unbox:placeholder` varre o **HTML que o servidor
+entrega**, não o código-fonte, porque a varredura de fonte erra dos dois lados: acusa `TODO` em
+comentário de componente que nem está na receita, e não encontra o texto que vaza sem existir como
+string, como um logotipo com o nome errado dentro de um arquivo.
+
+**Achou defeito no primeiro uso, numa loja real.** Rodado contra a Oddie Supply servindo local:
+`[NOME DA LOJA]` e `[CNPJ]` em `/termos` e `/privacidade`, as duas com `robots: index, follow`.
+É o mesmo caso que o documento relata da Punch, e estava lá, indexável.
+
+**E achou um defeito no próprio gate, também no primeiro uso.** A primeira versão usava
+`localhost:3000` como padrão e mediu **outro projeto** que estava de pé naquela porta: teria
+aprovado a loja errada com a mesma confiança. Agora, sem base explícita, ele sobe o próprio
+servidor a partir do `.next` e mede a si mesmo; a base medida aparece na primeira linha do
+relatório; e os arquivos de marca varridos são sempre os do projeto local, o que está dito quando
+a base é externa.
+
+Varre 10 rotas fixas (home, catálogo, busca, carrinho, checkout, as três legais, login, llms.txt)
+mais uma PDP e uma categoria descobertas no `sitemap.xml`, e os SVGs de `public/brand`. Reprova
+com `[NOME DA LOJA]`, `[CNPJ]`, colchete em caixa alta, `TODO:`, "preencher este arquivo", lorem
+ipsum, "Minha Loja", "sua marca" e depoimento "Cliente A/B/C". Mantém o código de saída **2 para
+"não rodou"** (sem build, base que não respondeu, nenhuma rota respondida).
+
+**Não está no `prebuild`, de propósito:** scaffold recém-criado reprova, porque as páginas legais
+nascem com os colchetes para o lojista preencher. É gate de publicação, não de build, e entrou no
+`QA.md` nessa posição. Imagem raster não é varrida por texto, e o script avisa quando existe
+alguma: logotipo errado dentro de um PNG só aparece olhando.
+
+Arquivo: `CLI - Unbox v0.18.2.zip`.
+
+### v0.18.1 — hex fora de token: de 20 para 2, e a ferramenta de contraste entra
+
+Primeira rodada em cima do que os medidores da v0.18.0 acusaram, no eixo que dava para atacar
+inteiro.
+
+**Hex fora de token na foundation: 20 → 2.** Nenhuma cor nova foi escolhida: cada hex solto virou
+o token que já existia com aquele papel (`#B45309` era literalmente o valor de `--store-cta-dark`,
+`#FAFAFA` era o `--store-bg`). Dois achados no caminho: o bege `#EFE4C8` e o verde `#DCEADF` eram
+**resíduo da paleta antiga** que a varredura da v0.14.1 não pegou porque viviam dentro de
+`border-[#...]` no className, e o mesmo valia para quatro cores de selo em `lib/catalog-map.ts`.
+Os 2 que restam são o `app/opengraph-image.tsx`, onde o hex é obrigatório: o satori não lê
+variável de CSS. Está declarado no comentário do arquivo.
+
+**Bug encontrado por causa disso:** o CLI reescrevia a cor do `manifest.ts` mas **não** a do
+`opengraph-image.tsx`, apesar do comentário dizer que sim. Toda loja compartilhava no WhatsApp com
+o tom default da foundation, mesmo depois do briefing aplicar a paleta. Agora as duas recebem a
+cor da marca no scaffold.
+
+**`scripts/contraste.js`**, para colar no console: `contraste()` varre o texto visível e lista o
+que reprova; `classificar("HEX")` diz se a cor pode receber texto (superfície) ou só serve para
+contorno e ícone (acento). Os três erros que a ferramenta cometeu em produção estão tratados e
+comentados no ponto onde importam, e **um deles foi medido aqui e estava descrito ao contrário**:
+o ImageData do canvas 2D é NÃO pré-multiplicado, então "desfazer a pré-multiplicação" dividindo
+por alpha é o erro — numa cor fora do sRGB isso estourava a faixa (um `oklch` deu R=404). Validada
+contra o caso conhecido: a cereja `F20A64` dá 4,22 contra tinta e 4,20 contra branco, e sai
+classificada como acento.
+
+**Composição da home:** sem teto de seções. Entrou uma recomendação em `agents/PADROES.md`, com a
+pergunta que importa (*o que esta seção faz que a anterior não fez?*) e os sinais de que sobrou
+seção. A receita default tem 16 porque é biblioteca, não recomendação.
+
+**O header passa a ser escolha da marca**, não do preset: tabela em `PADROES.md` ligando o tipo de
+marca ao header que costuma servir, e o briefing passa a cobrar a decisão. O header aparece em
+toda página e é o que mais faz uma loja parecer com a outra.
+
+Arquivo: `CLI - Unbox v0.18.1.zip`.
+
+### v0.18.0 — medidores de sistema visual entram, em modo relatório
+
+Dois medidores vindos da esteira do `bap-taste`, destilados de ~1.500 ajustes em 7 marcas geradas
+por este CLI: `scripts/sistema.py` conta o que faz uma loja ter "cara de template" (tamanhos de
+tipo, raios, hex fora de token, larguras de container) e `scripts/vocabulario.py` mede se o
+vocabulário gráfico da marca foi distribuído ou vive numa seção só.
+
+**Entram como relatório, não como gate**, e a medição explica por quê. Rodados contra cinco lojas
+geradas e contra um scaffold recém-criado:
+
+| | tipos | raios | hex | containers |
+|---|---:|---:|---:|---:|
+| foundation (scaffold novo) | 55 | 16 | 20 | 2 |
+| Moderação | 49 | 15 | 22 | 2 |
+| Oddie Supply | 84 | 29 | 51 | 4 |
+| Zé Tona | 84 | 24 | 18 | 5 |
+| noway | 88 | 23 | 56 | 4 |
+| Mata Sede | 116 | 41 | 135 | 4 |
+| *teto que veio no script* | *8* | *5* | *0* | *1* |
+
+**A foundation já estoura todos os tetos antes de qualquer briefing.** Ligar como gate hoje
+reprovaria o build de um projeto que ninguém tocou, então a régua fica para depois. O relatório
+roda no `prebuild`, imprime e sai 0, e serve para duas coisas: acumular distribuição para escolher
+os tetos, e mostrar ao agente de branding o custo do que ele acrescenta enquanto trabalha.
+
+Os medidores preservam o código de saída **2 para "não rodou"** (caminho errado, zero arquivo
+varrido, nenhum vocabulário encontrado), e o wrapper imprime isso em destaque: medidor que varre o
+vazio e diz "limpo" aprova sem ter olhado. Sem `python3` na máquina, são pulados com aviso, nunca
+derrubam build.
+
+Comandos: `npm run unbox:medir` (os dois), `unbox:sistema` e `unbox:vocabulario` (separados).
+
+Arquivo: `CLI - Unbox v0.18.0.zip`.
+
+### v0.17.2 — a barra de navegação inferior sai da foundation
+
+A tab bar flutuante do mobile (Início · Categorias · Ofertas · Conta) vinha montada em toda loja
+gerada, então toda loja nascia com a mesma assinatura visual na primeira tela do celular. É
+exatamente o tipo de elemento que deveria ser decisão da marca, não default do template.
+
+Saiu inteira: o componente, a montagem no layout da loja e os 84px de `padding-bottom` que o
+`<body>` reservava para ela no mobile (sem tirar os dois últimos, a loja ficaria com uma faixa
+vazia no fim de toda página). Os dois documentos do agente de layout que a citavam foram
+corrigidos junto.
+
+Um dos itens dela também não se sustentava: "Ofertas" apontava para `/produtos`, igual a
+"Categorias", e nunca marcava estado ativo.
+
+Verificado em 375px: nenhum `nav` remanescente, `padding-bottom` do body zerado, rodapé encostando
+no fim da tela sem faixa sobrando e sem rolagem horizontal.
+
+Arquivo: `CLI - Unbox v0.17.2.zip`.
+
 ### v0.17.1 — o /llms.txt passa a ser gerado do catálogo real
 
 Na v0.17.0 o arquivo deixou de ir ao ar com `TODO`, mas continuava estático em `public/`: o nome

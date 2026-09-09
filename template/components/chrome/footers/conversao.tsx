@@ -3,8 +3,15 @@
 //
 // Quando usar: loja promocional/campanha, onde a lista de e-mail vale mais que a navegação.
 // Quando NÃO usar: catálogo grande que precisa de navegação secundária (veja "colunas").
+//
+// EDITOR: o escopo (`chrome.footer`) vem da casca. A captura tem título, texto e o texto do botão
+// editáveis (`captura.*`); campo e placeholder do formulário são INTERFACE e ficam fora (README
+// do editor, §8). Nas colunas, link de marca (com `chave`) é editável em `<coluna>.<chave>`; link
+// de interface fica no código. O título de cada coluna é editável.
 import Link from "next/link";
 import { PaymentChips } from "@/components/product/pdp/payment-chips";
+// Exports NOMEADOS: server component (ver components/site-footer.tsx).
+import { EditableImg, EditableLink, EditableSlot, EditableText } from "@/lib/editable";
 import type { ChromeVariantProps } from "../registry";
 
 export function FooterConversao({ data }: ChromeVariantProps) {
@@ -17,47 +24,70 @@ export function FooterConversao({ data }: ChromeVariantProps) {
         <div className="mx-auto flex max-w-[var(--container-max,1240px)] flex-wrap items-center gap-6 px-6 py-10">
           <div className="min-w-[260px] flex-1">
             {/* TODO: personalize a oferta de boas-vindas */}
-            <div className="font-display text-[24px] font-extrabold leading-[1.15]">Receba as novidades antes</div>
-            <p className="mt-1.5 text-[13.5px] text-[var(--store-chrome-muted)]">Ofertas e lançamentos direto no seu e-mail.</p>
+            <EditableText as="div" path="captura.titulo" fallback="Receba as novidades antes" label="Título da captura de e-mail" className="font-display text-[24px] font-extrabold leading-[1.15]" />
+            <EditableText as="p" path="captura.texto" fallback="Ofertas e lançamentos direto no seu e-mail." label="Texto da captura de e-mail" className="mt-1.5 text-[13.5px] text-[var(--store-chrome-muted)]" />
           </div>
           <form className="flex w-full max-w-[440px] items-center gap-1.5 rounded-full bg-white p-1.5">
             <input type="email" placeholder="Seu melhor e-mail" aria-label="Seu e-mail" className="h-11 min-w-0 flex-1 rounded-full bg-transparent px-4 text-sm text-[var(--store-ink)] outline-none" />
-            <button type="submit" className="font-display h-11 shrink-0 rounded-full bg-[var(--store-cta,#D97706)] px-6 text-[14px] font-extrabold tracking-[0.5px] text-[var(--store-cta-fg,#1C1207)]">QUERO</button>
+            {/* Slot, não Text: o <button> é filho direto de um flex e precisa manter type="submit";
+                o Slot devolve o MESMO elemento, sem invólucro */}
+            <EditableSlot path="captura.botao" type="text" fallback="QUERO" label="Texto do botão da captura">
+              {(v, attrs, ref, estilo) => (
+                <button ref={ref} {...attrs} type="submit" className="font-display h-11 shrink-0 rounded-full bg-[var(--store-cta,#D97706)] px-6 text-[14px] font-extrabold tracking-[0.5px] text-[var(--store-cta-fg,#1C1207)]" style={estilo}>
+                  {v}
+                </button>
+              )}
+            </EditableSlot>
           </form>
         </div>
       </div>
 
       {/* links + pagamento */}
       <div className="mx-auto grid max-w-[var(--container-max,1240px)] gap-8 px-6 py-9 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1.2fr]">
-        <FooterCol title="Comprar" links={[
-          { label: "Todos os produtos", href: "/produtos" },
-          { label: "Ofertas", href: "/produtos" },
+        <FooterCol path="coluna-comprar" title="Comprar" links={[
+          { chave: "todos", label: "Todos os produtos", href: "/produtos" },
+          { chave: "ofertas", label: "Ofertas", href: "/produtos" },
           { label: "Buscar", href: "/busca" },
         ]} />
-        <FooterCol title="Ajuda" links={[
+        <FooterCol path="coluna-ajuda" title="Ajuda" links={[
           { label: "Acompanhar pedido", href: "/conta/entrar" },
           { label: "Trocas e devoluções", href: "/devolucoes" },
           { label: "Termos", href: "/termos" },
         ]} />
         <div>
-          <div className="font-display mb-3 text-sm font-bold">Pague com</div>
+          <EditableText as="div" path="pagamento.titulo" fallback="Pague com" label="Título das formas de pagamento" className="font-display mb-3 text-sm font-bold" />
           <PaymentChips />
-          {/* eslint-disable-next-line @next/next/no-img-element -- logo do chrome: SVG de poucos KB. O next/image marcaria lazy num elemento que aparece em toda página (o preload scanner perde o recurso) e o reencode come o traço fino do lettering. Otimizar poucos KB não paga essas duas contas. */}
-          <img src="/brand/logo-chrome.svg" alt={shopName} className="mt-6 h-11 w-auto opacity-90" />
+          {/* <img> puro (EditableImg), não next/image: logo do chrome é SVG de poucos KB em toda página. */}
+          <EditableImg path="logo" fallback={{ src: "/brand/logo-chrome.svg", alt: shopName }} label="Logo do rodapé" className="mt-6 h-11 w-auto opacity-90" />
         </div>
       </div>
     </>
   );
 }
 
-function FooterCol({ title, links }: { title: string; links: { label: string; href: string }[] }) {
+type LinkDoRodape = {
+  /** caminho do link no editor (`<coluna>.<chave>`); sem ele o link é de interface e fica no código */
+  chave?: string;
+  label: string;
+  href: string;
+};
+
+const CLASSE_LINK = "no-underline hover:text-[var(--store-chrome-text,#ffffff)]";
+
+function FooterCol({ path, title, links }: { path: string; title: string; links: LinkDoRodape[] }) {
   return (
     <div>
-      <div className="font-display mb-3 text-sm font-bold">{title}</div>
+      <EditableText as="div" path={`${path}.titulo`} fallback={title} label={`Título da coluna: ${title}`} className="font-display mb-3 text-sm font-bold" />
       <div className="flex flex-col gap-2.5 text-[13px] text-[var(--store-chrome-muted)]">
-        {links.map((l) => (
-          <Link key={l.label} href={l.href} className="no-underline hover:text-[var(--store-chrome-text,#ffffff)]">{l.label}</Link>
-        ))}
+        {links.map((l) =>
+          l.chave ? (
+            <EditableLink key={l.label} path={`${path}.${l.chave}`} fallback={{ href: l.href, label: l.label }} label={`Link: ${l.label}`} className={CLASSE_LINK}>
+              {l.label}
+            </EditableLink>
+          ) : (
+            <Link key={l.label} href={l.href} className={CLASSE_LINK} data-editor-ignore="">{l.label}</Link>
+          ),
+        )}
       </div>
     </div>
   );

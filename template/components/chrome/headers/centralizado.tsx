@@ -3,10 +3,16 @@
 //
 // Quando usar: marca editorial/de assinatura, catálogo curado, wordmark bonito.
 // Quando NÃO usar: catálogo grande onde a busca é o caminho principal (veja "classico").
+//
+// EDITOR: o escopo (`chrome.header`) vem da casca (components/site-header.tsx). O logo é o único
+// ponto de marca desta variante (`logo`, o mesmo caminho da barra do celular). Busca, conta e
+// carrinho são INTERFACE; as categorias são DADO do catálogo da Unbox: nada disso vira primitivo
+// (README do editor, §8), e a nav de categorias sai do gate por `data-editor-ignore`.
 import Link from "next/link";
 import { MagnifyingGlass } from "@phosphor-icons/react/dist/ssr";
 import { CartButton } from "@/components/cart-button";
 import { AccountNav } from "@/components/account-nav";
+import { EditableImg } from "@/lib/editable";
 import { HeaderBarMobile } from "../header-bar-mobile";
 import type { ChromeVariantProps } from "../registry";
 
@@ -26,8 +32,10 @@ export function HeaderCentralizado({ data }: ChromeVariantProps) {
         </div>
 
         <Link href="/" aria-label={shopName} className="flex justify-self-center">
-          {/* eslint-disable-next-line @next/next/no-img-element -- logo do chrome: SVG de poucos KB. O next/image marcaria lazy num elemento que aparece em toda página (o preload scanner perde o recurso) e o reencode come o traço fino do lettering. Otimizar poucos KB não paga essas duas contas. */}
-          <img src="/brand/logo.svg" alt={shopName} className="h-[58px] w-auto" />
+          {/* <img> puro (EditableImg), não next/image: logo do chrome é SVG de poucos KB, e o next/image
+              marcaria lazy num elemento que aparece em toda página (o preload scanner perde o recurso) e
+              o reencode come o traço fino do lettering. */}
+          <EditableImg path="logo" fallback={{ src: "/brand/logo.svg", alt: shopName }} label="Logo" className="h-[58px] w-auto" />
         </Link>
 
         <div className="flex items-center gap-5 justify-self-end">
@@ -36,8 +44,8 @@ export function HeaderCentralizado({ data }: ChromeVariantProps) {
         </div>
       </div>
 
-      {/* desktop — linha 2: navegação centralizada */}
-      <div className="hidden border-t border-[var(--store-surface-2)] md:block">
+      {/* desktop — linha 2: navegação centralizada (dado do catálogo: fora do editor) */}
+      <div className="hidden border-t border-[var(--store-surface-2)] md:block" data-editor-ignore="">
         <nav className="mx-auto flex max-w-[var(--container-max,1240px)] items-center justify-center gap-8 overflow-x-auto px-6" aria-label="Categorias">
           <NavLink href="/produtos" label="Todos" />
           {categories.map((c) => (

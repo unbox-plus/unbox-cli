@@ -10,7 +10,9 @@ export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
 const SITE_NAME = "Minha Loja";
-// Mesmos valores default de app/globals.css (o CLI escreve a cor real no scaffold).
+// Hex literal é obrigatório aqui: o satori (ImageResponse) não lê variável de CSS. O CLI
+// reescreve estas duas linhas com a cor da marca no scaffold (src/theme.js). Se o medidor de
+// sistema acusar estes dois hex, é exceção declarada, não vazamento.
 const PRIMARY = "#18181B";
 const PRIMARY_FG = "#FFFFFF";
 

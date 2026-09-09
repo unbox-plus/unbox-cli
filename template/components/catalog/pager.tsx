@@ -36,8 +36,8 @@ export function Pager({
             className="flex h-10 w-10 items-center justify-center rounded-xl border-[1.5px] text-[14px] font-bold no-underline transition-colors"
             style={
               p === page
-                ? { background: "var(--store-primary,#18181B)", borderColor: "var(--store-primary,#18181B)", color: "#fff" }
-                : { background: "#fff", borderColor: "var(--store-line-2)", color: "var(--store-ink-2)" }
+                ? { background: "var(--store-primary,#18181B)", borderColor: "var(--store-primary,#18181B)", color: "var(--store-surface)" }
+                : { background: "var(--store-surface)", borderColor: "var(--store-line-2)", color: "var(--store-ink-2)" }
             }
           >
             {p}

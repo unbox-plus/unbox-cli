@@ -15,6 +15,34 @@ Complementos gerais (skills em `.claude/skills/`): `frontend-design` (direção 
 hora de construir, use pra fugir de escolha "de template") e `web-design-guidelines`
 (auditoria de UI/acessibilidade, rode antes de declarar pronto).
 
+## Composição da home: impacto, não comprimento
+
+Não existe teto de seções, e o medidor (`npm run unbox:medir`) reporta o número sem reprovar. O
+que existe é uma pergunta por seção: **o que esta seção faz que a anterior não fez?** Seção que
+repete a promessa da anterior com outras palavras alonga a página sem acrescentar motivo de
+compra, e é assim que uma home vira rolagem.
+
+A receita default tem 16 seções porque é uma biblioteca, não uma recomendação: o briefing escolhe.
+Sinais de que sobrou seção: duas seções seguidas com o mesmo tipo de argumento, um bloco que só
+existe para ocupar espaço entre dois que importam, e qualquer seção que o cliente não saberia
+descrever depois de ver a página uma vez.
+
+## O header segue o estilo da marca
+
+A biblioteca tem 5 headers e a escolha é do briefing, não do preset. O preset dá o ponto de
+partida; a marca decide. Um roteiro curto para escolher, em vez de aceitar o que veio:
+
+| a marca é | header que costuma servir |
+|---|---|
+| fotográfica, com hero de imagem forte | `imersivo` (transparente sobre o hero, sólido ao rolar) |
+| catálogo grande, busca é o começo da visita | `classico` (busca visível) |
+| poucos produtos, identidade no logo | `centralizado` ou `equilibrado` |
+| conteúdo denso, o header não é protagonista | `compacto` |
+
+Trocar é uma linha em `components/chrome/chrome-recipe.ts`. O que não vale é deixar o default
+porque ninguém olhou: o header aparece em toda página, e é a primeira coisa que faz uma loja
+parecer com outra.
+
 ## 1. Os 4 estilos (presets do CLI)
 
 O scaffold já aplicou um (campo `estilo` do `marca/briefing.json`). Seu papel no briefing é

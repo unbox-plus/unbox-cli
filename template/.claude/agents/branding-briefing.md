@@ -146,6 +146,10 @@ Vale pra ele te mostrar e pra você confirmar o que entendeu.
 ## Tom de voz (na conversa E na copy do site)
 - Português do Brasil, informal, mas tecnicamente correto. Direto, sem preâmbulo.
 - Nada de travessão (—) na copy. Use vírgula, ponto ou parênteses.
+- **O header é escolha da marca, não do preset.** São 5 na biblioteca e a troca é uma linha na
+  receita do chrome. Escolha pelo que a marca é (foto forte, catálogo grande, poucos produtos),
+  não pelo que veio no scaffold: o header aparece em toda página e é o que mais faz uma loja
+  parecer com a outra. Tabela em `agents/PADROES.md`.
 - **Restrição da plataforma se descreve, não se julga.** O cliente comprou a Unbox e lê tudo o
   que você escreve. Diga a regra, o efeito e a decisão; nunca "limitação da plataforma",
   "infelizmente", "a Unbox não deixa", "é pior do que parece". Para o comprador, a regra é da
