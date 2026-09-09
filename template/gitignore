@@ -1,0 +1,21 @@
+# deps / build
+node_modules/
+.next/
+out/
+build/
+*.tsbuildinfo
+next-env.d.ts
+
+# env — segredos NUNCA no git
+.env*
+!.env.example
+
+# MCP da Unbox — o .mcp.json real carrega credenciais (copie de .mcp.json.example)
+.mcp.json
+
+# plataforma / SO
+.vercel
+.DS_Store
+
+# capturas do QA visual (npm run unbox:qa) — artefato local, não versionar
+qa/

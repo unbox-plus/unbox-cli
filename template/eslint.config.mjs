@@ -1,0 +1,36 @@
+import { dirname } from "path";
+import { fileURLToPath } from "url";
+import { FlatCompat } from "@eslint/eslintrc";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+const compat = new FlatCompat({
+  baseDirectory: __dirname,
+});
+
+const eslintConfig = [
+  ...compat.extends("next/core-web-vitals", "next/typescript"),
+  {
+    ignores: [
+      "node_modules/**",
+      ".next/**",
+      "out/**",
+      "build/**",
+      "next-env.d.ts",
+      // Docs + script pros agentes 12/13/14 (deploy/CRO/SEO) rodarem manualmente depois —
+      // não é código do app, não faz sentido lintar com regras de web app.
+      "agents/**",
+    ],
+  },
+  {
+    // O SDK consome um GraphQL sem introspection (schema "de fato"); as respostas são
+    // intencionalmente `any`. Não bloqueamos o build por isso.
+    rules: {
+      "@typescript-eslint/no-explicit-any": "off",
+      "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
+    },
+  },
+];
+
+export default eslintConfig;

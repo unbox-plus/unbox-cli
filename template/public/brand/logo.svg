@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="168" height="44" viewBox="0 0 168 44">
+  <!-- PLACEHOLDER de logo: quadrado neutro + "sua marca". É proposital que pareça
+       inacabado — quem entrega a loja tem que TROCAR este arquivo pelo logo real.
+       Versões: logo.svg (fundo claro) e logo-chrome.svg (sobre a cor de chrome). -->
+  <rect x="0" y="0" width="44" height="44" rx="10" fill="#D4D4D8"/>
+  <text x="56" y="28" font-family="system-ui,-apple-system,sans-serif" font-size="15" font-weight="600" fill="#71717A" letter-spacing="0.2">sua marca</text>
+</svg>

@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "unbox": {
+      "url": "https://mcp.unbox.com.br/mcp",
+      "headers": {
+        "x-unbox-mcp-token": "SEU_UNBOX_MCP_TOKEN",
+        "x-unbox-api-key": "SUA_UNBOX_PARTNER_API_KEY",
+        "x-unbox-username": "SEU_UNBOX_USER",
+        "x-unbox-password": "SUA_UNBOX_PASS",
+        "x-unbox-integration-mode": "headless"
+      }
+    }
+  }
+}

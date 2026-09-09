@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="168" height="44" viewBox="0 0 168 44">
+  <!-- PLACEHOLDER de logo sobre o CHROME (rodapé, header sobreposto). Mesmo desenho da
+       versão clara, em tons que leem sobre fundo escuro. Troque pelo logo real da marca. -->
+  <rect x="0" y="0" width="44" height="44" rx="10" fill="#FFFFFF" fill-opacity="0.22"/>
+  <text x="56" y="28" font-family="system-ui,-apple-system,sans-serif" font-size="15" font-weight="600" fill="#FFFFFF" fill-opacity="0.75" letter-spacing="0.2">sua marca</text>
+</svg>

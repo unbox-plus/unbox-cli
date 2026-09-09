@@ -1,0 +1,462 @@
+/* ═══════════════════════════════════════════════════════════════════════════════════════
+   MAPA DESTE ARQUIVO — ~420 linhas, e quase toda edição de marca mora numa só delas.
+
+   Na ordem em que aparecem (busque pelo marcador, não conte linhas — elas andam):
+
+     @import              Tailwind v4, tw-animate-css, shadcn
+     @theme inline        ponte tokens --store-* → utilitários do Tailwind/shadcn.
+                          Derivação, não decisão: você raramente mexe aqui.
+     :root                ◀ AS DECISÕES. Cor, fonte, raio, ritmo vertical, largura de
+                          container e eixos de composição (--card-*). A marca entra AQUI.
+     @layer base          reset e defaults de elemento
+     "PDP layout"         página de produto e cards
+     "Marquee"/"Chama"    animações pontuais
+     "Checkout"           chrome próprio, full-bleed, nav inferior mobile
+     "Header SOBREPOSTO"  variante "imersivo" do chrome
+     "HTML rico"          descrição do produto vinda da API, sanitizada
+     "── MOTION"          token --motion e animações de scroll (valor 0 desliga tudo)
+
+   Pra trocar a paleta da marca, só o :root importa. Não leia o resto do arquivo.
+   ═══════════════════════════════════════════════════════════════════════════════════════ */
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  /* Fontes — as famílias reais são declaradas no bloco UNBOX-FONTS de app/layout.tsx
+     (reescrito pelo create-unbox-store conforme o estilo/preset escolhido). */
+  --font-sans:    var(--font-sans);
+  --font-mono:    var(--font-geist-mono);
+  --font-heading: var(--font-display);
+
+  /* Cores semânticas → tokens derivados */
+  --color-background:  var(--background);
+  --color-foreground:  var(--foreground);
+  --color-card:        var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover:     var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary:     var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary:   var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted:       var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent:      var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border:      var(--border);
+  --color-input:       var(--input);
+  --color-ring:        var(--ring);
+
+  /* Semânticos de e-commerce */
+  --color-price:   var(--price);
+  --color-success: var(--success);
+  --color-rating:  var(--rating);
+  --color-warning: var(--warning);
+
+  /* Brand (compat) */
+  --color-brand:      var(--brand);
+  --color-brand-soft: var(--brand-soft);
+
+  /* Charts */
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  /* Sidebar */
+  --color-sidebar:                    var(--sidebar);
+  --color-sidebar-foreground:         var(--sidebar-foreground);
+  --color-sidebar-primary:            var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent:             var(--sidebar-accent);
+  --color-sidebar-accent-foreground:  var(--sidebar-accent-foreground);
+  --color-sidebar-border:             var(--sidebar-border);
+  --color-sidebar-ring:               var(--sidebar-ring);
+
+  /* Radius — escala inteira deriva de --radius (escrito pelo CLI conforme o estilo).
+     Multiplicadores calibrados pros raios usados no design (lg=14px, xl≈18px, 2xl≈22px
+     com o default 0.875rem). */
+  --radius-sm:  calc(var(--radius) * 0.6);
+  --radius-md:  calc(var(--radius) * 0.8);
+  --radius-lg:  var(--radius);
+  --radius-xl:  calc(var(--radius) * 1.3);
+  --radius-2xl: calc(var(--radius) * 1.6);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+  /* ═══════════════════════════════════════════════════════════════
+     BRAND TOKENS — editar aqui ao criar uma nova loja.
+     Escritos pelo create-unbox-store (cores da marca + estilo/preset).
+
+     ⚠️ O cinza neutro abaixo é CANVAS PROVISÓRIA, não escolha estética: é a tela mais
+     neutra possível pra qualquer cor de marca cair bem em cima. Aplicar as cores REAIS
+     da marca é o primeiro ato do briefing — loja entregue com esta paleta é loja sem
+     identidade (o `npm run build` avisa enquanto ela estiver aqui).
+     ═══════════════════════════════════════════════════════════════
+
+     --store-primary      botões, preços, links ativos, ícones de ação
+     --store-primary-dark hover e pressed dos botões primários
+     --store-primary-soft fundo suave: badges de verificado, avisos verdes
+     --store-cta          banners de oferta, newsletter, badge de desconto, "comprar agora"
+     --store-cta-fg       texto sobre a cor CTA
+     --store-cta-dark     hover/pressed dos elementos com fundo CTA
+     --store-cta-soft     fundo suave da família CTA (chips, avisos)
+     --store-chrome-bg    header e footer (barra da marca)
+     --store-chrome-text  texto sobre o chrome
+     --store-chrome-muted texto secundário/ícones sobre o chrome
+     --store-chrome-line  divisores dentro do chrome (rodapé)
+     ─────────────────────────────────────────────────────────────── */
+  --store-primary:      #18181B;
+  --store-primary-dark: #09090B;
+  --store-primary-soft: #F1F1F3;
+  --store-cta:          #D97706;
+  --store-cta-fg:       #1C1207;
+  --store-cta-dark:     #B45309;
+  --store-cta-soft:     #FDF0DC;
+  --store-chrome-bg:    #18181B;
+  --store-chrome-text:  #FFFFFF;
+  --store-chrome-muted: #A1A1AA;
+  --store-chrome-line:  #34343A;
+
+  /* ── Neutros do ESTILO (mudam por preset, não pela cor da marca) ──
+     --store-ink        texto principal (quase preto do estilo)
+     --store-ink-2      texto de apoio forte, ícones escuros
+     --store-muted      texto secundário
+     --store-faint      texto terciário, placeholders, bordas de foco suaves
+     --store-bg         fundo global das páginas
+     --store-surface    superfícies elevadas claras (cards suaves)
+     --store-surface-2  superfícies de destaque (faixas, blocos de seção)
+     --store-line       bordas e divisores padrão
+     --store-line-2     bordas mais marcadas (cards, inputs)
+     --store-sale       preço riscado/urgência/erro comercial (vermelho do estilo)
+     --store-sale-soft  fundo suave do vermelho comercial */
+  --store-ink:       #18181B;
+  --store-ink-2:     #3F3F46;
+  --store-muted:     #71717A;
+  --store-faint:     #A1A1AA;
+
+  /* ── SOMBRAS ─────────────────────────────────────────────────────────────────────────
+     NUNCA escreva cor literal em box-shadow. Foi exatamente assim que o verde da
+     foundation original sobreviveu a uma varredura que trocou 304 cores literais: ela
+     olhou classes de cor, e estes estavam dentro de `shadow-[...]` e de `boxShadow`
+     inline. Numa loja cobalto ou âmbar, o brilho continuava verde.
+     A sombra de CTA acompanha a marca via color-mix; as de card são neutras de
+     propósito (sombra é luz, não identidade). */
+  --store-shadow-cta:     0 6px 16px color-mix(in srgb, var(--store-primary, #18181B) 28%, transparent);
+  --store-shadow-cta-sm:  0 4px 10px color-mix(in srgb, var(--store-primary, #18181B) 30%, transparent);
+  --store-shadow-glow:    0 4px 12px color-mix(in srgb, var(--store-primary, #18181B) 32%, transparent);
+  --store-shadow-card:    0 10px 30px rgba(24, 24, 27, .10);
+  --store-shadow-card-lg: 0 12px 34px rgba(24, 24, 27, .18);
+  --store-shadow-soft:    0 4px 14px rgba(24, 24, 27, .07);
+  --store-shadow-hover:   0 8px 24px rgba(24, 24, 27, .08);
+  --store-bg:        #FAFAFA;
+  --store-surface:   #FFFFFF;
+  --store-surface-2: #F4F4F5;
+  --store-line:      #E4E4E7;
+  --store-line-2:    #D4D4D8;
+  --store-sale:      #DC2626;
+  --store-sale-soft: #FEE9E9;
+
+  /* ── Eixos de COMPOSIÇÃO (linguagem visual, mudam por estilo) ──
+     --section-gap    ritmo vertical entre seções da home/landing (denso ↔ arejado)
+     --container-max  largura do conteúdo das seções (1240px padrão; menor = editorial)
+     --card-bg/border/shadow  chrome dos cards de seção (.store-card):
+                      bordado (default) · sombra flutuante · preenchido flat */
+  --section-gap:   52px;
+  --container-max: 1240px;
+  --card-bg:       #ffffff;
+  --card-border:   1px solid var(--store-line);
+  --card-shadow:   none;
+  /* ═══════════════════════════════════════════════════════════════ */
+
+  /* ── Tokens derivados dos brand tokens acima ────────────────── */
+
+  /* Shadcn/Tailwind — primary aponta diretamente para o brand token */
+  --primary:            var(--store-primary);
+  --primary-foreground: #ffffff;
+
+  /* CTA / accent */
+  --accent:             var(--store-cta);
+  --accent-foreground:  var(--store-cta-fg);
+
+  /* Semânticos derivados */
+  --price:    var(--store-primary);
+  --success:  var(--store-primary);
+  --rating:   var(--store-cta);
+  --warning:  var(--store-cta);
+
+  /* Compat — código existente que referencia --brand-* ou --brand */
+  --brand:             var(--store-primary);
+  --brand-soft:        var(--store-primary-soft);
+
+  /* ── Superfícies e neutros derivados (a base vem dos tokens de ESTILO acima) ── */
+  --background:         var(--store-bg);
+  --foreground:         var(--store-ink);
+
+  --card:               oklch(1 0 0);
+  --card-foreground:    var(--store-ink);
+  --popover:            oklch(1 0 0);
+  --popover-foreground: var(--store-ink);
+
+  --secondary:          var(--store-surface-2);
+  --secondary-foreground: var(--store-ink-2);
+
+  --muted:              var(--store-surface-2);
+  --muted-foreground:   var(--store-muted);
+
+  --destructive:        oklch(0.561 0.218 26.977);
+
+  --border:             var(--store-line);
+  --input:              var(--store-line);
+  --ring:               var(--store-primary);
+
+  /* Radius */
+  --radius: 0.875rem;
+
+  /* Sidebar / mobile bottom nav */
+  --sidebar:                    oklch(1 0 0);
+  --sidebar-foreground:         var(--store-ink);
+  --sidebar-primary:            var(--store-primary);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent:             var(--store-primary-soft);
+  --sidebar-accent-foreground:  var(--store-ink-2);
+  --sidebar-border:             var(--store-line);
+  --sidebar-ring:               var(--store-primary);
+
+  /* Charts */
+  --chart-1: var(--store-primary);
+  --chart-2: var(--store-cta);
+  --chart-3: oklch(0.561 0.218 26.977);
+  --chart-4: oklch(0.603 0.129 118.456);
+  --chart-5: oklch(0.685 0.147 71.678);
+}
+
+.dark {
+  /* Brand tokens herdados do :root — não precisam mudar no dark mode.
+     Apenas as superfícies e neutros são reajustados. */
+
+  --background:         oklch(0.18 0.02 260);   /* neutro escuro genérico */
+  --foreground:         oklch(0.95 0.005 90);
+
+  --card:               oklch(0.22 0.02 260);
+  --card-foreground:    oklch(0.95 0.005 90);
+  --popover:            oklch(0.22 0.02 260);
+  --popover-foreground: oklch(0.95 0.005 90);
+
+  /* primary/accent continuam apontando para --store-* via :root */
+
+  --secondary:          oklch(0.28 0.02 260);
+  --secondary-foreground: oklch(0.95 0.005 90);
+
+  --muted:              oklch(0.28 0.02 260);
+  --muted-foreground:   oklch(0.65 0.01 90);
+
+  --destructive:        oklch(0.62 0.23 27);
+
+  --border:             oklch(1 0 0 / 10%);
+  --input:              oklch(1 0 0 / 14%);
+
+  --sidebar:            oklch(0.22 0.02 260);
+  --sidebar-foreground: oklch(0.95 0.005 90);
+  --sidebar-border:     oklch(1 0 0 / 10%);
+
+  --chart-3: oklch(0.62 0.23 27);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    /* A família vive AQUI, não no <html>: as variáveis do next/font (--font-sans etc.)
+       são declaradas na className do <body>, então uma regra em html não as enxerga e
+       o corpo cai no serif do navegador. Só aparecia no build de produção, e só fora
+       do .store-layout (ex.: /carrinho). */
+    font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
+  }
+  html {
+    /* Mata a barra de rolagem HORIZONTAL acidental: o hack .full-bleed usa 100vw, e 100vw
+       INCLUI a largura da barra de rolagem vertical (Windows/Linux e Mac com scrollbar
+       fixa) — sobram ~15px além da tela. `clip` corta o excedente SEM criar um scroll
+       container novo (não quebra position: sticky nem scrollIntoView). */
+    overflow-x: clip;
+  }
+  @supports not (overflow: clip) {
+    html { overflow-x: hidden; }
+  }
+}
+
+/* ===== PDP layout de produto ===== */
+/* Tipografia: corpo em --font-sans, títulos/display em --font-display — ambos definidos
+   no bloco UNBOX-FONTS de app/layout.tsx (trocados por estilo/preset pelo CLI). */
+.store-layout { font-family: var(--font-sans), system-ui, sans-serif; }
+.font-display { font-family: var(--font-display), var(--font-sans), sans-serif; }
+
+/* Títulos — usam a fonte de display do estilo */
+h1, h2, h3, h4 {
+  font-family: var(--font-heading), var(--font-sans), system-ui, sans-serif;
+}
+
+/* Quebra do container restrito do <main> p/ seções full-bleed da PDP */
+.full-bleed {
+  width: 100vw;
+  position: relative;
+  left: 50%;
+  right: 50%;
+  margin-left: -50vw;
+  margin-right: -50vw;
+}
+
+@keyframes storePulse { 0%, 100% { opacity: 1; } 50% { opacity: .55; } }
+.animate-store-pulse { animation: storePulse 1.4s infinite; }
+
+/* Card de seção — chrome controlado pelos eixos de composição (--card-*). O raio continua
+   vindo das classes rounded-* (escala do --radius). Use junto: "store-card rounded-2xl". */
+.store-card {
+  background: var(--card-bg, #ffffff);
+  border: var(--card-border, 1px solid var(--store-line));
+  box-shadow: var(--card-shadow, none);
+}
+
+/* Marquee infinito (seção attributes-marquee) — N sets idênticos (N par), -50% fecha o loop.
+   A seção define a duração inline proporcional ao número de cópias. */
+@keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.animate-marquee { animation: marquee 22s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .animate-marquee { animation: none; } }
+
+/* Chama "tremeluzindo" — usada nos ícones de foguinho (urgência/vendas). */
+@keyframes flameFlicker {
+  0%, 100% { transform: scale(1) rotate(0deg); opacity: 1; }
+  25% { transform: scale(1.12) rotate(-4deg); opacity: .85; }
+  50% { transform: scale(.96) rotate(3deg); opacity: 1; }
+  75% { transform: scale(1.08) rotate(-2deg); opacity: .9; }
+}
+.flame { animation: flameFlicker 1.1s ease-in-out infinite; transform-origin: center bottom; }
+@media (prefers-reduced-motion: reduce) { .flame { animation: none; } }
+
+/* Checkout: chrome próprio (header simplificado, sem footer) ocupando a tela inteira.
+   SSR-safe via :has() — sem JS, sem mismatch de hidratação, sem flash. A página do
+   checkout marca seu container raiz com .checkout-root. */
+body:has(.checkout-root) .site-chrome { display: none; }
+body:has(.checkout-root) .site-main { max-width: none; padding: 0; min-height: 0; }
+
+/* Páginas full-bleed (home, catálogo, PDP) começam coladas no header E no footer — remove o
+   padding do <main> e a margem própria do footer, senão sobra uma faixa da cor de fundo padrão
+   entre a seção full-bleed e o header/footer. */
+.site-main:has(.full-bleed) { padding-top: 0; padding-bottom: 0; }
+body:has(.site-main .full-bleed) footer.site-chrome { margin-top: 0; }
+
+/* Espaço para a barra de navegação inferior (mobile), exceto no checkout (chrome próprio). */
+@media (max-width: 767px) {
+  body:not(:has(.checkout-root)) { padding-bottom: 84px; }
+}
+
+/* ── Header SOBREPOSTO (variante "imersivo" do chrome) ───────────────────────────────────
+   SÓLIDO é o default: a transparência é o ramo OPT-IN do :has() e exige acordo dos DOIS
+   lados — o hero marca `.hero-imersivo` E a receita escolheu o header imersivo
+   (data-chrome). Assim um header claro nunca fica transparente sobre foto por engano, e
+   qualquer página sem esse hero (catálogo, PDP, conta, busca) sai sólida.
+   Mesma mecânica do checkout acima: SSR-safe, sem JS, sem flash. Browser sem :has() →
+   header sólido, que é o modo seguro. */
+header.site-chrome[data-chrome="imersivo"] { --chrome-h: 60px; }
+@media (min-width: 768px) { header.site-chrome[data-chrome="imersivo"] { --chrome-h: 76px; } }
+
+/* 1. layout: o header sai do fluxo (sem position:fixed, que o `overflow-x: clip` do html
+      pode clipar) e o hero sobe por baixo dele. */
+body:has(.hero-imersivo) header.site-chrome[data-chrome="imersivo"] {
+  margin-bottom: calc(-1 * var(--chrome-h));
+}
+/* 2. pintura: véu na PRÓPRIA cor de chrome — logo e ícones legíveis pelo mesmo motivo que
+      já valem sobre o chrome sólido, sem asset novo. .chrome-bar ganha data-solid ao rolar. */
+body:has(.hero-imersivo) header.site-chrome[data-chrome="imersivo"] .chrome-bar:not([data-solid]) {
+  background: linear-gradient(to bottom, color-mix(in srgb, var(--store-chrome-bg) 62%, transparent), transparent);
+  box-shadow: none;
+}
+@media (prefers-reduced-motion: reduce) { .chrome-bar { transition: none; } }
+
+/* Âncoras (#destaques, #comprar) não somem sob o header sticky — vale para as 4 variantes. */
+html { scroll-padding-top: var(--chrome-h, 88px); }
+
+/* HTML rico sanitizado (descrição/infos do produto) */
+.richtext {
+  @apply text-sm leading-relaxed text-foreground/90;
+}
+.richtext p { @apply my-2; }
+.richtext ul { @apply my-2 list-disc pl-5; }
+.richtext ol { @apply my-2 list-decimal pl-5; }
+.richtext h1, .richtext h2, .richtext h3, .richtext h4 { @apply mt-4 mb-2 font-semibold; }
+.richtext a { @apply text-primary underline underline-offset-2; }
+.richtext img { @apply my-2 max-w-full rounded-md; }
+.richtext table { @apply my-3 w-full border-collapse text-sm; }
+.richtext th, .richtext td { @apply border border-border px-2 py-1 text-left; }
+
+/* ── MOTION ──────────────────────────────────────────────────────────────────────────────
+   CSS PURO, zero JavaScript: as animações usam timeline de scroll (`animation-timeline:
+   view()`), que roda no compositor. Não entra um byte no bundle, não há hidratação e não
+   existe estado "invisível esperando script" — por isso não afeta o tempo da primeira tela.
+
+   Navegador sem suporte (Firefox hoje) simplesmente NÃO anima: o conteúdo aparece normal.
+   A degradação é sempre pro lado seguro, então o default de tudo é VISÍVEL.
+
+   ⚠️ REGRA DURA: nada da primeira dobra anima. O hero nunca leva .reveal — conteúdo que
+   entra animado no topo atrasa a percepção de carregamento e mexe no LCP.
+
+   Intensidade vem do dial MOTION_INTENSITY do briefing, via --motion (0 = desligado). */
+:root {
+  /* Declaração numa linha só, indentada: é o formato que o create-unbox-store procura
+     (regex ancorada em início de linha) pra escrever o valor do dial. Não colapse. */
+  --motion: 1;
+}
+
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    /* Aparição ao entrar na viewport. Só abaixo da dobra. */
+    .reveal {
+      animation: unbox-reveal linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 45%;
+    }
+    /* Deslocamento lento da imagem dentro do próprio frame (parallax contido).
+       O pai precisa de overflow-hidden; a imagem usa scale pra não mostrar borda. */
+    .parallax-slow {
+      animation: unbox-parallax linear both;
+      animation-timeline: view();
+      animation-range: cover 0% cover 100%;
+      will-change: transform;
+    }
+  }
+}
+
+@keyframes unbox-reveal {
+  from { opacity: 0; transform: translateY(calc(18px * var(--motion))); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes unbox-parallax {
+  from { transform: scale(1.08) translateY(calc(-2.5% * var(--motion))); }
+  to   { transform: scale(1.08) translateY(calc(2.5% * var(--motion))); }
+}
+
+/* ── ACESSIBILIDADE: piso de 16px em campo de formulário no mobile ───────────────────────
+   O iOS dá zoom automático ao focar um input com fonte menor que 16px, e a "solução"
+   antiga era desligar o pinch-zoom no viewport — que quebra a WCAG 1.4.4 para todo mundo
+   para resolver um detalhe de uma plataforma. Esta é a correção certa.
+
+   !important é deliberado: utilitário do Tailwind (text-[.98rem] e afins) vence seletor de
+   elemento, e este é um piso de acessibilidade que não deve ser sobrescrito por engano. Só
+   vale abaixo de 768px, onde o problema existe. */
+@media (max-width: 767px) {
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}

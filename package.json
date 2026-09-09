@@ -1,0 +1,25 @@
+{
+  "name": "create-unbox-store",
+  "version": "0.17.1",
+  "description": "Scaffold a new Unbox storefront (Next.js) from the official template",
+  "license": "UNLICENSED",
+  "type": "module",
+  "bin": {
+    "create-unbox-store": "./bin/cli.js"
+  },
+  "files": [
+    "bin",
+    "src",
+    "template"
+  ],
+  "engines": {
+    "node": ">=20.11"
+  },
+  "dependencies": {
+    "prompts": "^2.4.2"
+  },
+  "scripts": {
+    "check:neutro": "node tools/check-template-neutro.mjs",
+    "prepack": "node tools/check-template-neutro.mjs"
+  }
+}
