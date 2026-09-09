@@ -2,7 +2,7 @@
   "name": "unbox-cli",
   "version": "0.17.1",
   "description": "Scaffold a new Unbox storefront (Next.js) from the official template",
-  "license": "UNLICENSED",
+  "license": "SEE LICENSE IN LICENSE.md",
   "type": "module",
   "bin": {
     "create-unbox-store": "./bin/cli.js"
