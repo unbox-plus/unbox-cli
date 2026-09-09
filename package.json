@@ -1,5 +1,5 @@
 {
-  "name": "create-unbox-store",
+  "name": "unbox-cli",
   "version": "0.17.1",
   "description": "Scaffold a new Unbox storefront (Next.js) from the official template",
   "license": "UNLICENSED",

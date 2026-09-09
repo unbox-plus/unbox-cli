@@ -1,4 +1,4 @@
-# create-unbox-store
+# Unbox CLI
 
 CLI que gera um storefront Next.js completo integrado com a API Unbox, a partir da foundation
 oficial (`storefront-foundation`), já com a sua marca aplicada: estilo visual (layout, fontes,
