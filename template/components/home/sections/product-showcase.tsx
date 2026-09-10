@@ -85,7 +85,11 @@ export function ProductShowcaseSection({ data, sectionProps = {} }: SectionCompo
   const doCodigo = data.combos.slice(0, max);
   // A escolha que o CÓDIGO representa: os produtos que esta seção lista hoje, na ordem em que
   // aparecem. É o que o painel mostra como estado atual antes do primeiro clique do lojista.
-  const fallbackVitrine: VitrineValue = { modo: "produtos", produtos: doCodigo.map((p) => p.slug) };
+  // Vínculo pelo productId, não pelo slug: slug é editável no painel da Unbox (renomear produto,
+  // ajuste de SEO) e, quando muda, o vínculo por slug para de resolver e o produto SOME da seção
+  // sem erro nenhum. O id é estável. `resolverVitrine` aceita os dois, então o slug fica de reserva
+  // para catálogo que não devolva id.
+  const fallbackVitrine: VitrineValue = { modo: "produtos", produtos: doCodigo.map((p) => p.productId || p.slug) };
 
   // Produtos resolvidos (pelo servidor em produção, pela prévia no editor) → cards.
   const cardsDe = (lista: VitrineProdutoResolvido[], teto: number): CardDeVitrine[] =>

@@ -71,7 +71,9 @@ export function CombosCarouselSection({ data }: SectionComponentProps) {
   const ctx = useEditableContext();
   const doServidor = data.vitrines?.[joinPath(ctx.scope, CAMPO_VITRINE)] ?? null;
   // A escolha que o CÓDIGO representa: os produtos desta seção hoje, na ordem em que aparecem.
-  const fallbackVitrine: VitrineValue = { modo: "produtos", produtos: data.combos.map((p) => p.slug) };
+  // Vínculo pelo productId, não pelo slug: ver product-showcase.tsx. Slug muda no painel e o
+  // produto some da seção em silêncio; o id é estável.
+  const fallbackVitrine: VitrineValue = { modo: "produtos", produtos: data.combos.map((p) => p.productId || p.slug) };
 
   // Sem catálogo nenhum a seção não tem o que mostrar. No modo edição ela CONTINUA na tela: sumindo
   // dali, o lojista não conseguiria selecionar a vitrine para trocar a escolha.

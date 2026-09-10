@@ -230,6 +230,23 @@ if (fs.existsSync(path.join(ROOT, "public/llms.txt"))) {
   errors.push("public/llms.txt existe e ESCONDE a rota app/llms.txt (arquivo estático tem precedência): apague o arquivo.");
 }
 
+// ── 9. Formulário sem destino ────────────────────────────────────────────────
+// Campo que recebe dado e joga fora é pior que campo nenhum: a pessoa acha que se cadastrou e a
+// loja não tem o contato. Dois blocos desta foundation faziam isso com
+// `onSubmit={(e) => e.preventDefault()}` e um <input type="email"> dentro. O padrão é preciso o
+// bastante para virar regra: preventDefault sozinho, sem handler que faça algo, é engolir.
+for (const caminho of arquivosDeCopy) {
+  const rel = path.relative(ROOT, caminho);
+  const src = fs.readFileSync(caminho, "utf8");
+  if (!/<input[^>]*type=["']email["']/.test(src)) continue;
+  const linhas = src.split("\n");
+  linhas.forEach((linha, idx) => {
+    if (/onSubmit=\{\s*\(?\s*e\s*\)?\s*=>\s*e\.preventDefault\(\)\s*\}/.test(linha)) {
+      errors.push(`${rel}:${idx + 1} formulário de e-mail que descarta o envio (preventDefault sozinho): dê um destino real ou não renderize o bloco.`);
+    }
+  });
+}
+
 // ── Avisos NÃO bloqueantes (acabamento de marca) ──────────────────────────────
 const warnings = [];
 if (layout && /description:\s*(undefined|""|process\.env\.NEXT_PUBLIC_SITE_DESCRIPTION \|\| undefined)/.test(layout) && !process.env.NEXT_PUBLIC_SITE_DESCRIPTION) {
