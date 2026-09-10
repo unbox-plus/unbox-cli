@@ -174,6 +174,13 @@ export async function resolverVitrine(escolha: VitrineValue, opts?: { estrito?: 
     for (const e of extras) if (e) indexar(e);
   }
 
+  // Item pedido que não resolveu SOME da vitrine. Isso é o certo na tela (produto que saiu do
+  // catálogo não deve aparecer), mas some sem sinal nenhum, e a causa mais comum é vínculo por
+  // slug depois de o slug mudar no painel. Registrar dá o "por quê" a quem for olhar o log.
+  const perdidos = pedidos.filter((id) => !achados.has(id));
+  if (perdidos.length) {
+    console.warn(`[unbox] vitrine: ${perdidos.length} vínculo(s) não resolveram e sumiram da seção: ${perdidos.join(", ")}`);
+  }
   return pedidos.map((id) => achados.get(id)).filter((p): p is VitrineProduto => !!p);
 }
 

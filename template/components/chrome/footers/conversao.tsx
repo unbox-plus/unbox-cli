@@ -11,7 +11,9 @@
 import Link from "next/link";
 import { PaymentChips } from "@/components/product/pdp/payment-chips";
 // Exports NOMEADOS: server component (ver components/site-footer.tsx).
-import { EditableImg, EditableLink, EditableSlot, EditableText } from "@/lib/editable";
+import { EditableImg, EditableLink, EditableText } from "@/lib/editable";
+import { CapturaBotao } from "./captura-botao";
+import { NEWSLETTER_ACTION } from "@/lib/newsletter";
 import type { ChromeVariantProps } from "../registry";
 
 export function FooterConversao({ data }: ChromeVariantProps) {
@@ -19,28 +21,22 @@ export function FooterConversao({ data }: ChromeVariantProps) {
 
   return (
     <>
-      {/* captura — TODO: ligar o form ao provedor de e-mail da marca */}
-      <div className="border-b border-[var(--store-chrome-line,rgba(255,255,255,.1))]">
-        <div className="mx-auto flex max-w-[var(--container-max,1240px)] flex-wrap items-center gap-6 px-6 py-10">
-          <div className="min-w-[260px] flex-1">
-            {/* TODO: personalize a oferta de boas-vindas */}
-            <EditableText as="div" path="captura.titulo" fallback="Receba as novidades antes" label="Título da captura de e-mail" className="font-display text-[24px] font-extrabold leading-[1.15]" />
-            <EditableText as="p" path="captura.texto" fallback="Ofertas e lançamentos direto no seu e-mail." label="Texto da captura de e-mail" className="mt-1.5 text-[13.5px] text-[var(--store-chrome-muted)]" />
+      {/* Captura de e-mail: só existe com destino real (NEXT_PUBLIC_NEWSLETTER_ACTION). Sem ele,
+          a faixa inteira some — inclusive a borda, senão fica uma tira vazia no topo do rodapé. */}
+      {NEWSLETTER_ACTION && (
+        <div className="border-b border-[var(--store-chrome-line,rgba(255,255,255,.1))]">
+          <div className="mx-auto flex max-w-[var(--container-max,1240px)] flex-wrap items-center gap-6 px-6 py-10">
+            <div className="min-w-[260px] flex-1">
+              <EditableText as="div" path="captura.titulo" fallback="Receba as novidades antes" label="Título da captura de e-mail" className="font-display text-[24px] font-extrabold leading-[1.15] text-[var(--store-chrome-text,#ffffff)]" />
+              <EditableText as="p" path="captura.texto" fallback="Ofertas e lançamentos direto no seu e-mail." label="Texto da captura de e-mail" className="mt-1.5 text-[14px] text-[var(--store-chrome-muted)]" />
+            </div>
+            <form method="post" action={NEWSLETTER_ACTION} className="flex w-full max-w-[440px] items-center gap-1.5 rounded-full bg-white p-1.5">
+              <input type="email" name="email" required placeholder="Seu melhor e-mail" aria-label="Seu e-mail" className="h-11 min-w-0 flex-1 rounded-full bg-transparent px-4 text-sm text-[var(--store-ink)] outline-none" />
+              <CapturaBotao />
+            </form>
           </div>
-          <form className="flex w-full max-w-[440px] items-center gap-1.5 rounded-full bg-white p-1.5">
-            <input type="email" placeholder="Seu melhor e-mail" aria-label="Seu e-mail" className="h-11 min-w-0 flex-1 rounded-full bg-transparent px-4 text-sm text-[var(--store-ink)] outline-none" />
-            {/* Slot, não Text: o <button> é filho direto de um flex e precisa manter type="submit";
-                o Slot devolve o MESMO elemento, sem invólucro */}
-            <EditableSlot path="captura.botao" type="text" fallback="QUERO" label="Texto do botão da captura">
-              {(v, attrs, ref, estilo) => (
-                <button ref={ref} {...attrs} type="submit" className="font-display h-11 shrink-0 rounded-full bg-[var(--store-cta,#D97706)] px-6 text-[14px] font-extrabold tracking-[0.5px] text-[var(--store-cta-fg,#1C1207)]" style={estilo}>
-                  {v}
-                </button>
-              )}
-            </EditableSlot>
-          </form>
         </div>
-      </div>
+      )}
 
       {/* links + pagamento */}
       <div className="mx-auto grid max-w-[var(--container-max,1240px)] gap-8 px-6 py-9 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1.2fr]">

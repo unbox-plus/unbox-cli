@@ -1,5 +1,55 @@
 ## Changelog
 
+### v0.20.3 — a foundation não compilava no estilo promocional, e dois formulários engoliam o e-mail
+
+Duas correções vindas de quem usou a versão nova, e as duas com a mesma causa de fundo do meu
+lado: eu testava sempre com `--estilo essencial`.
+
+**O build quebrava com `--estilo promocional`, em scaffold intocado.** `footers/conversao.tsx` é
+Server Component e passava uma render-prop para o `EditableSlot`, que é client: função não
+atravessa a fronteira servidor→cliente e o Next derruba o prerender com "Functions cannot be
+passed directly to Client Components". Como o rodapé vive no layout de `(loja)`, o erro caía em
+TODA página — o build morria em `/conta/entrar`, que nem tem rodapé próprio. O botão foi isolado
+num componente de cliente (`footers/captura-botao.tsx`), com o motivo escrito ao lado para não
+voltar. Reproduzido em scaffold limpo antes e depois: `promocional` reprovava, agora passa.
+
+**Dois formulários de e-mail descartavam o que recebiam.** A captura do rodapé "conversão" e a do
+catálogo tinham `onSubmit={(e) => e.preventDefault()}` e nenhum destino: a pessoa preenchia, via a
+página não fazer nada e ia embora achando que tinha se cadastrado. Agora os três blocos de captura
+(rodapé, catálogo e a seção `newsletter` da home) leem `NEXT_PUBLIC_NEWSLETTER_ACTION`, um lugar só
+(`lib/newsletter.ts`), e **sem destino o bloco não renderiza** — no rodapé some a faixa inteira,
+com a borda, senão sobra uma tira vazia. Com destino, o formulário é POST de verdade, com
+`name="email"` e `required`. A `action` da receita continua vencendo, para a seção que tiver
+destino próprio.
+
+**Gate novo:** `<input type="email">` com `preventDefault` sozinho reprova o build. É o padrão
+exato do defeito, e a regra já estava escrita ("formulário sem destino não nasce") sem nada que a
+cobrasse.
+
+**E o buraco no meu teste**, que é o que deixou os dois passarem: eu gerava a loja sempre no estilo
+`essencial`, e `conversao` é o rodapé do `promocional`. Esta versão foi verificada gerando e
+buildando os **quatro presets** (essencial, promocional, editorial, boutique): os quatro passam.
+
+Arquivo: `CLI - Unbox v0.20.3.zip`.
+
+### v0.20.2 — vitrine da home vinculava produto pelo slug
+
+O vínculo de produto aceita `productId`, `_id` ou `slug`, e o painel salva o `productId` (é o que a
+rota `/api/unbox/catalogo` devolve como `id`). Mas o vínculo **default do código**, o que vale
+enquanto o lojista não escolheu nada, era montado com `slug`: `product-showcase` e
+`combos-carousel` faziam `produtos: [...].map((p) => p.slug)`.
+
+Slug é editável no painel da Unbox. Quando muda (renomear produto, ajuste de SEO), o vínculo por
+slug para de resolver — e `resolverVitrine` descarta o que não encontra, então o produto **some da
+home sem erro nenhum**. Os dois passaram a usar `p.productId || p.slug`: o id é estável e o slug
+fica de reserva para catálogo que não devolva id. A resolução continua aceitando os três, então
+documento já publicado com slug continua funcionando enquanto o slug existir.
+
+E o silêncio também saiu: vínculo pedido que não resolve agora deixa um aviso no log do servidor
+dizendo quantos e quais, em vez de a seção simplesmente encolher.
+
+Arquivo: `CLI - Unbox v0.20.2.zip`.
+
 ### v0.20.1 — o changelog volta a descrever o que foi entregue
 
 Correção de release, sem mudança de comportamento na loja.

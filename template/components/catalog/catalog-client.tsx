@@ -24,6 +24,7 @@ import type { ResolvedCombo } from "@/lib/enrichment/combos";
 // primitivo (README §8); esses blocos levam `data-editor-ignore`, que é o atributo que o gate respeita
 // para não cobrar o que ficou fora por decisão.
 import { Editable } from "@/lib/editable";
+import { NEWSLETTER_ACTION } from "@/lib/newsletter";
 
 export interface CatalogProductItem {
   slug: string;
@@ -435,25 +436,28 @@ export function CatalogClient({
 
           {/* newsletter: a chamada é copy (em três partes, para manter o trecho sublinhado); campo e
               placeholder são interface do formulário e ficam fora (README §8) */}
-          <Editable.Section id="newsletter" kind="newsletter" label="Newsletter">
-            <div className="mt-12 flex min-h-[120px] flex-wrap items-center gap-7 overflow-hidden rounded-xl bg-[var(--store-cta,#D97706)] px-8 py-7">
-              {/* TODO: personalize a oferta de boas-vindas */}
-              <div className="font-display flex-1 text-[20px] font-extrabold leading-tight text-[var(--store-cta-fg,#1C1207)] sm:text-[23px]">
-                <Editable.Text path="chamada.1" fallback="Cadastre-se e receba" label="Chamada (início)" />{" "}
-                <Editable.Text path="chamada.destaque" fallback="ofertas exclusivas" label="Chamada (trecho sublinhado)" className="underline decoration-2 underline-offset-2" />{" "}
-                <Editable.Text path="chamada.2" fallback="e novidades!" label="Chamada (fim)" />
+          {/* Captura de e-mail: só com destino real (NEXT_PUBLIC_NEWSLETTER_ACTION). Formulário que
+              engole o e-mail em silêncio é pior que não ter formulário. */}
+          {NEWSLETTER_ACTION && (
+            <Editable.Section id="newsletter" kind="newsletter" label="Newsletter">
+              <div className="mt-12 flex min-h-[120px] flex-wrap items-center gap-7 overflow-hidden rounded-xl bg-[var(--store-cta,#D97706)] px-8 py-7">
+                <div className="font-display flex-1 text-[20px] font-extrabold leading-tight text-[var(--store-cta-fg,#1C1207)] sm:text-[23px]">
+                  <Editable.Text path="chamada.1" fallback="Cadastre-se e receba" label="Chamada (início)" />{" "}
+                  <Editable.Text path="chamada.destaque" fallback="ofertas exclusivas" label="Chamada (trecho sublinhado)" className="underline decoration-2 underline-offset-2" />{" "}
+                  <Editable.Text path="chamada.2" fallback="e novidades!" label="Chamada (fim)" />
+                </div>
+                <form method="post" action={NEWSLETTER_ACTION ?? undefined} className="flex w-full max-w-[480px] items-center gap-1.5 rounded-full bg-white p-1.5">
+                  <input type="email" name="email" required placeholder="Seu melhor e-mail" className="h-11 min-w-0 flex-1 rounded-full bg-transparent px-4 text-sm outline-none" />
+                  {/* Slot, não Text: o <button> é filho direto de um flex e precisa manter type="submit" */}
+                  <Editable.Slot path="botao" type="text" fallback="EU QUERO!" label="Texto do botão">
+                    {(v, attrs, ref, estilo) => (
+                      <button ref={ref} {...attrs} type="submit" className="font-display h-11 shrink-0 rounded-full bg-[var(--store-primary,#18181B)] px-5 text-[15px] font-extrabold tracking-[0.5px] text-white" style={estilo}>{v}</button>
+                    )}
+                  </Editable.Slot>
+                </form>
               </div>
-              <form className="flex w-full max-w-[480px] items-center gap-1.5 rounded-full bg-white p-1.5" onSubmit={(e) => e.preventDefault()}>
-                <input type="email" placeholder="Seu melhor e-mail" className="h-11 min-w-0 flex-1 rounded-full bg-transparent px-4 text-sm outline-none" />
-                {/* Slot, não Text: o <button> é filho direto de um flex e precisa manter type="submit" */}
-                <Editable.Slot path="botao" type="text" fallback="EU QUERO!" label="Texto do botão">
-                  {(v, attrs, ref, estilo) => (
-                    <button ref={ref} {...attrs} type="submit" className="font-display h-11 shrink-0 rounded-full bg-[var(--store-primary,#18181B)] px-5 text-[15px] font-extrabold tracking-[0.5px] text-white" style={estilo}>{v}</button>
-                  )}
-                </Editable.Slot>
-              </form>
-            </div>
-          </Editable.Section>
+            </Editable.Section>
+          )}
         </Editable.Sections>
         <div className="h-12" />
       </div>
