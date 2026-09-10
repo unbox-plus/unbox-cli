@@ -1,5 +1,12 @@
 ## Changelog
 
+### v0.20.4 — publicação no NPM
+
+Apenas atualizações internas:
+
+Separação do changelog do arquivo readme, ajustes na nomenclatura do projeto para publicação no NPM
+e ajustes nas instruções de uso para referenciar o CLI publicado.
+
 ### v0.20.3 — a foundation não compilava no estilo promocional, e dois formulários engoliam o e-mail
 
 Duas correções vindas de quem usou a versão nova, e as duas com a mesma causa de fundo do meu
