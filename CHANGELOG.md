@@ -1,5 +1,11 @@
 ## Changelog
 
+### v0.20.5 — ajustes no README
+
+Apenas atualizações internas:
+
+Alterada instrução no README.md de como executar o CLI corretamente utilizando o `npx`.
+
 ### v0.20.4 — publicação no NPM
 
 Apenas atualizações internas:
