@@ -9,19 +9,13 @@ neutros), cores e nome da loja.
 > **Passo 0**: precisa do Node.js instalado (baixe em [nodejs.org](https://nodejs.org), botão
 > "LTS", instalador comum de 2 minutos). É o único pré-requisito da máquina.
 
-Se você recebeu o arquivo `create-unbox-store.tgz` (o nome é sempre esse, sem versão — a versão
-fica dentro do pacote), coloque-o na pasta onde quer criar o projeto e rode:
+Navegue até a pasta onde queira criar o projeto e rode:
 
 ```bash
-npx --package=./create-unbox-store.tgz create-unbox-store
+npx @unbox-plus/cli create-unbox-store
 ```
 
-> ⚠️ `npx ./create-unbox-store.tgz` (sem `--package=`) dá erro de permissão em algumas
-> versões do npm — use sempre a forma com `--package=` acima.
-> Se o seu arquivo veio com versão no nome (zips antigos), ajuste o nome no comando pro
-> nome exato do arquivo que está na pasta.
-
-O `npx` roda o CLI direto do tarball, sem instalar nada global nem publicar em lugar nenhum.
+O `npx` roda o CLI direto do pacote publicado no NPM, sem instalar nada global.
 Ele vai perguntar:
 
 1. Nome da pasta/projeto
@@ -59,19 +53,19 @@ cliente ver a loja padrão — regra "perguntar antes de mostrar". Encerrado o b
 agente remove a chave `"agent"` do `.claude/settings.json` e as sessões seguintes voltam ao
 Claude normal.
 
-### Alternativa mais universal: instalar global a partir do tarball
+### Alternativa mais universal: instalar global o pacote via NPM
 
-Se `npx --package=` der algum problema no ambiente da outra pessoa (versão de npm diferente),
-esse caminho funciona em qualquer npm recente:
+Se `npx` der algum problema no ambiente da outra pessoa (versão de npm diferente), esse caminho
+funciona em qualquer npm recente:
 
 ```bash
-npm install -g ./create-unbox-store-<versão>.tgz
+npm install -g @unbox-plus/cli
 create-unbox-store
 ```
 
-## Uso — sem instalar, sem tarball (clonando a pasta)
+## Uso — sem instalar, clonando a pasta/repositório
 
-Se você recebeu a pasta inteira (zip):
+Se você recebeu a pasta inteira (zip) ou clonou o repositório:
 
 ```bash
 cd create-unbox-store
@@ -82,7 +76,7 @@ node bin/cli.js
 ## Uso não-interativo (scripts/CI)
 
 ```bash
-npx --package=./create-unbox-store.tgz create-unbox-store minha-loja --yes --no-install
+npx @unbox-plus/cli create-unbox-store minha-loja --yes --no-install
 ```
 
 Gera com as cores/nome default e o estilo **essencial** — use `--estilo <nome>`
@@ -121,7 +115,7 @@ dois independentes lendo o mesmo `dataLayer`. Três coisas que não são óbvias
 
 ## Requisitos
 
-- Node.js ≥ 18 (recomendado: 22 LTS — veja `.nvmrc` no projeto gerado)
+- Node.js ≥ 20 (recomendado: 22 LTS — veja `.nvmrc` no projeto gerado)
 - Credenciais da loja Unbox (`UNBOX_API_KEY`, `UNBOX_USER`, `UNBOX_PASS`) — opcional pra rodar em
   modo mockup, obrigatório antes de ir pra produção (`npm run unbox:test` confirma a conexão)
 
