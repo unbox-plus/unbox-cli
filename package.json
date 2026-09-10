@@ -1,8 +1,18 @@
 {
-  "name": "create-unbox-store",
-  "version": "0.20.3",
+  "name": "@unbox-plus/cli",
+  "version": "0.20.4",
+  "author": {
+    "name": "Unbox Development Team",
+    "email": "devs@unbox.com.br",
+    "url": "https://unbox.com.br"
+  },
   "description": "Scaffold a new Unbox storefront (Next.js) from the official template",
-  "license": "UNLICENSED",
+  "keywords": [
+    "unbox",
+    "storefront",
+    "ecommerce"
+  ],
+  "license": "SEE LICENSE IN LICENSE.md",
   "type": "module",
   "bin": {
     "create-unbox-store": "./bin/cli.js"
@@ -18,6 +28,13 @@
   },
   "dependencies": {
     "prompts": "^2.4.2"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/unbox-plus/unbox-cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/unbox-plus/unbox-cli/issues"
   },
   "scripts": {
     "check:neutro": "node tools/check-template-neutro.mjs",
