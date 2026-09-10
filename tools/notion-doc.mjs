@@ -6,11 +6,11 @@
 //
 // Existe pra que "manter a página atualizada" seja um comando, não um trabalho manual que
 // ninguém lembra de fazer no dia do release. A versão vem do package.json e o changelog é
-// extraído do README.md — as duas únicas fontes da verdade. Rode depois de todo release e
-// atualize a página com a saída.
+// extraído do CHANGELOG.md — as duas únicas fontes da verdade. Rode depois de todo release
+// e atualize a página com a saída.
 //
 // A prosa de apresentação é curada aqui (uma página de Notion para o time não é um despejo
-// do README). O changelog é mecânico: toda entrada "### vX.Y.Z" do README vira um toggle.
+// do README). O changelog é mecânico: toda entrada "### vX.Y.Z" do CHANGELOD vira um toggle.
 // ═══════════════════════════════════════════════════════════════════════════════════════
 import fs from "node:fs";
 import path from "node:path";
@@ -18,14 +18,14 @@ import { fileURLToPath } from "node:url";
 
 const RAIZ = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const pkg = JSON.parse(fs.readFileSync(path.join(RAIZ, "package.json"), "utf8"));
-const readme = fs.readFileSync(path.join(RAIZ, "README.md"), "utf8");
+const changelog = fs.readFileSync(path.join(RAIZ, "CHANGELOG.md"), "utf8");
 const VERSAO = pkg.version;
 
-// ── Changelog: extrai as entradas "### vX" / "### Beta vX" do README ────────────────────
+// ── Changelog: extrai as entradas "### vX" / "### Beta vX" do CHANGELOG ─────────────────
 function extrairChangelog() {
-  const linhas = readme.split("\n");
+  const linhas = changelog.split("\n");
   const ini = linhas.findIndex((l) => l.trim() === "## Changelog");
-  if (ini === -1) throw new Error("seção '## Changelog' não encontrada no README.md");
+  if (ini === -1) throw new Error("seção '## Changelog' não encontrada no CHANGELOG.md");
 
   const entradas = [];
   let atual = null;
@@ -75,7 +75,7 @@ function escaparAngulos(texto) {
 const entradas = extrairChangelog();
 // Detalhe integral só na era da arquitetura atual (v0.12.13+, quando o versionamento foi
 // unificado). O histórico anterior vira uma linha por versão dentro de um toggle: ninguém lê
-// 35 changelogs completos, e o texto integral continua no README do pacote.
+// 35 changelogs completos, e o texto integral continua no CHANGELOG do pacote.
 const DETALHADAS = entradas.findIndex((e) => /^Beta v/.test(e.titulo));
 const corte = DETALHADAS === -1 ? entradas.length : DETALHADAS;
 
@@ -95,13 +95,13 @@ const antigas = entradas.slice(corte).map((e) => {
   return `- **${e.titulo}** — ${resumo}`;
 }).join("\n");
 
-const changelog = detalhadas + `
+const changelogFinal = detalhadas + `
 
 <details>
 <summary>Histórico anterior (${entradas.length - corte} versões, era "Beta")</summary>
 ` + antigas.split("\n").map((l) => "\t" + l).join("\n") + `
 \t
-\tO texto integral de cada uma está no \`README.md\` dentro do pacote.
+\tO texto integral de cada uma está no \`CHANGELOG.md\` dentro do pacote.
 </details>`;
 
 // ── A página ────────────────────────────────────────────────────────────────────────────
@@ -112,7 +112,7 @@ const pagina = `<callout icon="📦" color="blue_bg">
 </callout>
 
 <callout icon="🔄" color="gray_bg">
-	Esta página é gerada a partir do \`README.md\` e do \`package.json\` do CLI. Para atualizá-la depois de um release, rode \`node tools/notion-doc.mjs\` no repositório do CLI e substitua o conteúdo com a saída. Não edite o changelog aqui à mão: ele será sobrescrito.
+	Esta página é gerada a partir do \`CHANGELOG.md\` e do \`package.json\` do CLI. Para atualizá-la depois de um release, rode \`node tools/notion-doc.mjs\` no repositório do CLI e substitua o conteúdo com a saída. Não edite o changelog aqui à mão: ele será sobrescrito.
 </callout>
 
 ## O que é
@@ -186,7 +186,7 @@ A fundação traz placeholders que funcionam mas **precisam de uma decisão cons
 
 ## Changelog
 
-${changelog}
+${changelogFinal}
 `;
 
 process.stdout.write(pagina);
