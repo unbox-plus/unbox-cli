@@ -12,7 +12,7 @@ neutros), cores e nome da loja.
 Navegue até a pasta onde queira criar o projeto e rode:
 
 ```bash
-npx @unbox-plus/cli create-unbox-store
+npx --package=@unbox-plus/cli create-unbox-store
 ```
 
 O `npx` roda o CLI direto do pacote publicado no NPM, sem instalar nada global.
@@ -76,7 +76,7 @@ node bin/cli.js
 ## Uso não-interativo (scripts/CI)
 
 ```bash
-npx @unbox-plus/cli create-unbox-store minha-loja --yes --no-install
+npx --package=@unbox-plus/cli create-unbox-store minha-loja --yes --no-install
 ```
 
 Gera com as cores/nome default e o estilo **essencial** — use `--estilo <nome>`

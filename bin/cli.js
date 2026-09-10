@@ -129,7 +129,7 @@ function printHelp() {
   create-unbox-store: gera um storefront Next.js integrado à Unbox
 
   Uso:
-    npx --package=./create-unbox-store.tgz create-unbox-store [pasta] [flags]
+    npx --package=@unbox-plus/cli create-unbox-store [pasta] [flags]
 
   Sem flags, roda o wizard interativo: nome da loja, cores, estilo visual,
   credenciais da Unbox (Enter pra pular = modo mockup) e checkout.
@@ -143,8 +143,8 @@ function printHelp() {
     --help, -h         esta ajuda
 
   Exemplos:
-    npx --package=./create-unbox-store.tgz create-unbox-store minha-loja
-    npx --package=./create-unbox-store.tgz create-unbox-store loja-x --yes --no-install --estilo boutique
+    npx --package=@unbox-plus/cli create-unbox-store minha-loja
+    npx --package=@unbox-plus/cli create-unbox-store loja-x --yes --no-install --estilo boutique
 
   Depois de gerar: cd <pasta> && claude  (o briefing de marca abre sozinho)
   Docs completas: README.md dentro do zip da beta.
