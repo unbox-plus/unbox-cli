@@ -108,6 +108,7 @@ const changelog = detalhadas + `
 const pagina = `<callout icon="📦" color="blue_bg">
 	**Versão atual: v${VERSAO}** — entregue como \`CLI - Unbox v${VERSAO}.zip\`, que contém \`create-unbox-store.tgz\` e o README completo.
 	O nome do tarball é sempre \`create-unbox-store.tgz\`, **sem versão** — a versão fica dentro do pacote. Zips antigos traziam a versão no nome do arquivo e isso gerava erro de \`npx\` quando o comando não batia com o nome real.
+  O pacote também está sendo distribuído como [@unbox-plus/cli](https://www.npmjs.com/package/@unbox-plus/cli) no NPM.
 </callout>
 
 <callout icon="🔄" color="gray_bg">
@@ -122,14 +123,14 @@ O que sai do CLI é **fundação**, não loja pronta. A personalização de verd
 
 ## Como usar
 
-Único pré-requisito da máquina: **Node.js** ([nodejs.org](https://nodejs.org), botão LTS). Coloque o \`create-unbox-store.tgz\` na pasta onde quer criar o projeto e rode:
+Único pré-requisito da máquina: **Node.js** ([nodejs.org](https://nodejs.org), botão LTS). Navegue até a pasta onde queira criar o projeto e rode:
 
 \`\`\`bash
-npx --package=./create-unbox-store.tgz create-unbox-store
+npx --package=@unbox-plus/cli create-unbox-store
 \`\`\`
 
 <callout icon="⚠️" color="yellow_bg">
-	Use sempre a forma com \`--package=\`. O \`npx ./create-unbox-store.tgz\` sem ela dá erro de permissão em algumas versões do npm.
+	Use sempre a forma com \`--package=\` para detecção correta do pacote.
 </callout>
 
 O CLI pergunta 12 coisas: nome do projeto e da loja, cor primária e de CTA, site e Instagram da marca, objetivo em uma frase, **estilo visual** (Essencial, Promocional, Editorial ou Boutique), credenciais da Unbox, tipo de checkout, o segredo de captcha (só com key de parceiro) e se roda \`npm install\`. Tudo menos as credenciais fica em \`marca/briefing.json\`, para o agente de marca não reperguntar.
@@ -148,7 +149,7 @@ O Claude Code abre direto no briefing de marca e conduz a personalização. Ence
 ### Sem interação (CI ou testes)
 
 \`\`\`bash
-npx --package=./create-unbox-store.tgz create-unbox-store minha-loja --yes --no-install
+npx --package=@unbox-plus/cli create-unbox-store minha-loja --yes --no-install
 \`\`\`
 
 Use \`--estilo <essencial|promocional|editorial|boutique>\` para escolher o preset sem interação.
