@@ -37,6 +37,7 @@
   },
   "scripts": {
     "check:neutro": "node tools/check-template-neutro.mjs",
+    "release": "node tools/github-release.mjs",
     "prepack": "node tools/check-template-neutro.mjs"
   }
 }
