@@ -13,7 +13,7 @@ export interface NutritionTable {
   /** "100g" | "Porção" */
   base: string;
   observacao?: string;
-  /** ex.: { valor_energetico_kcal: 364.5, sodio_mg: 3557.99, ... } */
+  /** ex.: { valor_energetico_kcal: 100, sodio_mg: 200, ... } */
   nutrientes: Record<string, number>;
 }
 
@@ -79,7 +79,7 @@ export function getEnrichmentBySku(sku?: string | number | null): ProductEnrichm
 // ----- Matching por NOME (a Unbox NÃO expõe SKU/EAN; juntamos pelo nome) -----
 // Estratégia: o título Unbox segue "Nome PT - Nome EN [tamanho]". O nome EN (após o último " - ")
 // é o identificador distintivo. Casamos exigindo que (quase) todos os tokens do nome EN estejam
-// presentes no nome do doc — evita falsos positivos (ex.: "Cilantro Lime" ≠ "Chile & Lime").
+// presentes no nome do doc — evita falsos positivos (ex.: "Linha A Plus" ≠ "Linha B Plus").
 // Adicione aqui palavras a ignorar no matching de nomes (ex.: o nome da sua marca, que
 // costuma aparecer em todos os títulos e por isso não ajuda a diferenciar produtos).
 const STOP = new Set(["de", "do", "da", "com", "e", "em", "para", "the", "a", "o", "no", "na"]);
@@ -122,9 +122,9 @@ const NAME_THRESHOLD = 0.7;
  * Enriquecimento pelo NOME (ignora tamanho/acentos). Score = melhor de:
  *  - nome EN do produto contido no nome do doc (casos com nome do doc em inglês), ou
  *  - nome do doc contido no título completo do produto (casos com nome do doc em PT).
- * Limiar 0.7 evita falsos positivos (ex.: "Cilantro Lime" não casa com "Chile & Lime").
- * Empates de score são desempatados pela similaridade Jaccard(título, nome do doc): assim "Paprika"
- * casa com a família base e não com "Paprika Smoked" (que tem tokens extras).
+ * Limiar 0.7 evita falsos positivos (ex.: "Linha A Plus" não casa com "Linha B Plus").
+ * Empates de score são desempatados pela similaridade Jaccard(título, nome do doc): assim "Linha A"
+ * casa com a família base e não com "Linha A Plus" (que tem tokens extras).
  */
 export function getEnrichmentByName(title?: string | null): ProductEnrichment | null {
   if (!title) return null;

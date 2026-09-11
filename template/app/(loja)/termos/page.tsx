@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 
 export default function TermosPage() {
   return (
-    <article className="richtext mx-auto max-w-2xl py-8 px-4">
+    <article className="texto-rico mx-auto max-w-2xl py-8 px-4">
       <h1>Termos de Uso</h1>
       <p className="text-sm text-muted-foreground">Última atualização: preencher data</p>
 

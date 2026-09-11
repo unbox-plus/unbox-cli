@@ -37,7 +37,7 @@ export function MediaCardsSection({ sectionProps = {} }: SectionComponentProps) 
     <div className="reveal mx-auto max-w-[var(--container-max,1240px)] px-4 pt-[var(--section-gap,52px)] sm:px-6">
       <div className="mb-[18px] flex items-end justify-between gap-3">
         <div>
-          <Editable.Text as="h2" path="titulo" fallback={title} label="Título" className="font-display text-[28px] font-extrabold leading-[1.15]" />
+          <Editable.Text as="h2" path="titulo" fallback={title} label="Título" className="font-display" />
           <Editable.Text as="p" path="subtitulo" fallback={subtitle} label="Subtítulo" className="mt-1 text-sm text-[var(--store-muted)]" />
         </div>
         <div className="hidden gap-2.5 sm:flex">

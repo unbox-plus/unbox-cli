@@ -121,7 +121,7 @@ export function ProductShowcaseSection({ data, sectionProps = {} }: SectionCompo
   return (
     <div className="mx-auto max-w-[var(--container-max,1240px)] px-4 pt-[var(--section-gap,52px)] sm:px-6">
       <div className="mx-auto mb-7 max-w-[560px] text-center">
-        <Editable.Text as="h2" path="titulo" fallback={title} label="Título da vitrine" className="font-display text-[28px] font-extrabold leading-[1.15]" />
+        <Editable.Text as="h2" path="titulo" fallback={title} label="Título da vitrine" className="font-display" />
         <Editable.Text as="p" path="subtitulo" fallback={subtitle} label="Subtítulo da vitrine" className="mt-1.5 text-[15px] text-[var(--store-muted)]" />
       </div>
       {/* O primitivo só REGISTRA o caminho e devolve os atributos de seleção; em produção ele não

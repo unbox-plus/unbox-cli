@@ -77,7 +77,7 @@ function Porta() {
             <LockSimple weight="fill" className="text-[26px] text-white" />
           </span>
 
-          <h1 className="font-display mt-5 text-[1.6rem] font-extrabold leading-tight text-[var(--store-ink)]">
+          <h1 className="font-display mt-5 text-[var(--store-ink)]">
             Prévia privada
           </h1>
           <p className="mt-2.5 text-[.98rem] leading-[1.55] text-[var(--store-muted)]">

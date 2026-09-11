@@ -77,7 +77,48 @@ export const CONTAINERS_POR_ROTA: Readonly<Record<string, readonly string[]>> = 
   "/termos": [], // só o chrome: texto legal (§8)
   "/privacidade": [], // só o chrome: texto legal (§8)
   "/devolucoes": [], // só o chrome: texto legal (§8)
+  // ── AS PÁGINAS DO LOJISTA (foundation 13) ────────────────────────────────────────────────────
+  // Estas quatro rotas são MOLDES: o container de cada página nasce no documento, com o endereço que
+  // o lojista escolheu, e nenhuma constante deste repositório poderia conhecê-lo. Por isso elas
+  // declaram por CURINGA (`pagina-*` casa `pagina-sobre`, `pagina-entrega`…), que é o único lugar
+  // onde o gate aceita curinga: numa rota do código ele esvaziaria a conferência inteira.
+  "/paginas/[handle]": ["pagina-*"], // components/paginas/casca-de-pagina.tsx: uma casca para todas as páginas avulsas
+  "/[colecao]": ["colecao-*"], // components/paginas/casca-de-colecao.tsx: o cabeçalho da listagem (os cards vêm dos artigos)
+  "/[colecao]/pagina/[n]": ["colecao-*"], // a mesma casca da listagem, da página 2 em diante
+  "/[colecao]/[handle]": ["artigo-*"], // a casca de página em modo artigo (data, assinatura e tags a mais)
 };
+
+// ── AS ROTAS QUE EXISTEM MAS NÃO SÃO PÁGINAS DA LOJA ────────────────────────────────────────────
+// `/previa-do-editor` é a casca das páginas do lojista em modo edição: uma rota de FERRAMENTA, que
+// mostra conteúdo não publicado. Ela não é uma página que o lojista edita (as páginas dela são as
+// quatro acima, e é por elas que o editor abre a prévia), e listá-la faria o seletor oferecer uma
+// entrada que não é lugar nenhum.
+//
+// Hoje ela vive fora de `app/(loja)/` e a varredura já não a acha. A lista existe assim mesmo porque
+// o robots e a varredura mudam de mão: no dia em que alguém mover a rota para dentro do grupo, ela
+// continua fora da lista, em vez de aparecer no seletor sem ninguém entender por quê.
+export const ROTAS_INTERNAS: readonly string[] = ["/previa-do-editor"];
+
+/** `rota` é uma rota interna (ferramenta), e não uma página da loja. Prefixo por segmento, como o robots. */
+export function rotaInterna(rota: string): boolean {
+  return ROTAS_INTERNAS.some((r) => rota === r || rota.startsWith(`${r}/`));
+}
+
+// ── AS ROTAS QUE SÃO MOLDE DAS PÁGINAS DO LOJISTA ───────────────────────────────────────────────
+// Elas saem em `GET /api/unbox/paginas` com `doLojista: true`, e é esse campo que diz ao editor (e ao
+// gate) que o conteúdo delas nasce do DOCUMENTO, não do código: os containers vêm por curinga, e uma
+// rota sem exemplo é "nenhuma página publicada ainda", não uma medição que faltou.
+export const ROTAS_DO_LOJISTA: readonly string[] = [
+  "/paginas/[handle]",
+  "/[colecao]",
+  "/[colecao]/pagina/[n]",
+  "/[colecao]/[handle]",
+];
+
+/** esta rota é um molde das páginas que o lojista cria pelo editor? */
+export function doLojista(rota: string): boolean {
+  return ROTAS_DO_LOJISTA.includes(rota);
+}
 
 /** os containers que `rota` declara renderizar, fora o chrome; `undefined` = a rota não está na tabela (a loja não declarou; o gate reprova) */
 export function containersDaRota(rota: string): readonly string[] | undefined {
@@ -188,5 +229,83 @@ export function rotasDaLoja(): string[] {
 
 /** As rotas que o lojista pode editar: as de `app/(loja)/` menos as que o robots bloqueia. Estoura `ErroDeVarredura` quando a descoberta falha. */
 export function rotasEditaveis(): string[] {
-  return rotasDaLoja().filter((r) => !bloqueadaPeloRobots(r));
+  return rotasDaLoja().filter((r) => !bloqueadaPeloRobots(r) && !rotaInterna(r));
+}
+
+// ── OS PRIMEIROS SEGMENTOS DE URL QUE O CÓDIGO OCUPA ────────────────────────────────────────────
+// SÃO DUAS PERGUNTAS DIFERENTES, e por isso são duas varreduras.
+//
+// "Que páginas o lojista edita?" olha só `app/(loja)/`: é a regra do editor, e é a de cima.
+// "Que endereços uma coleção não pode ocupar?" olha `app/` INTEIRA, porque a rota dinâmica
+// `/[colecao]` perde para toda rota estática do código, more ela dentro do grupo ou fora dele. Uma
+// página em `app/parceiros/page.tsx` — que o comentário do `app/layout.tsx` recomenda criar quando ela
+// deve nascer sem cabeçalho e sem rodapé — ocupa `/parceiros` e ganha da coleção por precedência do
+// Next, e mesmo assim não entrava na lista: o editor aceitava a coleção `parceiros`, o sitemap a
+// publicava como listagem, e a URL servia a página do código. É exatamente o modo de falha que a
+// lista existe para impedir, e hoje ele passa despercebido só porque `acesso`, `previa-do-editor`,
+// `api` e `llms.txt` estão cravados em `RESERVADOS_FIXOS`.
+
+/** um manipulador de rota (`route.ts`): uma rota de API ocupa um endereço como qualquer página */
+const ARQUIVO_DE_MANIPULADOR = /^route\.(tsx|ts|jsx|js)$/;
+
+/**
+ * Os arquivos de CONVENÇÃO do Next que respondem por uma URL sem serem página nem manipulador
+ * (`sitemap.ts` responde `/sitemap.xml`, `icon.svg` responde `/icon.svg`). Só na raiz de `app/`, que é
+ * onde o Next os reconhece. Entram com e sem extensão, pelo mesmo motivo das entradas de `public/`.
+ */
+const METADADO_DO_NEXT = /^(favicon\.ico|(icon|apple-icon|opengraph-image|twitter-image)\d*\.[a-z]+|(sitemap|robots|manifest)\.[a-z]+)$/;
+
+function varrerSegmentos(dir: string, saida: Set<string>) {
+  let itens: fs.Dirent[];
+  try {
+    itens = fs.readdirSync(dir, { withFileTypes: true });
+  } catch (e) {
+    const codigo = (e as NodeJS.ErrnoException | null)?.code;
+    throw new ErroDeVarredura(`não consegui ler ${path.relative(process.cwd(), dir) || dir}${codigo ? ` (${codigo})` : ""}`);
+  }
+  for (const item of itens) {
+    if (item.isDirectory()) {
+      const nome = item.name;
+      // pasta privada (`_x`), slot (`@x`) e segmento dinâmico não ocupam endereço nenhum
+      if (nome.startsWith("_") || nome.startsWith("@") || nome.startsWith("[")) continue;
+      // grupo de rotas não vira segmento de URL: o que está dentro dele é que fica na raiz
+      if (/^\(.+\)$/.test(nome)) { varrerSegmentos(path.join(dir, nome), saida); continue; }
+      if (nome.includes("(")) continue; // rota interceptada
+      // A PASTA BASTA, sem procurar `page.tsx` dentro: `app/x/y/page.tsx` sem `app/x/page.tsx` deixa
+      // `/x` livre hoje e `/x/y` ocupado, então uma coleção `x` já nasce com um artigo inalcançável.
+      // Reservar o segmento inteiro é a resposta que continua certa quando alguém acrescentar o
+      // `page.tsx` que falta.
+      saida.add(nome);
+    } else if (METADADO_DO_NEXT.test(item.name)) {
+      // O NOME SEM EXTENSÃO SEMPRE, o nome do arquivo só quando ele É a URL. `icon.svg` é servido
+      // como `/icon.svg`; `manifest.ts` é servido como `/manifest.webmanifest`, e pôr "manifest.ts"
+      // na lista seria a loja dizendo que reserva o nome de um arquivo do código, que ninguém digita.
+      const semExtensao = item.name.replace(/\.[^.]+$/, "");
+      saida.add(semExtensao || item.name);
+      if (!/\.(tsx|ts|jsx|js)$/.test(item.name)) saida.add(item.name);
+    } else if (ARQUIVO_DE_MANIPULADOR.test(item.name) || ARQUIVO_DE_PAGINA.test(item.name)) {
+      // `app/page.tsx` e `app/route.ts` respondem pela RAIZ, que não tem primeiro segmento
+      continue;
+    }
+  }
+}
+
+/**
+ * Os primeiros segmentos de URL ocupados pelo código desta loja. Estoura `ErroDeVarredura` quando a
+ * leitura falha; sem a pasta `app/` (fontes fora do pacote da função) cai nos primeiros segmentos de
+ * `rotasDaLoja()`, que é quem tem a saída pelo ambiente.
+ */
+export function segmentosDoCodigo(): string[] {
+  const raiz = path.join(process.cwd(), "app");
+  if (!fs.existsSync(raiz)) {
+    const saida = new Set<string>();
+    for (const rota of rotasDaLoja()) {
+      const seg = rota.split("/").filter(Boolean)[0];
+      if (seg && !seg.startsWith("[")) saida.add(seg);
+    }
+    return [...saida].sort();
+  }
+  const saida = new Set<string>();
+  varrerSegmentos(raiz, saida);
+  return [...saida].sort();
 }

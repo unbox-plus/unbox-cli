@@ -5,8 +5,25 @@ const nextConfig: NextConfig = {
   // a função só recebe os arquivos que o Next rastreia, e um `page.tsx` que ninguém importa não é
   // rastreado: sem esta linha a varredura acha zero e /api/unbox/paginas responde a falha em vez da
   // lista. `UNBOX_ROTAS_EDITAVEIS` continua sendo a saída se algum dia isto deixar de valer.
+  // `/**` e não só a rota de páginas: a lista de endereços reservados às coleções (lib/reservados.ts)
+  // é derivada da MESMA varredura, e quem a lê é o app/layout.tsx, que roda em toda função. Sem os
+  // fontes ali, em produção a varredura acharia zero e a lista sairia curta: uma coleção com nome de
+  // rota do código passaria pela régua do editor e nunca abriria.
+  //
+  // `route.*` e os arquivos de metadata do Next entram pelo mesmo motivo: eles ocupam um primeiro
+  // segmento de URL sem serem página, e a lista de reservados varre `app/` inteira. Sem eles, a
+  // varredura de produção enxergaria menos endereços ocupados do que a de desenvolvimento, e a régua
+  // do editor mudaria de resposta entre as duas.
   outputFileTracingIncludes: {
-    "/api/unbox/paginas": ["./app/**/page.tsx", "./app/**/page.ts", "./app/**/page.jsx", "./app/**/page.js"],
+    "/**": [
+      "./app/**/page.tsx", "./app/**/page.ts", "./app/**/page.jsx", "./app/**/page.js",
+      "./app/**/route.tsx", "./app/**/route.ts", "./app/**/route.jsx", "./app/**/route.js",
+      // um por um, sem chaves de glob: um padrão que o rastreador não entendesse não daria erro,
+      // só incluiria menos arquivo, e o sintoma seria a lista de reservados encurtando em produção
+      "./app/sitemap.*", "./app/robots.*", "./app/manifest.*",
+      "./app/icon.*", "./app/apple-icon.*", "./app/opengraph-image.*", "./app/twitter-image.*",
+      "./app/favicon.ico",
+    ],
   },
   images: {
     remotePatterns: [
@@ -45,6 +62,11 @@ const nextConfig: NextConfig = {
     ];
     return [
       { source: "/:path*", headers: securityHeaders },
+      // A PRÉVIA DO EDITOR mostra conteúdo NÃO PUBLICADO. O `robots: noindex` da página já sai no
+      // HTML; o cabeçalho cobre o que o HTML não cobre (uma resposta que não é HTML, um caminho que a
+      // página não reconhece) e é o que um buscador lê primeiro.
+      { source: "/previa-do-editor/:path*", headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }] },
+      { source: "/previa-do-editor", headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }] },
       // doc 09/10: não vazar cartToken/PII via header Referer em carrinho/checkout
       { source: "/carrinho/:path*", headers: [{ key: "Referrer-Policy", value: "no-referrer" }] },
       { source: "/checkout/:path*", headers: [{ key: "Referrer-Policy", value: "no-referrer" }] },

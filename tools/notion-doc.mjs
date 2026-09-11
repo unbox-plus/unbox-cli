@@ -10,7 +10,7 @@
 // e atualize a página com a saída.
 //
 // A prosa de apresentação é curada aqui (uma página de Notion para o time não é um despejo
-// do README). O changelog é mecânico: toda entrada "### vX.Y.Z" do CHANGELOD vira um toggle.
+// do README). O changelog é mecânico: toda entrada "### vX.Y.Z" do CHANGELOG.md vira um toggle.
 // ═══════════════════════════════════════════════════════════════════════════════════════
 import fs from "node:fs";
 import path from "node:path";

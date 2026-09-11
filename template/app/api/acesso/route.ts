@@ -4,7 +4,7 @@
 // Os logs da Vercel têm retenção de HORAS — quem PERSISTE o lead é o Pipedrive
 // (e o webhook opcional). Os logs servem pra conferir e contar.
 import { NextResponse } from "next/server";
-import { COOKIE, senhaDoPreview, tokenDaSenha } from "@/middleware";
+import { COOKIE, chaveDoCookie, tokenDaSenha } from "@/middleware";
 
 const LOJA = "minhaloja"; // o CLI troca pelo slug — vira o título do negócio: "minhaloja - Nome"
 
@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 /** Cookie que marca "esta pessoa já apareceu antes" — separa gente de recarga. */
 const VISITANTE = `${LOJA}_visitante`;
 
-/** "(11) 93619-8174" → "+5511936198174". Null quando não é BR plausível. */
+/** "(11) 99999-8888" → "+5511999998888". Null quando não é BR plausível. */
 function toE164(raw: unknown): string | null {
   if (typeof raw !== "string") return null;
   let digits = raw.replace(/\D/g, "");
@@ -144,8 +144,11 @@ export async function POST(req: Request) {
     console.log(JSON.stringify({ tag: "[preview-lead-pipedrive]", ok: false, motivo: "sem PIPEDRIVE_API_TOKEN no ambiente", email }));
   }
 
+  // Assina com a MESMA chave que o middleware confere. Repare que não é a senha do time:
+  // quem preencheu o formulário entra mesmo sem PREVIEW_PASSWORD existir no ambiente, que é
+  // a razão de a porta existir. O atalho por senha é que some quando a variável não está lá.
   const res = NextResponse.json({ ok: true });
-  res.cookies.set(COOKIE, await tokenDaSenha(senhaDoPreview()), {
+  res.cookies.set(COOKIE, await tokenDaSenha(chaveDoCookie()), {
     httpOnly: true, // fora do alcance de JS na página
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",

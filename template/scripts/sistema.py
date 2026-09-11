@@ -2,11 +2,11 @@
 """Orçamento de sistema visual — conta o que faz a loja ter "cara de IA".
 
 POR QUE ISTO EXISTE
-O `escala.py` irmão mede o TETO da tipografia (tipo grande demais). Este mede a
-QUANTIDADE — que é outro defeito, com outra causa e outro sintoma. O levantamento
-de 334 ajustes em três lojas do CLI achou a causa mecânica do diagnóstico que o
-Bruno deu duas vezes ("ta tudo com mt cara de AI... qual design system vc ta
-seguindo?"):
+O TETO da tipografia (tipo grande demais) é medido em outro lugar; este script
+mede a QUANTIDADE, que é outro defeito, com outra causa e outro sintoma. O
+levantamento de 334 ajustes em lojas do CLI achou a causa mecânica de um
+diagnóstico que a revisão devolveu duas vezes: a loja não parece seguir um sistema
+de design, e sim ter sido montada peça por peça.
 
     escala tipográfica    76 tamanhos distintos     (alvo ~6)
     raios                 10 valores                (alvo: derivados de um token)
@@ -29,8 +29,8 @@ CÓDIGOS DE SAÍDA
     1  estourou algum teto
     2  O GATE NÃO RODOU (caminho errado, ou varreu zero arquivo)
 
-O 2 existe pela mesma razão do 2 do escala.py: gate que varre o vazio e diz "limpo"
-aprova sem ter olhado.
+O 2 existe pela mesma razão do 2 dos outros gates daqui: gate que varre o vazio e
+diz "limpo" aprova sem ter olhado.
 """
 import re
 import sys
@@ -55,8 +55,8 @@ RE_CSS_RADIUS = re.compile(r"border-radius:\s*([^;}]+)")
 # ── cor ───────────────────────────────────────────────────────────────────────
 # ── largura de container ──────────────────────────────────────────────────────
 # "A margem esta errada" quase nunca e margem: sao larguras de container divergentes.
-# Na Punch o scaffold entregou cabecalho 1400, rodape 1180 e <main> 1240, e o cliente
-# reclamou em TRES rodadas diferentes porque cada tela expunha uma combinacao.
+# Numa loja gerada o scaffold entregou cabecalho 1400, rodape 1180 e <main> 1240, e o
+# cliente reclamou em TRES rodadas diferentes porque cada tela expunha uma combinacao.
 # So contam as larguras de PAGINA (>=1000px): abaixo disso sao medidas de leitura e
 # larguras de componente, que legitimamente variam.
 RE_CONTAINER = re.compile(r"max-w-\[(\d{4,})px\]")

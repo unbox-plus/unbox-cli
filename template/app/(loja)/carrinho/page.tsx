@@ -35,7 +35,7 @@ export default function CarrinhoPage() {
 
   if (!cart || items.length === 0) {
     return (
-      <EmptyState title="Seu carrinho está vazio" description="Que tal explorar nossos produtos?">
+      <EmptyState tituloComo="h1" title="Seu carrinho está vazio" description="Que tal explorar nossos produtos?">
         <Button nativeButton={false} render={<Link href="/produtos" />}>Ver produtos</Button>
       </EmptyState>
     );
@@ -43,7 +43,7 @@ export default function CarrinhoPage() {
 
   return (
     <div>
-      <h1 className="mb-6 text-2xl font-bold">Seu carrinho</h1>
+      <h1 className="mb-6">Seu carrinho</h1>
       <div className="grid gap-8 lg:grid-cols-[1fr_340px]">
         {/* Itens */}
         <ul className="divide-y rounded-xl border">
@@ -95,7 +95,7 @@ export default function CarrinhoPage() {
 
         {/* Resumo */}
         <aside className="h-fit rounded-xl border p-5">
-          <h2 className="mb-3 font-semibold">Resumo</h2>
+          <h4 className="mb-3">Resumo</h4>
 
           {/* Cupom */}
           <form

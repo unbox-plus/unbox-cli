@@ -9,6 +9,8 @@
      :root                ◀ AS DECISÕES. Cor, fonte, raio, ritmo vertical, largura de
                           container e eixos de composição (--card-*). A marca entra AQUI.
      @layer base          reset e defaults de elemento
+     "ESCADA DOS TÍTULOS" ◀ o tamanho, o peso e a entrelinha de h1..h4 da loja inteira,
+                          mais as cinco exceções (herói, nome do produto, capa de página)
      "PDP layout"         página de produto e cards
      "Marquee"/"Chama"    animações pontuais
      "Checkout"           chrome próprio, full-bleed, nav inferior mobile
@@ -171,6 +173,11 @@
                       bordado (default) · sombra flutuante · preenchido flat */
   --section-gap:   52px;
   --container-max: 1240px;
+  /* --store-escala-titulos MULTIPLICA a escada de títulos inteira (h1..h4 e as exceções do
+     herói, mais abaixo neste arquivo). 1 é o desenho do construtor; o lojista troca por um
+     dos degraus que o editor oferece. Ele é NÚMERO PURO, sem unidade: quem dá a unidade é
+     o clamp de cada degrau. */
+  --store-escala-titulos: 1;
   --card-bg:       #ffffff;
   --card-border:   1px solid var(--store-line);
   --card-shadow:   none;
@@ -279,8 +286,9 @@
     /* A família vive AQUI, não no <html>: as variáveis do next/font (--font-sans etc.)
        são declaradas na className do <body>, então uma regra em html não as enxerga e
        o corpo cai no serif do navegador. Só aparecia no build de produção, e só fora
-       do .store-layout (ex.: /carrinho). */
-    font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
+       do .store-layout (ex.: /carrinho). E passa por --store-fonte-texto pelo mesmo motivo:
+       a troca de letra do lojista tem de valer na loja inteira, não só onde há .store-layout. */
+    font-family: var(--store-fonte-texto, var(--font-sans), system-ui, -apple-system, sans-serif);
   }
   html {
     /* Mata a barra de rolagem HORIZONTAL acidental: o hack .full-bleed usa 100vw, e 100vw
@@ -296,14 +304,124 @@
 
 /* ===== PDP layout de produto ===== */
 /* Tipografia: corpo em --font-sans, títulos/display em --font-display — ambos definidos
-   no bloco UNBOX-FONTS de app/layout.tsx (trocados por estilo/preset pelo CLI). */
-.store-layout { font-family: var(--font-sans), system-ui, sans-serif; }
-.font-display { font-family: var(--font-display), var(--font-sans), sans-serif; }
+   no bloco UNBOX-FONTS de app/layout.tsx (trocados por estilo/preset pelo CLI).
 
-/* Títulos — usam a fonte de display do estilo */
-h1, h2, h3, h4 {
-  font-family: var(--font-heading), var(--font-sans), system-ui, sans-serif;
+   As duas famílias passam antes por --store-fonte-texto e --store-fonte-titulo, que o
+   lojista troca no editor. Token ausente = o que o construtor escolheu, que é o caso de
+   toda loja recém-nascida: `var(--x, a, b, c)` usa a lista inteira depois da vírgula
+   quando --x não existe, então não há valor de fábrica para manter em dois lugares. */
+.store-layout { font-family: var(--store-fonte-texto, var(--font-sans), system-ui, sans-serif); }
+/* .font-display NÃO é detalhe: quase todo título da loja carrega esta classe, e classe
+   vence seletor de elemento. Se ela não lesse a MESMA cadeia que h1..h4, o lojista trocaria
+   a fonte dos títulos, o painel diria que aplicou, e a tela não mudaria. */
+.font-display { font-family: var(--unbox-sec-fonte-titulo, var(--store-fonte-titulo, var(--font-display), var(--font-sans), sans-serif)); }
+
+/* ── A ESCADA DOS TÍTULOS ────────────────────────────────────────────────────────────────
+   O tamanho, o peso e a entrelinha de TODO título da loja moram aqui, e não na classe de
+   cada componente. O reset do Tailwind zera `font-size` e `font-weight` de h1..h6, então
+   antes deste bloco cada título carregava o próprio `text-[Npx] font-extrabold leading-[…]`.
+   Dava 18 tamanhos diferentes, irmãos da mesma lista em degraus trocados, e duas páginas
+   inteiras (/termos e /privacidade) com o título do mesmo tamanho do texto. Uma escada num
+   lugar só é também o que deixa o lojista mexer no tamanho de todos de uma vez, sem nenhum
+   ficar para trás.
+
+   Cada degrau é um clamp() que passa por (375px, mínimo) e (1240px, máximo): 375px é o
+   celular mais estreito que a loja atende e 1240px é --container-max. Entre os dois o
+   tamanho anda sozinho, sem ponto de quebra e sem degrau seco no meio.
+
+                 375px   768px   1024px  1240px
+         h1      24,0    25,8    27,0    28,0    título de página
+         h2      22,0    24,7    26,5    28,0    título de seção
+         h3      18,0    19,4    20,3    21,0    subtítulo dentro de uma seção
+         h4      16,0    16,5    16,8    17,0    rótulo de bloco
+
+   A escala MULTIPLICA o RESULTADO do clamp, e por isso a multiplicação fica fora dele: o
+   mínimo e o máximo sobem juntos. Multiplicando só o termo do meio, o celular e o desktop
+   largo ficariam parados — o lojista mexeria no seletor e nada aconteceria justamente nas
+   duas pontas que ele olha. O que entra na conta é --unbox-escala-titulos, que é o número do
+   lojista já com teto e piso (logo abaixo do @property); a escolha dele continua em
+   --store-escala-titulos.
+
+   Os dois degraus de baixo têm piso em max(). Com a escala no degrau menor, h3 e h4 se
+   encontrariam no celular e a escada ficaria plana embaixo, que é o defeito que ela existe
+   para consertar; e 16px é o mesmo piso que este arquivo já impõe a campo de formulário no
+   celular, mais abaixo. Um rótulo menor que isso não se lê.
+
+   Quem PRECISA de outro tamanho tem classe própria (.titulo-heroi-*, .titulo-produto,
+   .titulo-capa, logo abaixo) — e a classe também é um clamp, nunca um ponto de quebra. */
+
+/* O @property existe porque o valor entra num calc(): sem ele, um valor inválido invalida a
+   conta no tempo do valor computado e o font-size cai em `inherit` — a loja inteira despencaria
+   para o tamanho do corpo por causa de um caractere errado. Com ele, valor inválido volta para
+   1 e a escada continua de pé. É a segunda trava; a primeira é a régua do editor, que só deixa
+   gravar um dos degraus oferecidos. */
+@property --store-escala-titulos {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 1;
 }
+
+:root {
+  /* O TETO E O PISO DA ESCALA, e eles moram no CSS porque é aqui que valem para todo mundo. O
+     @property acima garante que o valor é um NÚMERO; ele não sabe dizer que 999 não é tamanho de
+     título — e 999 rendia títulos de 10000px. O outro caminho para mexer no tamanho (o preset do
+     create-unbox-store, que declara `--store-escala-titulos` nos `axes`) escreve o valor direto
+     neste arquivo, sem passar pela lista do editor: um `11` no lugar de `1.1` sairia como loja de
+     títulos de 308px. 0,8 e 1,5 são as pontas do que o editor oferece, com folga de um degrau.
+     A conta fica numa variável só para o clamp não ser repetido em cada degrau abaixo: duas
+     cópias de um limite são dois limites no dia seguinte. */
+  --unbox-escala-titulos: clamp(0.8, var(--store-escala-titulos), 1.5);
+  /* O EDITOR PERGUNTA À FOLHA, e não ao número de versão da lib. A lib nova chega a uma loja já
+     construída por cópia de arquivo; ESTE arquivo não vai junto. A loja declararia saber ler a
+     letra sem ter nada disto, e o lojista trocaria a fonte dos títulos sem nada mudar na tela —
+     que é o pior defeito que este projeto conhece. Este marcador é esta folha dizendo "a escada e
+     as cadeias de font-family estão aqui", e a prévia o lê do valor computado. Quem o apagar
+     desliga os controles de letra do painel, que é exatamente o certo se a escada foi junto. */
+  --unbox-letra-da-loja: 1;
+}
+
+h1, h2, h3, h4 {
+  /* --unbox-sec-* é a letra que o lojista deu a UMA seção inteira (foundation 14). Vem de
+     variável, e não de herança, porque esta regra casa com o elemento e regra no elemento
+     vence valor herdado: sem lê-la aqui, a troca de letra da seção pularia os títulos dela. */
+  /* --font-display, e não --font-heading: as duas nascem no next/font, mas a declaração de
+     --font-heading está no `@theme inline` (`:root`), onde --font-display ainda não existe — ela
+     é declarada na className do <body>. Medido no render: --font-heading computa vazio, e uma
+     var() vazia sem reserva derruba a declaração inteira. Enquanto os dois tokens do lojista
+     estivessem vazios, esta linha era inerte: todo título pegava a letra pelo .font-display, e os
+     poucos títulos SEM essa classe saíam na letra do corpo. */
+  font-family: var(--unbox-sec-fonte-titulo, var(--store-fonte-titulo, var(--font-display), var(--font-sans), system-ui, sans-serif));
+  font-weight: var(--unbox-sec-peso-titulo, 800);
+}
+h1 { font-size: calc(clamp(24px, 1.392rem + 0.462vw, 28px) * var(--unbox-escala-titulos)); line-height: 1.12; }
+h2 { font-size: calc(clamp(22px, 1.212rem + 0.694vw, 28px) * var(--unbox-escala-titulos)); line-height: 1.15; }
+/* o piso do h3 é 18px e não 17px, e no desenho do construtor (escala 1) isso não muda um pixel:
+   o mínimo do clamp já é 18. Ele só aparece no degrau "Menor", onde h3 caía a 17 e o h4 ficava em
+   16 — um degrau de 1px, que é a escada ficando plana justamente embaixo, que é o defeito que ela
+   existe para consertar. */
+h3 { font-size: max(18px, calc(clamp(18px, 1.044rem + 0.347vw, 21px) * var(--unbox-escala-titulos))); line-height: 1.25; }
+h4 { font-size: max(16px, calc(clamp(16px, 0.973rem + 0.116vw, 17px) * var(--unbox-escala-titulos))); line-height: 1.3; }
+
+/* ── OS TÍTULOS QUE FOGEM DA ESCADA ──────────────────────────────────────────────────────
+   Cinco, e cada um por um motivo que a escada não absorve.
+
+   O herói tem três variantes com três tamanhos de desktop deliberadamente diferentes (52,
+   44 e 36): é a diferença entre uma capa de foto cheia, uma capa de texto centrado e uma
+   capa dividida, e uma escada de quatro degraus apagaria as três numa só. O nome do produto
+   na PDP (34) é o mesmo caso. Os dois passam por (375px, o tamanho de hoje no celular) e
+   (1024px, o tamanho de hoje no desktop), então reproduzem as duas pontas exatas e enchem o
+   meio — que hoje é um salto seco em 640px.
+
+   Estão AQUI, e não numa classe do Tailwind no componente, para que o tamanho de todo
+   título da loja continue morando num arquivo só, e para que a escala do lojista os
+   multiplique junto com o resto. Herói parado enquanto a loja cresce é meia troca. */
+.titulo-heroi-foto  { font-size: calc(clamp(34px, 1.475rem + 2.773vw, 52px) * var(--unbox-escala-titulos)); line-height: 1.08; }
+.titulo-heroi-texto { font-size: calc(clamp(32px, 1.567rem + 1.849vw, 44px) * var(--unbox-escala-titulos)); line-height: 1.12; }
+.titulo-heroi-lado  { font-size: calc(clamp(28px, 1.461rem + 1.233vw, 36px) * var(--unbox-escala-titulos)); line-height: 1.15; }
+.titulo-produto     { font-size: calc(clamp(27px, 1.435rem + 1.079vw, 34px) * var(--unbox-escala-titulos)); line-height: 1.12; }
+/* A capa de página e a de coleção já nasceram com clamp, e com peso 700 de propósito: o
+   título ali é texto do LOJISTA e pode ser longo, então ele pesa menos que o de uma seção. */
+.titulo-capa        { font-size: calc(clamp(28px, 4.6vw, 44px) * var(--unbox-escala-titulos)); font-weight: var(--unbox-sec-peso-titulo, 700); line-height: 1.15; }
 
 /* Quebra do container restrito do <main> p/ seções full-bleed da PDP */
 .full-bleed {
@@ -387,7 +505,12 @@ html { scroll-padding-top: var(--chrome-h, 88px); }
 .richtext p { @apply my-2; }
 .richtext ul { @apply my-2 list-disc pl-5; }
 .richtext ol { @apply my-2 list-decimal pl-5; }
-.richtext h1, .richtext h2, .richtext h3, .richtext h4 { @apply mt-4 mb-2 font-semibold; }
+/* A ESCADA DOS TÍTULOS NÃO ENTRA AQUI, e é reset de propósito. Este HTML é a descrição do
+   produto, escrita no painel da Unbox e sanitizada: um <h2> dentro dela não é título de
+   seção da página, é ênfase de quem escreveu a descrição. Deixar a escada pegar aqui
+   mudaria a descrição de todo produto de toda loja no ar — e por um motivo que não é dela.
+   Prosa que o LOJISTA escreve no editor tem escada própria, relativa: `.texto-rico`. */
+.richtext h1, .richtext h2, .richtext h3, .richtext h4 { @apply mt-4 mb-2 font-semibold; font-size: inherit; line-height: inherit; }
 .richtext a { @apply text-primary underline underline-offset-2; }
 .richtext img { @apply my-2 max-w-full rounded-md; }
 .richtext table { @apply my-3 w-full border-collapse text-sm; }
@@ -454,4 +577,93 @@ html { scroll-padding-top: var(--chrome-h, 88px); }
   textarea {
     font-size: 16px !important;
   }
+}
+
+/* ── PROSA DO TEXTO FORMATADO (`.texto-rico`) ───────────────────────────────────────────
+   O primitivo `Editable.RichText` (lib/editable/primitives.tsx) injeta o texto que o lojista
+   escreveu dentro de `<div class="texto-rico">` e NÃO traz estilo nenhum: a aparência da prosa
+   é da loja, como a de qualquer outra seção. Sem estas regras, o reset do Tailwind deixa
+   parágrafo, lista e subtítulo todos do mesmo tamanho e colados, e o artigo fica ilegível.
+
+   As três páginas de DOCUMENTO da loja (/termos, /privacidade, /devolucoes) também vestem
+   esta classe, e não é empréstimo: são prosa longa com subtítulos, exatamente o que ela
+   desenha. A escada de h2 a h4 aqui é RELATIVA ao corpo (1.5em / 1.25em / 1.08em), então
+   fica abaixo do h1, que vem da escada da loja — e não plana ao lado dele, que é o que
+   daria se o subtítulo de um documento usasse o mesmo degrau de um título de seção da home.
+
+   A lista de tags é fechada na foundation (p, br, strong, b, em, i, u, s, a, ul, ol, li, h2,
+   h3, h4, blockquote, hr): o que está estilizado aqui é exatamente o que pode aparecer, e
+   nada mais chega a ser injetado.
+
+   Só dentro de `.texto-rico`: nenhuma destas regras vaza para o resto da loja. */
+.texto-rico > :first-child { margin-top: 0; }
+.texto-rico > :last-child { margin-bottom: 0; }
+
+.texto-rico p { margin: 0 0 1.1em; }
+
+.texto-rico h1,
+.texto-rico h2,
+.texto-rico h3,
+.texto-rico h4 {
+  /* a MESMA cadeia de h1..h4: o subtítulo de um artigo do lojista é título como os outros, e
+     trocar a letra dos títulos e ver o artigo ficar para trás seria troca pela metade */
+  font-family: var(--unbox-sec-fonte-titulo, var(--store-fonte-titulo, var(--font-display), var(--font-sans), sans-serif));
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--store-ink);
+  margin: 1.8em 0 0.6em;
+}
+/* A ESCADA DAQUI DENTRO É RELATIVA AO CORPO DO TEXTO, e a da loja para na borda deste bloco.
+   O `em` é o que faz a prosa crescer junto quando ela mora numa seção de letra maior, e é a
+   razão de ela nunca ter precisado de ponto de quebra.
+
+   O degrau de h1 é novo e existe por uma medida: as três páginas de documento vestem esta
+   classe e o título delas vinha da escada da loja, que a 375px chega ao piso de 24px — do
+   tamanho exato do h2 daqui, que é fixo em 1,5em. No celular, o título da página e os doze
+   subtítulos abaixo dele ficavam iguais. Com o degrau próprio, a página inteira anda junta em
+   qualquer largura. (A lista de tags que o lojista pode escrever não inclui h1, então esta
+   linha só alcança as páginas de documento — artigo nenhum muda por causa dela.)
+
+   O `* var(--unbox-escala-titulos)` é o mesmo da escada: quem aumenta o tamanho dos títulos da
+   loja espera que o artigo acompanhe. Só os títulos crescem; o corpo do texto fica onde está. */
+.texto-rico h1 { font-size: calc(1.9em * var(--unbox-escala-titulos)); }
+.texto-rico h2 { font-size: calc(1.5em * var(--unbox-escala-titulos)); }
+.texto-rico h3 { font-size: calc(1.25em * var(--unbox-escala-titulos)); }
+.texto-rico h4 { font-size: calc(1.08em * var(--unbox-escala-titulos)); }
+
+.texto-rico ul,
+.texto-rico ol { margin: 0 0 1.1em; padding-left: 1.4em; }
+.texto-rico ul { list-style: disc; }
+.texto-rico ol { list-style: decimal; }
+.texto-rico li { margin: 0.35em 0; }
+.texto-rico li::marker { color: var(--store-muted); }
+
+/* O LINK SAI EM `--store-primary`, e NÃO em `--store-cta`. `--store-cta` é a cor de PREENCHIMENTO do
+   botão (ela tem `--store-cta-fg` próprio para o texto que fica EM CIMA dela), e usada como cor de
+   texto corrido ela reprova o contraste no próprio padrão deste template: medida contra `--store-bg`,
+   dá 3,05:1, e texto corrido precisa de 4,5:1 (WCAG AA). `--store-primary` dá 16,97:1 no mesmo fundo
+   e continua sendo cor da marca. O sublinhado fica de qualquer jeito: cor sozinha nunca é o que
+   distingue um link. Trocar `--store-primary` por loja é trocar esse número, então o contraste do
+   link entra na conferência visual de cada marca. */
+.texto-rico a {
+  color: var(--store-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.texto-rico strong, .texto-rico b { font-weight: 700; }
+.texto-rico em, .texto-rico i { font-style: italic; }
+
+.texto-rico blockquote {
+  margin: 1.5em 0;
+  padding: 0.15em 0 0.15em 1.1em;
+  border-left: 3px solid var(--store-line-2, var(--store-line));
+  color: var(--store-ink-2);
+  font-style: italic;
+}
+
+.texto-rico hr {
+  margin: 2em 0;
+  border: 0;
+  border-top: 1px solid var(--store-line);
 }

@@ -5,22 +5,22 @@ POR QUE ISTO EXISTE
 "Cara de AI" não é falta de capricho: é variedade sem sistema. O olho lê repetição
 como intenção e variedade como acidente. Em TRÊS marcas diferentes, a virada de "podia
 ser de qualquer um" para "tem dono" veio do mesmo movimento — um punhado de marcas
-gráficas próprias, repetidas em toda seção:
+gráficas próprias, repetidas em toda seção. Nas três, o vocabulário coube em uma linha:
 
-    Bicafé    .pilula .selo .micro .numeral .regua   ("é barato e é o que faz o site
-                                                       ter dono")
-    Zé Tona   código de cor por tampa em TODO componente que lista produto
-    Oddie     o estilo adesivo com contorno
+    uma cafeteria    .pilula .selo .micro .numeral .regua   ("é barato e é o que faz
+                                                              o site ter dono")
+    uma bebida       código de cor por tampa em TODO componente que lista produto
+    um pet shop      o estilo adesivo com contorno
 
 E o defeito que este script pega não é a AUSÊNCIA do vocabulário — é ele existir e não
-ter sido distribuído. Medido na Pipó em 04/09/2026:
+ter sido distribuído. Medido numa loja gerada, com o prefixo `casa-`:
 
-    pipo-rotulo         24 usos    <- voz tipográfica: distribuída
-    pipo-display        16 usos
-    pipo-filete          1 uso     <- filete dourado 44x2px: a marca da casa
-    pipo-roda            1 uso        usada UMA vez cada
-    pipo-pop             1 uso
-    pipo-parallax        0 usos    <- definida e nunca usada
+    casa-rotulo         24 usos    <- voz tipográfica: distribuída
+    casa-display        16 usos
+    casa-filete          1 uso     <- filete dourado 44x2px: a marca da casa
+    casa-roda            1 uso        usada UMA vez cada
+    casa-pop             1 uso
+    casa-parallax        0 usos    <- definida e nunca usada
 
 Uma linha dourada numa seção é decoração. A mesma linha em nove seções é assinatura.
 
@@ -33,14 +33,14 @@ O QUE ELE MEDE
    costuma parar: o vocabulário chega na home e não atravessa para as internas
 
 USO
-    vocabulario.py <dir-do-projeto> [--prefixo pipo] [--cobertura 0.7] [--minimo 3]
+    vocabulario.py <dir-do-projeto> [--prefixo casa] [--cobertura 0.7] [--minimo 3]
 
 CÓDIGOS DE SAÍDA
     0  o vocabulário está distribuído
     1  existe vocabulário, mas ele não cobre a loja
     2  O GATE NÃO RODOU (caminho errado, sem CSS, ou nenhuma classe de marca encontrada)
 
-O 2 é o mesmo do escala.py: gate que varre o vazio e diz "limpo" aprova sem ter olhado.
+O 2 é o mesmo do sistema.py ao lado: gate que varre o vazio e diz "limpo" aprova sem ter olhado.
 """
 import re
 import sys
@@ -49,7 +49,7 @@ from collections import Counter
 
 # Ancorado na RAIZ do projeto de proposito: `marca/` (briefing) se ignora, mas
 # `components/marca/` e onde vivem os componentes de marca — foi la que a primeira
-# versao deste script perdeu a `pipo-roda` e a declarou morta.
+# versao deste script perdeu uma das marcas da casa e a declarou morta.
 IGNORAR_RAIZ = {"node_modules", ".next", ".git", "shots", "reviews", "public", "marca"}
 
 # Classes utilitárias do próprio framework não são vocabulário de marca: elas resolvem
@@ -59,10 +59,10 @@ SUFIXO_UTILITARIO = re.compile(r"-(secao|tela|trilho|container|grid|wrap|layout|
 
 RE_CLASSE_CSS = re.compile(r"^\.([a-z][a-z0-9]*)-([a-z0-9-]+)\s*(?:,|\{|::|:)", re.M)
 
-# Nem toda marca da casa e uma classe CSS. Na Pipo, a chuva de pipoca e a roda
-# tipografica sao COMPONENTES em components/marca/ — a primeira versao deste script
-# so contava classes e reportou o vocabulario como muito menos distribuido do que
-# ele esta: a chuva aparece em 8 lugares, nao em 1.
+# Nem toda marca da casa e uma classe CSS. Numa das lojas medidas, duas das marcas
+# (uma chuva de particulas e uma roda tipografica) sao COMPONENTES em components/marca/
+# — a primeira versao deste script so contava classes e reportou o vocabulario como muito
+# menos distribuido do que ele esta: a chuva aparece em 8 lugares, nao em 1.
 DIR_COMPONENTES_MARCA = "components/marca"
 RE_COMPONENTE = re.compile(r"export\s+(?:default\s+)?function\s+([A-Z][A-Za-z0-9]*)")
 
@@ -93,7 +93,8 @@ def descobrir_vocabulario(raiz, prefixo=None):
             por_prefixo.setdefault(pre, set()).add(f"{pre}-{resto}")
 
     if prefixo is None:
-        # O prefixo da casa é o que tem mais classes distintas — `pipo-`, `bic-`, `ze-`.
+        # O prefixo da casa é o que tem mais classes distintas: um prefixo curto,
+        # derivado do nome da marca, com muitas classes penduradas nele.
         # Prefixos de framework (tw, sm, md) não chegam perto em variedade.
         candidatos = sorted(por_prefixo.items(), key=lambda kv: -len(kv[1]))
         if not candidatos or len(candidatos[0][1]) < 3:

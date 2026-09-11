@@ -81,7 +81,7 @@ export default async function AssinaturaDetalhePage({ params }: { params: Promis
 
       {cycles.nodes?.length > 0 && (
         <div className="mt-6">
-          <h2 className="font-display mb-2.5 text-[16px] font-bold text-[var(--store-ink)]">Histórico de ciclos</h2>
+          <h4 className="font-display mb-2.5 text-[var(--store-ink)]">Histórico de ciclos</h4>
           <ul className="flex flex-col divide-y divide-[var(--store-surface-2)] rounded-lg border border-[var(--store-line)] bg-white text-sm">
             {cycles.nodes.map((c: any) => (
               <li key={c._id} className="flex items-center justify-between p-3.5">

@@ -57,7 +57,7 @@ Adicionar **antes do primeiro deploy** em **Production**, **Preview** e **Develo
 | `UNBOX_CAPTCHA_BYPASS` | ✅ com a key de parceiro | x-captcha-verification do signIn (pedir à Unbox) |
 | `UNBOX_USER` | ✅ | Usuário de acesso à API da loja |
 | `UNBOX_PASS` | ✅ | Senha de acesso à API |
-| `SESSION_SECRET` | ✅ | String aleatória forte (≥ 32 chars) |
+| `SESSION_SECRET` | ✅ | String aleatória forte (≥ 32 chars). Sem ela, em produção, a posse de pedido é RECUSADA (não é aviso: `/api/checkout` falha e o pedido não vira cookie) |
 | `NEXT_PUBLIC_SITE_URL` | ✅ | URL pública da loja (ex: `https://minhaloja.com.br`) |
 | `NEXT_PUBLIC_SITE_NAME` | ✅ | Nome de exibição (manifest/PWA) |
 | `UNBOX_API_KEY` | — | Modelo ANTIGO (key por loja); só sem a key de parceiro |
@@ -67,7 +67,7 @@ Adicionar **antes do primeiro deploy** em **Production**, **Preview** e **Develo
 | `REVALIDATE_SECRET` | — | Protege `/api/revalidate` |
 | `CRM_WEBHOOK_URL` | — | Webhook do CRM (carrinho abandonado; ver `.env.example`) |
 | `PIPEDRIVE_API_TOKEN` | — | Leads da porta de preview → Pessoa+Negócio no Pipedrive |
-| `PREVIEW_PASSWORD` | — | Chave do time da porta de preview (padrão `unbox`) |
+| `PREVIEW_PASSWORD` | — | Chave do time da porta de preview. Sem padrão: sem ela o atalho `?chave=` não existe e só o formulário abre a porta. O CLI sorteou uma por instalação, no `.env.local` |
 | `UNBOX_HOSTED_CHECKOUT_URL` | — | Só no modo checkout hospedado da Unbox. **Caminho completo** (`https://sualoja.com.br/carrinho/finalizar-pedido`, nunca só o domínio) e **mesmo domínio da loja**: em hosts diferentes o cliente cai no `/login`. |
 | `NEXT_PUBLIC_GA_ID` | — | GA4 measurement ID |
 | `NEXT_PUBLIC_META_PIXEL_ID` | — | Meta Pixel ID |
@@ -153,9 +153,11 @@ nem desligar nada:
   domínio próprio. A URL vercel.app continua com porta — o que é bom: ninguém indexa a
   loja pelo endereço de preview. Kill switch manual, se precisar: `PREVIEW_DISABLED=1`.
 - **Time interno não preenche formulário**: qualquer URL da loja com
-  `?chave=<PREVIEW_PASSWORD>` (padrão `unbox`) grava o cookie e segue direto — ex.:
-  `https://loja.vercel.app/?chave=unbox`. Compartilhe ESSE link internamente; o cookie
-  vale 30 dias por navegador.
+  `?chave=<PREVIEW_PASSWORD>` grava o cookie e segue direto — ex.:
+  `https://loja.vercel.app/?chave=SUA_CHAVE`. Compartilhe ESSE link internamente; o cookie
+  vale 30 dias por navegador. A chave é a que o CLI sorteou no `.env.local`; para o atalho
+  valer no deploy, cadastre a MESMA `PREVIEW_PASSWORD` na Vercel. Sem a variável lá, o
+  atalho é recusado e a porta continua abrindo pelo formulário, como deve.
 - **Local**: localhost fica fora da porta por padrão (dev e QA não tropeçam nela). Pra
   testar a porta localmente: `PREVIEW_FORCE=1` no `.env.local`.
 - ⚠️ Env var nova só vale **depois de um redeploy** — o snapshot anterior não a enxerga.

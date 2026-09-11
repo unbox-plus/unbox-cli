@@ -29,7 +29,7 @@ export function FounderStorySection({ sectionProps = {} }: SectionComponentProps
         </Editable.Slot>
         <div className="absolute inset-0 flex items-end p-5 sm:items-center sm:p-10">
           <div className="max-w-[480px] rounded-2xl bg-white/95 p-6 sm:p-8">
-            <Editable.Text as="h2" path="titulo" fallback={title} label="Título" className="font-display text-[24px] font-extrabold" />
+            <Editable.Text as="h2" path="titulo" fallback={title} label="Título" className="font-display" />
             <Editable.Text as="p" path="texto" fallback={text} label="Texto da história" multiline className="mt-3 text-[14.5px] leading-[1.6] text-[var(--store-ink-2)]" />
             {signature && <Editable.Text as="div" path="assinatura" fallback={signature} label="Assinatura" className="font-display mt-4 text-[18px] font-bold italic text-[var(--store-primary,#18181B)]" />}
           </div>

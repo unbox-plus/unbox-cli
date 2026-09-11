@@ -17,7 +17,7 @@
 //   3. fbq('track') — Meta Pixel, com eventID para dedupe com a CAPI.
 //   4. POST /api/capi — Meta Conversions API, server-side, mesmo eventID.
 //
-// Regras que vieram de um relatório de cliente (She Talks, ago/2026) sobre a loja nativa da
+// Regras que vieram de um relatório de cliente (ago/2026) sobre a loja nativa da
 // Unbox, e que esta foundation cumpre:
 //   • `value` é sempre NÚMERO (nunca "R$23,34"). Um único campo de valor.
 //   • `discount` por item vem do carrinho; a soma dos itens fecha com o valor.

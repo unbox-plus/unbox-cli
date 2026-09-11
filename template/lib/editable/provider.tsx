@@ -26,14 +26,22 @@ import {
   type Manifest,
   type ManifestApps,
   type ManifestEntry,
+  type ManifestPaginasDoLojista,
   type ManifestSectionType,
   type ManifestSemContainer,
   emptyDocument,
-  isColor, normalizarPagina, resolveValue, type SectionKind, SECTION_KIND_LABEL } from "./document";
+  type ManifestFonte,
+  type OpcaoDeToken,
+  type TipoDeToken,
+  ehFamiliaDeLetra, juntarFatia, normalizarPagina, PESOS_DA_LETRA, resolveValue, type SectionKind, SECTION_KIND_LABEL, tokenAceita, valorDeTokenEmCss } from "./document";
 
 export interface EditableTokenSpec {
   token: string;
   label: string;
+  /** ausente = cor, que é o que todo token sempre foi (ver `TipoDeToken` em document.ts) */
+  tipo?: TipoDeToken;
+  /** os degraus com nome do token de escala ("Menor", "Padrão", "Maior"…) */
+  opcoes?: OpcaoDeToken[];
 }
 
 interface Registration {
@@ -81,6 +89,13 @@ interface SectionRegistration {
 interface Ctx {
   doc: ContentDocument;
   editing: boolean;
+  /**
+   * O RASCUNHO DO EDITOR JÁ CHEGOU (o primeiro `unbox-editor:apply`). Não é o mesmo que `editing`:
+   * o modo edição liga num efeito, quadros ANTES da primeira mensagem, e o rascunho pode nunca
+   * chegar (o editor só responde ao `ready` quando terminou de carregá-lo). Enquanto ele não chega,
+   * o documento em vigor é o publicado, e a fatia da página do lojista continua valendo.
+   */
+  rascunhoChegou: boolean;
   selectMode: boolean;
   scope: string[];
   /**
@@ -121,6 +136,7 @@ const noop = () => () => {};
 const EditableContext = React.createContext<Ctx>({
   doc: emptyDocument(""),
   editing: false,
+  rascunhoChegou: false,
   selectMode: false,
   scope: [],
   container: undefined,
@@ -148,13 +164,85 @@ function detectEditing(): boolean {
   }
 }
 
+/**
+ * AS LETRAS QUE ESTA LOJA TEM (foundation 14), lidas do navegador na prévia.
+ *
+ * As fontes de uma loja são as que estão no projeto DELA. Em vez de o editor manter uma lista (100
+ * lojas, 100 listas), a prévia pergunta ao navegador — o mesmo movimento que o manifesto já faz com
+ * a cor, lendo o valor computado em vez de acreditar no código.
+ *
+ * ATENÇÃO AO QUE ESTA LISTA É: `document.fonts` traz o que a FOLHA DECLAROU, não o que a tela
+ * mostra. Isso é de propósito — a lista existe para o lojista TROCAR de letra, e trocar para uma
+ * que a loja declarou é escolha válida mesmo que nenhuma tela use aquela família hoje. É também o
+ * que o painel diz a ele: "as letras da lista são as que já vieram com esta loja".
+ *
+ * E não dá para separar declarada de mostrada por aqui: `f.status` não responde isso. Medido numa
+ * loja gerada do tarball, com a mono do template em ZERO elementos da página, uma das faces dela
+ * já vinha `loaded` — o `<link rel=preload>` que o next/font escreve basta para virar o estado.
+ * Cortar por `status` só faria mal do outro lado: peso que esta PÁGINA não usa fica `unloaded`, e
+ * a Poppins desta mesma loja apareceria com dois pesos em vez dos quatro que ela declara.
+ */
+function letrasDaLoja(): ManifestFonte[] {
+  if (typeof document === "undefined" || !document.fonts) return [];
+  const porFamilia = new Map<string, Set<number>>();
+  document.fonts.forEach((f) => {
+    const familia = (f.family || "").replace(/^["']|["']$/g, "").trim();
+    if (!familia || !ehFamiliaDeLetra(familia)) return;
+    // o next/font registra, ao lado de cada família, uma "… Fallback": é métrica de substituição
+    // (serve para o texto não pular quando a letra de verdade chega), não é escolha de ninguém, e
+    // oferecê-la ao lojista seria oferecer a letra do sistema com nome de marca
+    if (/fallback/i.test(familia)) return;
+    // a tarja de erro do `next dev` traz as fontes dela (`__nextjs-Geist`): são do ANDAIME, e somem
+    // no `next start`. Oferecê-las faria o lojista escolher, na loja do construtor, uma letra que a
+    // loja publicada não tem
+    if (/^__nextjs/i.test(familia)) return;
+    // família SÓ-ITÁLICA existe (uma loja construída carrega uma com as seis faces em italic).
+    // Oferecê-la como se fosse a normal é prometer uma letra e entregar outra: o lojista escolhe
+    // pelo nome e recebe texto inclinado. Quem quer itálico tem o botão de itálico
+    if (f.style && f.style !== "normal") return;
+    const pesos = porFamilia.get(familia) ?? new Set<number>();
+    for (const p of pesosDoDescritor(f.weight)) pesos.add(p);
+    porFamilia.set(familia, pesos);
+  });
+  return [...porFamilia.entries()]
+    .map(([familia, pesos]) => ({ familia, rotulo: rotuloDaLetra(familia), pesos: [...pesos].sort((a, b) => a - b) }))
+    .sort((a, b) => a.rotulo.localeCompare(b.rotulo, "pt-BR"));
+}
+
+/**
+ * O peso de uma FontFace é "600" numa fonte estática e "100 900" numa VARIÁVEL — uma FAIXA (medido
+ * no Geist Mono de uma loja construída). Sem transformar faixa em degraus, o painel ofereceria um
+ * seletor com uma opção só, escrita "100 900".
+ */
+function pesosDoDescritor(w: string): number[] {
+  // `bold` e `normal` são descritor tão válido quanto 700 e 400, e é assim que um @font-face escrito
+  // à mão costuma entrar (é como a fonte de marca de uma loja construída chegou). Lendo só dígitos,
+  // uma fonte que só tem negrito era anunciada ao lojista como "Normal".
+  const palavra = /^\s*(normal|bold)\s*$/i.exec(w || "");
+  if (palavra) return [palavra[1].toLowerCase() === "bold" ? 700 : 400];
+  const nums = ((w || "400").match(/\d{2,3}/g) ?? []).map(Number).filter((n) => n >= 100 && n <= 900);
+  if (nums.length === 0) return [400];
+  if (nums.length === 1) return [Math.round(nums[0] / 100) * 100];
+  const menor = Math.min(...nums);
+  const maior = Math.max(...nums);
+  return PESOS_DA_LETRA.filter((p) => p >= menor && p <= maior);
+}
+
+/** "__Playfair_Display_36bd41" → "Playfair Display": o nome que o next/font gera não é nome de ler. */
+function rotuloDaLetra(familia: string): string {
+  const limpo = familia.replace(/^_+/, "").replace(/_[0-9a-z]{4,}$/i, "").replace(/_/g, " ").trim();
+  return limpo || familia;
+}
+
 /** fundo por seção: o invólucro é `display: contents`; a variável herda e o filho direto pinta (e um gradiente do código sai da frente) */
 const SECTION_CSS = `[data-unbox-sec-bg="1"]>*{background-color:var(--unbox-sec-bg) !important;background-image:none !important}`;
 
 /** o primeiro texto visível da seção (título, se houver; senão o primeiro texto editável), até 60 caracteres */
 function trechoDaSecao(node: Element | null): string | undefined {
   if (!node) return undefined;
-  const cand = node.querySelector("h1[data-editor-path],h2[data-editor-path],h3[data-editor-path],[data-editor-type='text']");
+  // o texto formatado entra por `innerText`, que já é o texto sem as tags: a linha da seção de um artigo fala o
+  // primeiro parágrafo, não `<p>`
+  const cand = node.querySelector("h1[data-editor-path],h2[data-editor-path],h3[data-editor-path],[data-editor-type='text'],[data-editor-type='richtext']");
   const txt = (cand as HTMLElement | null)?.innerText?.replace(/\s+/g, " ").trim();
   if (!txt) return undefined;
   return txt.length > 60 ? txt.slice(0, 59) + "…" : txt;
@@ -245,7 +333,8 @@ interface OverlayHandle {
 }
 // o nome do que está sob o cursor, na palavra do lojista. Tipo sem entrada aqui deixa o chip só com o
 // rótulo — o tipo CRU do documento ("vitrine", "html") é nome nosso e não vai para a tela dele
-const TIPO_NOME: Record<string, string> = { text: "Texto", image: "Imagem", link: "Link", color: "Cor", vitrine: "Vitrine", video: "Vídeo", html: "Bloco de HTML" };
+// "richtext" é "Texto" para o lojista: negrito e link são jeitos de escrever o texto, não outro tipo de coisa
+const TIPO_NOME: Record<string, string> = { text: "Texto", image: "Imagem", link: "Link", color: "Cor", vitrine: "Vitrine", video: "Vídeo", html: "Bloco de HTML", richtext: "Texto" };
 /** a camada de destaque: três caixas fixas por cima da loja, medidas a cada scroll/resize/apply */
 const Overlay = React.forwardRef<OverlayHandle, object>(function Overlay(_props, ref) {
   const raiz = React.useRef<HTMLDivElement | null>(null);
@@ -368,6 +457,7 @@ export function EditableProvider({
   tokens = [],
   editorOrigin,
   apps,
+  paginasDoLojista,
   children,
 }: {
   doc: ContentDocument | null;
@@ -385,10 +475,27 @@ export function EditableProvider({
    * está fazendo, sem nunca ver o valor do ambiente.
    */
   apps?: ManifestApps;
+  /**
+   * PÁGINAS DO LOJISTA (foundation 13): a loja declara que RENDERIZA as páginas, os artigos e as coleções do
+   * documento, e diz o prefixo das páginas avulsas (`/paginas`), as coleções que já existem no código (`blog`) e
+   * os primeiros segmentos de URL que uma coleção não pode ocupar (`RESERVADOS_FIXOS` mais as rotas da loja e
+   * as entradas de `public/`, calculados no servidor pelo app/layout.tsx: este componente é de cliente e não
+   * enxerga o sistema de arquivos). Vai direto no manifesto (`paginasDoLojista`).
+   *
+   * É ESTA PROP que libera a criação de páginas no editor, não o número da versão: `validateOp` recusa toda
+   * operação de página contra um manifesto sem ela. Uma loja que copiou a `lib/editable` nova e ainda não
+   * tem as rotas e a casca NÃO a passa; se passasse, o registro entraria no documento e a loja responderia
+   * 404 para sempre, com a barra dizendo "não publicado".
+   */
+  paginasDoLojista?: ManifestPaginasDoLojista;
   children: React.ReactNode;
 }) {
   const [doc, setDoc] = React.useState<ContentDocument>(initialDoc ?? emptyDocument(shop));
   const [editing, setEditing] = React.useState(false);
+  // ver `rascunhoChegou` no contexto: é o que desliga a fatia da página do lojista, e o que a desliga
+  // NÃO pode ser `editing` — entre ligar o modo edição e o rascunho chegar há uma janela em que o
+  // publicado é o único documento que existe
+  const [rascunhoChegou, setRascunhoChegou] = React.useState(false);
   const [selectMode, setSelectMode] = React.useState(true);
   // token de prévia: sai da URL e vive só aqui (ver `previewToken` no contexto)
   const [previewToken, setPreviewToken] = React.useState<string | null>(null);
@@ -544,9 +651,29 @@ export function EditableProvider({
     //      (`apps.rastreio`, só presença).
     //      Abaixo de 12 a loja não lê `apps`: o valor entraria no documento e nenhum script mudaria na
     //      página, e é por isso que `validateOp` recusa `set_app` contra um manifesto sem esta versão.
+    // 13 = PÁGINAS DO LOJISTA, COLEÇÕES E TEXTO FORMATADO. A loja sabe renderizar as páginas, os artigos e
+    //      as coleções do documento (`doc.paginas`, `doc.colecoes`; a casca em `/previa-do-editor/<rota>`
+    //      para a prévia, com a página do manifesto normalizada de volta para a rota), responder 308 pelo
+    //      mapa `doc.redirecionamentos`, e tem o tipo "richtext" (`Editable.RichText`, sufixo `.rico`, lista
+    //      fechada de tags). O que LIBERA a criação de páginas não é este número, é `paginasDoLojista`
+    //      (a prop): o número diz que a lib sabe; a prop diz que ESTA loja tem as rotas. Sem os dois,
+    //      `validateOp` recusa toda operação de página, porque o registro entraria no documento e a loja
+    //      responderia 404 para sempre.
+    // 14 = A LETRA. A escada de títulos mora no CSS da loja e é multiplicada por um token de escala; o
+    //      `.estilo` de um elemento passou a aceitar letra (família, peso, caixa, alinhamento,
+    //      espaçamento, itálico, negrito) e a seção passou a aceitar o que HERDA; e o manifesto diz
+    //      quais letras a loja carregou (`fontes`). Abaixo de 14 a loja não lê nada disso: o painel
+    //      não oferece a troca, porque o valor entraria no documento e a tela ficaria igual.
     const fora: ManifestSemContainer[] = [...semContainer.current.values()].map((r) => ({ ...r, pagina }));
-    return { shop, capturedAt: new Date().toISOString(), url: pagina, foundation: 12, entries, sections: secs, tipos, semContainer: fora, tokens: toks, ...(apps ? { apps } : {}) };
-  }, [shop, tokens, apps]);
+    const fontes = letrasDaLoja();
+    // A LETRA DA CASA NÃO SE DEDUZ DO NÚMERO ACIMA. A lib chega a uma loja já construída por cópia de
+    // arquivo, e o `app/globals.css` dela não vem junto: a loja declararia 14 sem ter a escada de
+    // títulos nem as cadeias de `font-family`, e o lojista trocaria a letra da seção sem nada mudar
+    // na tela. Então quem responde é a folha DELA, por um marcador que só o bloco da escada declara,
+    // e a resposta é lida do valor computado — como já se faz com a cor.
+    const letraDaLoja = cs ? cs.getPropertyValue("--unbox-letra-da-loja").trim() === "1" : false;
+    return { shop, capturedAt: new Date().toISOString(), url: pagina, foundation: 14, entries, sections: secs, tipos, semContainer: fora, tokens: toks, ...(fontes.length ? { fontes } : {}), ...(letraDaLoja ? { letraDaLoja } : {}), ...(apps ? { apps } : {}), ...(paginasDoLojista ? { paginasDoLojista } : {}) };
+  }, [shop, tokens, apps, paginasDoLojista]);
 
   // manifesto: publica depois que os registros assentam (debounce)
   const manifestTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -649,7 +776,10 @@ export function EditableProvider({
       const corHex = cor ? (cor[3] >= 1 ? hex(cor) : fundo && rgba(fundo) ? hex([0, 1, 2].map((i) => cor[i] * cor[3] + rgba(fundo)![i] * (1 - cor[3])).concat([1]) as [number, number, number, number]) : undefined) : undefined;
       post({
         type: "unbox-editor:select",
-        entry: { ...entry, section: sec?.dataset.editorSection, container: sec?.dataset.editorContainer, current: docRef.current.values[entry.path], computed: { color: corHex, background: fundo } },
+        // `fontFamily` computada: é ela que diz ao painel em que família buscar as espessuras quando o
+        // lojista ainda não escolheu nenhuma. Sem ela o seletor oferecia a união dos pesos de TODAS as
+        // letras da loja, e a metade que a família deste título não carrega não movia um pixel.
+        entry: { ...entry, section: sec?.dataset.editorSection, container: sec?.dataset.editorContainer, current: docRef.current.values[entry.path], computed: { color: corHex, background: fundo, fontFamily: cs.fontFamily || undefined } },
         rect: { x: r.x, y: r.y, w: r.width, h: r.height },
       });
     },
@@ -665,7 +795,10 @@ export function EditableProvider({
       if (!m || m.source !== "unbox-editor") return;
       switch (m.type) {
         case "unbox-editor:apply":
-          if (m.doc && m.doc.schema === 1) setDoc(m.doc);
+          if (m.doc && m.doc.schema === 1) {
+            setDoc(m.doc);
+            setRascunhoChegou(true);
+          }
           break;
         case "unbox-editor:token":
           // token de prévia novo (resposta a `renovarToken`). Trocá-lo faz a vitrine que falhou
@@ -723,7 +856,11 @@ export function EditableProvider({
       }
     };
     window.addEventListener("message", onMessage);
-    post({ type: "unbox-editor:ready", url: window.location.href });
+    // `pagina` vai NORMALIZADA (`normalizarPagina`: sem query, sem hash, sem o prefixo da casca em prévia):
+    // é a mesma chave de `Manifest.url`. O `url` cru continua indo para quem já o lê, mas a página do
+    // lojista aberta em `/previa-do-editor/blog/x` é `/blog/x`, e quem tirar a página do `url` cru
+    // trataria a prévia como uma rota que não existe.
+    post({ type: "unbox-editor:ready", url: window.location.href, pagina: normalizarPagina(window.location.pathname) });
     scheduleManifest();
     return () => window.removeEventListener("message", onMessage);
   }, [editing, editorOrigin, post, buildManifest, scheduleManifest, select]);
@@ -822,17 +959,21 @@ export function EditableProvider({
   const value = React.useMemo<Ctx>(
     // `container: undefined` de propósito: a raiz do provider não é a home. Quem quer editar declara
     // o container da sua página (`Editable.Sections container="sobre"`); quem não declara não edita.
-    () => ({ doc, editing, selectMode, scope: [], container: undefined, layout: true, register, registerSection, registerTipos, select, foraDeContainer, previewToken, renovarToken }),
-    [doc, editing, selectMode, register, registerSection, registerTipos, select, foraDeContainer, previewToken, renovarToken],
+    () => ({ doc, editing, rascunhoChegou, selectMode, scope: [], container: undefined, layout: true, register, registerSection, registerTipos, select, foraDeContainer, previewToken, renovarToken }),
+    [doc, editing, rascunhoChegou, selectMode, register, registerSection, registerTipos, select, foraDeContainer, previewToken, renovarToken],
   );
 
   // tokens editados → :root. Só os da allowlist da loja.
-  const allowed = React.useMemo(() => new Set(tokens.map((t) => t.token)), [tokens]);
-  // segunda trava, no cliente: só token da allowlist E só valor em formato de cor —
-  // este texto entra num <style> cru, então o formato fechado é a defesa.
+  const porToken = React.useMemo(() => new Map(tokens.map((t) => [t.token, t])), [tokens]);
+  // segunda trava, no cliente: só token da allowlist E só valor que a régua DAQUELE token aceita —
+  // este texto entra num <style> cru, então o formato fechado é a defesa. A régua é a MESMA que o
+  // servidor usa para gravar (`tokenAceita`, em document.ts), e de propósito: se aqui coubesse
+  // menos, o lojista trocaria a letra, o editor diria que aplicou, e nada andaria na prévia.
   const tokenCss = Object.entries(doc.tokens ?? {})
-    .filter(([k, v]) => allowed.has(k) && /^--[a-z0-9-]+$/.test(k) && typeof v === "string" && isColor(v))
-    .map(([k, v]) => `${k}:${v.trim()}`)
+    .filter(([k, v]) => porToken.has(k) && /^--[a-z0-9-]+$/.test(k) && typeof v === "string" && tokenAceita(porToken.get(k), v))
+    // a letra sai com a pilha de reserva (`valorDeTokenEmCss`): a cadeia do globals.css termina AQUI,
+    // e uma família sozinha apaga toda a reserva da loja — a fonte que não resolve cairia em Times
+    .map(([k, v]) => `${k}:${valorDeTokenEmCss(porToken.get(k), v as string)}`)
     .join(";");
 
   return (
@@ -850,6 +991,39 @@ export function EditableProvider({
 export function EditableScope({ path, children }: { path: string; children: React.ReactNode }) {
   const ctx = useEditableContext();
   const value = React.useMemo(() => ({ ...ctx, scope: [...ctx.scope, path] }), [ctx, path]);
+  return <EditableContext.Provider value={value}>{children}</EditableContext.Provider>;
+}
+
+/**
+ * A FATIA DE UMA PÁGINA DO LOJISTA — o que o layout raiz não mandou.
+ *
+ * O layout entrega o documento SEM as páginas do lojista (`documentoSemPaginas`), porque ele viaja
+ * no HTML de toda página e o texto de cem artigos não tem o que fazer numa página de produto. A rota
+ * que RENDERIZA uma dessas páginas envolve o conteúdo aqui e acrescenta só o que ela usa
+ * (`fatiaDoDocumento`): a própria página, ou a coleção mais o cabeçalho de cada artigo da listagem.
+ *
+ * Sem estado e sem ponte: lê o contexto de cima e devolve o mesmo contexto com o documento junto da
+ * fatia. Quem junta é `juntarFatia` (document.ts), pura, para a régua da loja ser a régua do teste.
+ *
+ * A FATIA SÓ É IGNORADA DEPOIS QUE O RASCUNHO CHEGA (`ctx.rascunhoChegou`), e não durante todo o
+ * modo edição. Dali em diante o rascunho inteiro está no contexto e é a autoridade: juntar a fatia
+ * faria um valor APAGADO no rascunho reaparecer, porque a fatia é do PUBLICADO e ainda o teria.
+ * ANTES disso, o publicado é o único documento que existe, e desligar a fatia ali apagava da tela a
+ * página inteira do lojista — na prévia, um piscar entre a renderização do servidor e o rascunho; e
+ * para sempre quando o rascunho não chegava.
+ *
+ * Nem `editing` nem `rascunhoChegou` mudam na primeira renderização (os dois saem de efeito ou de
+ * mensagem), então o servidor e a primeira renderização do cliente veem o mesmo documento: não há
+ * divergência de hidratação por causa deste componente.
+ */
+export function EditableFatia({ fatia, children }: { fatia: ContentDocument | null; children: React.ReactNode }) {
+  const ctx = useEditableContext();
+  const value = React.useMemo<Ctx>(() => {
+    const doc = juntarFatia(ctx.doc, fatia, ctx.rascunhoChegou);
+    // sem nada a juntar, o contexto de cima segue inteiro: um objeto novo aqui re-renderizaria à toa
+    // tudo que está dentro
+    return doc === ctx.doc ? ctx : { ...ctx, doc };
+  }, [ctx, fatia]);
   return <EditableContext.Provider value={value}>{children}</EditableContext.Provider>;
 }
 

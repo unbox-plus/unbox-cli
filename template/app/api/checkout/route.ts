@@ -5,7 +5,9 @@
 //  - exige frete já selecionado
 //  - em erro: NÃO retenta cegamente (poderia gerar cobrança dupla)
 //  - sucesso: grava token de posse (cookie) e INVALIDA o carrinho
+//  - RECUSA ANTES DE COBRAR quando falta SESSION_SECRET (ver a primeira guarda do handler)
 import { withStoreClient } from "@/lib/unbox/store";
+import { serverEnv } from "@/lib/config";
 import { getCartRef, setOrderToken, clearCartRef, getRecurFreq } from "@/lib/session";
 import { acquireCheckoutLock, releaseCheckoutLock } from "@/lib/checkout-lock";
 import { rateLimit, clientIp, LIMITS } from "@/lib/ratelimit";
@@ -20,6 +22,14 @@ export async function POST(req: Request) {
   const ip = clientIp(req);
   const rl = rateLimit(`checkout:${ip}`, LIMITS.checkout.limit, LIMITS.checkout.windowMs);
   if (!rl.ok) return fail("Muitas tentativas. Aguarde um instante.", 429);
+
+  // SEM SEGREDO DE ASSINATURA, a loja continua vendendo. O cookie de posse é conveniência do
+  // momento pós-pagamento (o comprador é mandado para /pedido/<referência> e a tela abre por causa
+  // dele); a visão durável do pedido é a área logada, que não depende disto. Barrar o checkout por
+  // configuração seria trocar um problema pequeno — um clique a mais para quem comprou sem conta —
+  // por um grande: a loja parada. O que NÃO se faz é assinar com segredo vazio, que dá uma
+  // assinatura igual em toda loja e forjável por quem leu o pacote: nesse caso `setOrderToken` não
+  // grava nada (lib/session.ts) e a tela pós-pagamento manda entrar na conta.
 
   const ref = await getCartRef();
   if (!ref) return fail("Carrinho não encontrado.", 404);

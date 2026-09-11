@@ -172,4 +172,10 @@ Gate: `npm run unbox:editavel` mede toda página que a loja declara. Saída 0 = 
 
 Variáveis: `EDITOR_URL`, `NEXT_PUBLIC_EDITOR_ORIGIN`, `UNBOX_EDITOR_SHOP` (opcional: sobrepõe o slug carimbado). `META_CAPI_TOKEN` é segredo de servidor e nunca entra no documento do editor.
 
+A loja diz quem é e onde vive (0.20.4): `/api/unbox/paginas` responde `loja: { slug, nome, url }`. É por isso que o editor acha a loja sem registro nenhum (`https://<slug>.myunbox.com.br`) e, quando `NEXT_PUBLIC_SITE_URL` é o domínio próprio (https), confirma lá e abre a loja por ele: prévia, publicação e revalidação vão para o domínio de verdade. Em produção, `NEXT_PUBLIC_SITE_URL` certo é o único cuidado; `http://localhost` (dev) não é declarado.
+
+O lojista cria páginas, artigos e coleções (0.21.0). A loja nasce com quatro rotas que servem o que o lojista escreve no editor: `/paginas/<endereco>` (página avulsa), `/<colecao>/<endereco>` (artigo), `/<colecao>` (listagem) e `/<colecao>/pagina/N` (as seguintes), mais `/previa-do-editor`, por onde o editor abre uma página antes de ela existir na loja. A coleção que nasce com a loja é o `blog`, declarada em `lib/paginas-do-lojista.ts`; trocar o rótulo e o endereço dela é uma linha. O corpo da página é montado com as mesmas seções da home, mais uma seção de **Texto** com parágrafo, negrito, link, lista, subtítulo e citação. SEO: título, descrição, endereço canônico, Open Graph, dados estruturados (artigo, página, listagem e migalhas) e sitemap com a data de alteração verdadeira, tudo derivado do documento.
+
+A prévia dessas páginas depende do editor: a loja só abre a prévia com uma assinatura que confere. Editor mal configurado do lado dele, toda prévia de página do lojista responde 404, e o log da loja diz isso em uma linha. A loja publicada não é afetada.
+
 A seção "Editor: o que não pode quebrar" do `CLAUDE.md` do template lista cada ponto com o que acontece se for tocado.

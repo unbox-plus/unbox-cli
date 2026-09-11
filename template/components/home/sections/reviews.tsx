@@ -45,7 +45,7 @@ export function ReviewsSection({ variant = "grid", sectionProps = {} }: SectionC
   return (
     <div className="mx-auto max-w-[var(--container-max,1240px)] px-4 pt-[42px] sm:px-6">
       <div className="mb-[18px] flex items-end justify-between">
-        <Editable.Text as="h2" path="titulo" fallback={title} label="Título" className="font-display text-[26px] font-extrabold" />
+        <Editable.Text as="h2" path="titulo" fallback={title} label="Título" className="font-display" />
         {media && <div className="flex items-center gap-2 text-sm font-semibold text-[var(--store-muted)]" data-editor-ignore=""><Star weight="fill" className="text-[17px] text-[var(--store-cta-dark)]" /><b className="text-[var(--store-ink)]">{media}</b></div>}
       </div>
       <div className="grid gap-[18px] md:grid-cols-3" data-editor-ignore="">

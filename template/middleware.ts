@@ -9,22 +9,48 @@
 // precisar mexer em env. Overrides: PREVIEW_DISABLED=1 desliga em qualquer lugar;
 // PREVIEW_FORCE=1 liga em qualquer lugar (ex.: testar a porta no localhost).
 //
-// Time interno não preenche formulário: qualquer URL da loja com ?chave=<senha>
-// (a PREVIEW_PASSWORD, padrão "unbox") grava o cookie e segue limpo. Ex.:
-//   https://loja.vercel.app/?chave=unbox
+// Time interno não preenche formulário: qualquer URL da loja com ?chave=<PREVIEW_PASSWORD>
+// grava o cookie e segue limpo. O CLI sorteia uma PREVIEW_PASSWORD por instalação e a
+// escreve no `.env.local` do projeto; sem a variável, o atalho simplesmente não existe.
+//
+// NÃO EXISTE MAIS SENHA DE FÁBRICA. Até a v0.21.2 esta função caía numa string fixa quando a
+// variável faltava, e este arquivo viaja num pacote npm PÚBLICO: a chave do time de toda loja
+// gerada estava publicada, e quem lesse o pacote passava pela porta de todas elas. Trocar por
+// outra constante seria o mesmo defeito com outro texto, então a porta passou a não ter default
+// (e o valor antigo não fica escrito nem em comentário, que viaja no pacote igual a código).
 //
 // O cookie guarda o SHA-256 da chave, nunca a chave em si.
 import { NextResponse, type NextRequest } from "next/server";
 import { verifyEditorToken } from "@/lib/editable/verify";
+import { COOKIE_DA_PREVIA, PARAM_DO_TOKEN, VALIDADE_DO_COOKIE_DA_PREVIA } from "@/lib/previa";
 
 const LOJA = "minhaloja"; // o CLI troca pelo slug da loja no scaffold
 
 export const COOKIE = `${LOJA}_preview`;
 
-/** Chave que assina o cookie. Sobrescreva com PREVIEW_PASSWORD na Vercel.
- *  Trocar a chave invalida os acessos já concedidos. */
-export function senhaDoPreview() {
-  return process.env.PREVIEW_PASSWORD || "unbox";
+/** A chave do TIME, o atalho `?chave=`. Só existe se PREVIEW_PASSWORD estiver no ambiente:
+ *  sem ela devolve null, e o atalho é RECUSADO. A catraca de e-mail continua inteira, que é
+ *  a função da porta; o atalho é conveniência interna, não a porta. */
+export function senhaDoPreview(): string | null {
+  const v = (process.env.PREVIEW_PASSWORD ?? "").trim();
+  return v || null;
+}
+
+/** O que ASSINA o cookie da porta. Não é a mesma pergunta que a de cima: a chave do time é
+ *  o que alguém DIGITA na URL, e isto é só um valor estável e não publicado, para o cookie
+ *  não poder ser escrito à mão.
+ *
+ *  Ordem, e o porquê de cada degrau:
+ *  1. a própria PREVIEW_PASSWORD, quando existe, para trocar a chave do time continuar
+ *     invalidando os acessos já concedidos, como sempre foi;
+ *  2. o SESSION_SECRET, que o CLI sorteia por instalação e a produção já exige (lib/config
+ *     e lib/env-check). É estável entre as instâncias serverless, que é o que o cookie
+ *     precisa: um valor por processo faria a pessoa cair na porta a cada instância nova;
+ *  3. um valor sorteado no boot, último recurso. Só acontece em desenvolvimento, onde a
+ *     porta nem liga sozinha (localhost não é host de preview) e o processo é um só. */
+const SORTEADO_NO_BOOT = crypto.randomUUID();
+export function chaveDoCookie(): string {
+  return senhaDoPreview() ?? (process.env.SESSION_SECRET || SORTEADO_NO_BOOT);
 }
 
 /** SHA-256 em hex via Web Crypto (o middleware roda no edge; sem node:crypto). */
@@ -82,9 +108,45 @@ function urlDoCheckoutComPonteiro(req: NextRequest): NextResponse | null {
   return NextResponse.redirect(url);
 }
 
+// ═══ A PRÉVIA DAS PÁGINAS DO LOJISTA GUARDA O TOKEN NUM COOKIE ═══
+// A rota `/previa-do-editor/…` exige o token assinado do editor (ela abre página OCULTA já
+// renderizada, que a loja responde 404). O editor põe o token na URL uma vez; o `provider.tsx` o tira
+// dali logo em seguida, para ele não vazar no `document.location` que o GA e o Meta mandam. Sem este
+// cookie, uma recarga dentro do iframe perderia a porta e a prévia daria 404 no meio da edição.
+//
+// EM TODO HOST, e antes da porta de preview: ela só existe em host de PREVIEW, e no domínio próprio
+// da marca — o lançamento de verdade — o resto deste arquivo devolve `next()` e nada gravaria o
+// cookie. O que se guarda é o PRÓPRIO token; quem decide se ele vale continua sendo
+// `verifyEditorToken`, na rota, a cada visita.
+async function comCookieDaPrevia(req: NextRequest): Promise<NextResponse | null> {
+  if (!req.nextUrl.pathname.startsWith("/previa-do-editor")) return null;
+  const token = req.nextUrl.searchParams.get(PARAM_DO_TOKEN);
+  if (!token || !(await verifyEditorToken(token, "preview"))) return null;
+  const res = NextResponse.next();
+  // `sameSite: "none"` + `secure` SEMPRE, inclusive em desenvolvimento. A prévia vive dentro de um
+  // iframe de OUTRA origem (o editor), e cookie `lax` não viaja para lá — daí o `none`. E `none` sem
+  // `secure` não é um cookie mais permissivo: é um cookie RECUSADO. Medido no Chrome, servindo os
+  // três de uma vez, o navegador guardou o `SameSite=None; Secure` e o `SameSite=Lax`, e descartou o
+  // `SameSite=None` sem `Secure` — que era exatamente o que o dev gravava, então a prévia local
+  // perdia a porta a cada recarga dentro do iframe (404 no meio da edição), justo o sintoma que a
+  // condição existia para evitar. `Secure` em http://localhost funciona: o navegador trata localhost
+  // como contexto seguro. Vale para os dois cookies gravados aqui.
+  const opcoes = { httpOnly: true, sameSite: "none" as const, secure: true, maxAge: VALIDADE_DO_COOKIE_DA_PREVIA };
+  res.cookies.set(COOKIE_DA_PREVIA, token, { ...opcoes, path: "/previa-do-editor" });
+  // e o cookie da PORTA DE PREVIEW junto, que é o que este mesmo token já ganhava mais abaixo: sem
+  // ele, num host de preview, as chamadas que a prévia faz à própria loja cairiam na tela /acesso.
+  res.cookies.set(COOKIE, await tokenDaSenha(chaveDoCookie()), { ...opcoes, path: "/" });
+  res.headers.set("Cache-Control", "private, no-store, must-revalidate");
+  res.headers.set("X-Robots-Tag", "noindex, nofollow");
+  return res;
+}
+
 export async function middleware(req: NextRequest) {
   const comPonteiro = urlDoCheckoutComPonteiro(req);
   if (comPonteiro) return comPonteiro;
+
+  const daPrevia = await comCookieDaPrevia(req);
+  if (daPrevia) return daPrevia;
 
   if (process.env.PREVIEW_DISABLED === "1") return NextResponse.next();
   if (process.env.PREVIEW_FORCE !== "1" && !hostDePreview(req.headers.get("host") ?? "")) {
@@ -133,19 +195,23 @@ export async function middleware(req: NextRequest) {
   const tokenDoEditor = req.nextUrl.searchParams.get("unbox_editor_token");
   if (tokenDoEditor && (await verifyEditorToken(tokenDoEditor, "preview"))) {
     const res = semCache(NextResponse.next());
-    res.cookies.set(COOKIE, await tokenDaSenha(senhaDoPreview()), { path: "/", httpOnly: true, sameSite: "none", secure: true, maxAge: 60 * 60 * 8 });
+    res.cookies.set(COOKIE, await tokenDaSenha(chaveDoCookie()), { path: "/", httpOnly: true, sameSite: "none", secure: true, maxAge: 60 * 60 * 8 });
     return res;
   }
 
   // CHAVE DO TIME: ?chave=<senha> em qualquer URL grava o cookie e redireciona pra
   // mesma página sem o parâmetro (a chave não fica no histórico/URL compartilhada).
   // É o atalho interno; lead de verdade continua entrando pelo formulário.
+  //
+  // Sem PREVIEW_PASSWORD no ambiente, `senha` é null e NENHUM ?chave= passa: não há senha
+  // de fábrica para adivinhar, e quem quiser o atalho define a variável.
+  const senha = senhaDoPreview();
   const chave = req.nextUrl.searchParams.get("chave");
-  if (chave && chave === senhaDoPreview()) {
+  if (senha && chave === senha) {
     const url = req.nextUrl.clone();
     url.searchParams.delete("chave");
     const res = NextResponse.redirect(url);
-    res.cookies.set(COOKIE, await tokenDaSenha(senhaDoPreview()), {
+    res.cookies.set(COOKIE, await tokenDaSenha(chaveDoCookie()), {
       httpOnly: true,
       sameSite: "lax",
       secure: process.env.NODE_ENV === "production",
@@ -155,7 +221,7 @@ export async function middleware(req: NextRequest) {
     return semCache(res);
   }
 
-  const esperado = await tokenDaSenha(senhaDoPreview());
+  const esperado = await tokenDaSenha(chaveDoCookie());
   if (req.cookies.get(COOKIE)?.value === esperado) {
     return semCache(NextResponse.next());
   }
