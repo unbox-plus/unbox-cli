@@ -1,5 +1,185 @@
 ## Changelog
 
+### v0.21.3 — o que saiu do pacote, e o gate que passou a medir o arquivo inteiro
+
+Rodada de limpeza do que o pacote publicava sem precisar. Nenhuma mudança de comportamento na loja gerada:
+o que muda é o que viaja no tarball e o que o `prepack` consegue reprovar.
+
+**Saiu dado de pessoa de dentro de dois scripts que rodam contra a loja de produção.**
+`scripts/test-live.ts` e `scripts/place-order-pix.ts` carregavam, em texto aberto, um CPF que fecha a conta do
+dígito verificador, com nome, endereço completo com complemento e telefone ao lado. Os dois passam a usar um CPF
+de sequência repetida, que de propósito NÃO fecha a conta e por isso não tem como ser o documento de alguém, e o
+endereço de uma praça pública, porque o cálculo de frete precisa de um CEP que exista. Quem precisar de documento
+válido para o antifraude aceitar põe o dele em `.env.local`, em `UNBOX_TEST_CPF`, que arquivo publicado não
+carrega documento de ninguém.
+
+**Saíram dois telefones de consumidor.** Eles vinham de relatório de caso real e estavam em três lugares: o
+README, `lib/schemas.ts` e `app/api/acesso/route.ts`. Trocados por número obviamente inventado, no mesmo padrão
+do resto do pacote, preservando o que o exemplo precisava mostrar (o zero à esquerda do DDD).
+
+**Saiu o nome de um cliente do changelog, e a atribuição a uma pessoa do time.** Nos dois casos a informação que
+interessa a quem usa o CLI é o defeito, não de quem era a loja nem quem pediu o conserto.
+
+**Saiu a configuração de dentro da nossa conta de analytics.** O ID de medição e o inventário de gatilhos do
+container central não são informação de produto. O achado que interessa ao leitor, que não existe gatilho de
+custom event `page_view`, continua escrito. O `GTM-PZLT336` fica: ele é contrato, toda loja gerada sai com ele.
+
+**Saiu vocabulário do ramo de origem de dentro do template.** Quatro exemplos em `lib/enrichment/index.ts`
+tinham sobrevivido às varreduras anteriores por estarem em inglês, e um valor nutricional era medição de produto
+real. Trocados pelo vocabulário neutro que o próprio arquivo já usava no resto do código.
+
+**Saiu a citação literal de uma mensagem de revisão de dentro de `scripts/sistema.py`**, que é copiado para
+dentro do projeto de todo cliente. O diagnóstico foi parafraseado: o conteúdo técnico continua inteiro e a
+mensagem de alguém sai do pacote. Junto saíram as três referências ao `escala.py`, um script irmão que nunca
+viajou no tarball: quem recebia o projeto lia a citação de uma ferramenta que não está na pasta.
+
+**O gate do `prepack` passou a medir o ARQUIVO, e não a linha.** Este é o conserto que fecha o buraco por onde o
+nome do cliente passou: ele estava na lista de proibidos do próprio gate, mas caiu no fim de uma linha do README
+e continuou na seguinte, e a janela de três palavras nunca via as duas metades juntas. Quem escreve o texto não
+escolhe onde a linha quebra, então o gate não pode depender disso. Agora a varredura de nome roda sobre o texto
+inteiro com as quebras colapsadas, guardando a linha da primeira palavra da janela para a mensagem de erro.
+
+**E o gate ganhou quatro réguas que ele não tinha:**
+
+- **Documento com dígito verificador conferido.** Nenhuma das famílias de regex olhava para isso, e era por isso
+  que um CPF válido viajava havia versões. O que separa um documento de um número qualquer não é a forma, é a
+  aritmética, então o gate calcula.
+- **Telefone de pessoa.** Aqui não há conta a fazer, todo número é bem formado. O que separa fixture de telefone
+  de gente é a repetição: no máximo três dígitos distintos nos oito finais.
+- **Propriedade de analytics** (`GTM-`, `G-`, `AW-`, `UA-`, `DC-`), com duas exceções nomeadas e com o motivo
+  escrito ao lado, porque exceção sem motivo é buraco.
+- **A forma curta que põe o autor entre parênteses**, `(por` seguido de um primeiro nome, que é como uma
+  atribuição pessoal atravessou as três regras que já existiam: ela não tem verbo nenhum para casar.
+
+Junto, três ajustes de alcance: a peneira estrutural de nome passou a enxergar o nome próprio que vem depois de
+um parêntese ou de aspas de abertura, e não só depois de um espaço, que era onde o nome se escondia; o
+vocabulário de ramo ganhou os nomes em inglês; e a lista de arquivos da checagem de
+travessão passou a vir do próprio npm em vez de quatro nomes escritos à mão, senão um arquivo novo em `src/`
+entrava no pacote sem nunca ser conferido.
+
+**Ficou registrado o que não dá para consertar aqui:** o skill `web-design-guidelines`, vendorizado sob MIT, não
+tem como ganhar o `LICENSE.txt` ao lado que o skill vizinho tem. O repositório de origem declara MIT só na seção
+"License" do README e não publica arquivo de licença nenhum, então não existe texto nem linha de copyright para
+acompanhar a cópia, e escrever um seria atribuir a outra pessoa uma declaração que ela não fez. O `ATTRIBUTION.md`
+passa a dizer isso, com a data em que foi conferido.
+
+### v0.21.2 — nove consertos que a revisão de uma loja de cliente achou
+
+A 0.21.1 nunca chegou a ninguém: ela foi substituída no mesmo dia, antes de qualquer loja usá-la. **Use a
+0.21.2.** Ela tem tudo o que a 0.21.1 tinha (as páginas do lojista e o corte do documento por rota), mais os
+consertos abaixo, todos achados subindo a foundation 13 numa loja de cliente de verdade e todos do TEMPLATE, ou
+seja, toda loja gerada os levaria.
+
+**A casca das páginas pintava branco puro sobre o fundo da loja.** Numa loja de fundo creme, toda página e todo
+artigo do lojista nascia com uma faixa branca de ponta a ponta, com emenda visível. Agora ela usa o fundo da loja.
+
+**O editor fora do ar derrubava toda página do lojista para 404, e o 404 ficava cacheado.** Quando a loja não
+consegue LER o que foi publicado, ela não sabe se a página existe — e responder "não existe" é afirmar o que não
+se sabe, numa URL que pode estar indexada. Agora ela responde erro, que é a verdade, e o Next serve a versão
+anterior. Junto veio a guarda que impede isso de quebrar o build: no build não existe versão anterior, e sem ela
+um soluço do editor na hora do deploy impediria a loja inteira de subir.
+
+**O `robots.txt` deixava passar URL com query.** Como o checkout só existe com `?id=&token=`, ele nunca era
+bloqueado de verdade. Agora as três formas de cada área entram na lista.
+
+**Um 308 permanente apontava para uma página que responde 404.** Numa coleção renomeada e encolhida,
+`/velha/pagina/3` mandava para `/nova/pagina/3`, que não existe mais. Agora o número só vai junto quando a
+página existe no destino.
+
+**Título de uma palavra longa fazia a página rolar na horizontal no celular.** Um link colado como título tem 60
+caracteres sem espaço e empurrava a página inteira a 375 px.
+
+**O cookie da prévia era recusado pelo navegador em desenvolvimento.** `SameSite=None` sem `Secure` não é um
+cookie mais permissivo: é um cookie descartado. Era exatamente o modo de falha que o comentário dizia evitar.
+
+**A paginação dizia "Página N de M" duas vezes**, e **o objeto de SEO da página viajava para o navegador** sem
+ninguém lê-lo do lado do cliente.
+
+E o contrato de `GET /api/unbox/paginas` passou a documentar `loja.paginasDoLojista` e `doLojista`, que são o
+interruptor das páginas e a marca das rotas de molde.
+
+Loja gerada pela 0.21.x: os consertos estão em `app/robots.ts`, `app/sitemap.ts`, `middleware.ts`,
+`lib/paginas-publicadas.ts`, `components/paginas/casca-de-pagina.tsx` e nas quatro rotas do lojista.
+
+### v0.21.1 — a loja manda ao navegador só o conteúdo que a página usa
+
+O documento publicado inteiro viajava no HTML de TODA página, porque o layout raiz o entrega ao
+provider, que é componente de cliente. Enquanto o documento guardava só o que o lojista tinha editado
+nas páginas do código isso era pequeno. Com as páginas da 0.21.0 deixa de ser: cada artigo é todo
+documento, e a página de produto passaria a carregar o blog inteiro. É peso que conta nos Core Web
+Vitals, que o Google usa.
+
+Agora o layout entrega o documento **sem nada das páginas do lojista**, e cada rota de página, artigo ou
+coleção acrescenta a **fatia** dela (`EditableFatia`). A listagem leva a coleção inteira e, de cada
+artigo, só o cabeçalho, que é o que o card mostra.
+
+Medido numa loja com 40 artigos, build de produção:
+
+| rota | antes | depois |
+|---|---|---|
+| página inicial | 276 KB | 81 KB |
+| página de produto | 295 KB | 100 KB |
+| artigo | 266 KB | 71 KB |
+| listagem do blog | 266 KB | 73 KB |
+
+O gate passa a cobrar o par: rota do lojista sem a fatia REPROVA o build, porque adotar metade da
+mudança esvazia a página em silêncio.
+
+Duas correções que vieram junto: o rastreio recebia `process.env` inteiro e agora recebe só as
+variáveis que ele conhece pelo nome; e o registro de honestidade (`declared`) parou de viajar ao
+navegador, onde ninguém o lê.
+
+Loja gerada pela 0.21.0: trocar `app/layout.tsx` e `components/paginas/{pagina,colecao}-do-lojista.tsx`,
+e atualizar `lib/editable/`.
+
+### v0.21.0 — o lojista cria páginas, artigos e coleções
+
+A loja gerada passa a servir o que o lojista escreve no editor, e não só o que está no código. Quatro
+rotas novas: `/paginas/<endereco>` para a página avulsa, `/<colecao>/<endereco>` para o artigo,
+`/<colecao>` para a listagem e `/<colecao>/pagina/N` para as seguintes. Mais `/previa-do-editor`, que
+abre uma página antes de ela existir na loja, atrás do token assinado do editor.
+
+O modelo é o do Shopify, com as URLs em português: endereço gerado do título (minúsculas, sem acento,
+hífen), que não muda quando o título muda; colisão ganha sufixo; renomear oferece deixar o endereço
+antigo levando ao novo, para sempre e sem cadeia; página nasce visível e artigo nasce oculto; data de
+publicação pode ser agendada; oculto responde 404.
+
+O corpo da página é montado com as mesmas seções da home, mais uma seção de **Texto** nova, com
+parágrafo, negrito, itálico, link, lista, subtítulo e citação, sobre uma lista fechada de marcação.
+
+SEO de fábrica: título e descrição por página, endereço canônico, Open Graph completo (com data,
+autor e imagem), dados estruturados de artigo, de página, de listagem e de caminho de migalhas, e
+sitemap com a data de alteração de verdade. Página oculta, agendada ou marcada "ocultar de
+buscadores" fica fora do sitemap e responde `noindex`.
+
+Arquivos novos: `lib/paginas-do-lojista.ts` (a declaração: prefixo, coleções e endereços reservados),
+`lib/reservados.ts`, `lib/paginas-publicadas.ts`, `lib/paginas-seo.ts`, `lib/paginas-dados.ts`,
+`lib/previa.ts` e `components/paginas/`. `app/sitemap.ts`, `app/robots.ts`, `app/layout.tsx`,
+`lib/rotas-editaveis.ts`, `app/api/unbox/paginas/route.ts`, `middleware.ts` e `next.config.ts`
+mudaram; `CLAUDE.md` ganhou os pontos novos em "Editor: o que não pode quebrar".
+
+Exige o editor na foundation 13 (o documento com páginas, coleções e texto formatado) e o editor
+assinando com `EDITOR_PRIVATE_KEY_JWK`; sem essa chave nenhuma prévia de página abre.
+
+Loja já gerada (0.20.x): dá para trazer os arquivos acima, mas é mais barato regerar.
+
+**A loja diz quem é e onde vive, e isso entrou aqui.** `GET /api/unbox/paginas` passa a responder
+`loja: { slug, nome, url }` além da lista de páginas. `slug` é o `STORE_SLUG` carimbado no scaffold;
+`nome` é `NEXT_PUBLIC_SITE_NAME` (senão o nome de exibição que o CLI carimba na rota); `url` é a
+origem de `NEXT_PUBLIC_SITE_URL`, só quando é https (em dev, com `http://localhost`, o campo não
+sai). Por quê: o editor da Unbox deixou de precisar de registro por loja. Dado um slug, ele procura
+em `https://<slug>.myunbox.com.br/api/unbox/paginas`; um 200 no contrato é "a loja existe e é
+editável", e `loja.slug` é a trava que impede um host curinga de abrir a loja errada. E quando `url`
+é outro endereço (o domínio próprio já apontado para a loja), o editor confirma que ele responde a
+mesma rota com o mesmo slug e passa a abrir a loja por ele: prévia, publicação e revalidação vão para
+o domínio de verdade, sem ninguém registrar nada. Endereço que não confirma (DNS ainda não apontado,
+certificado pendente) é ignorado com aviso no log do editor, e o host de revisão segue valendo.
+`src/theme.js` passa a carimbar o nome da loja nessa rota no scaffold. Este contrato foi numerado
+v0.20.4 na linha interna e nunca saiu publicado com esse número: a v0.20.4 do registro npm é a de
+empacotamento, logo abaixo. Está nesta entrada para nenhum número aparecer duas vezes. Loja já
+gerada na faixa 0.20.0 a 0.20.3 que só queira este pedaço: trocar `app/api/unbox/paginas/route.ts`
+pelo desta versão e conferir o nome de exibição na última linha dele.
+
 ### v0.20.5 — ajustes no README
 
 Apenas atualizações internas:
@@ -78,6 +258,11 @@ estão escritas abaixo, a partir do diff dos pacotes, e o rótulo da 0.18.2 volt
 referenciava um arquivo que não publicava, e `npm pack` a partir dele quebrava. Agora o pacote é
 consistente consigo mesmo.
 
+> **Revertido depois.** Publicar o `tools/` num registro público levou junto ferramenta interna
+> que não é de ninguém mais. O `files` voltou a `bin`, `src` e `template`, e a consistência veio
+> pelo outro lado: o `prepack` roda no repositório de trabalho, onde `tools/` existe, e quem
+> instala do registro nunca roda `prepack`.
+
 **Para quem quer o código-fonte** (e não o artefato de uso), passou a sair um segundo zip,
 `CLI - Unbox v0.20.1 (fonte).zip`, com a pasta inteira: `bin/`, `src/`, `template/`, `tools/`,
 `package.json`, `package-lock.json` e o README. O tarball continua sendo o artefato de uso.
@@ -146,9 +331,9 @@ entrega**, não o código-fonte, porque a varredura de fonte erra dos dois lados
 comentário de componente que nem está na receita, e não encontra o texto que vaza sem existir como
 string, como um logotipo com o nome errado dentro de um arquivo.
 
-**Achou defeito no primeiro uso, numa loja real.** Rodado contra a Oddie Supply servindo local:
+**Achou defeito no primeiro uso, numa loja real.** Rodado contra uma loja gerada, servindo local:
 `[NOME DA LOJA]` e `[CNPJ]` em `/termos` e `/privacidade`, as duas com `robots: index, follow`.
-É o mesmo caso que o documento relata da Punch, e estava lá, indexável.
+É o mesmo caso que o documento relata de outra loja, e estava lá, indexável.
 
 **E achou um defeito no próprio gate, também no primeiro uso.** A primeira versão usava
 `localhost:3000` como padrão e mediu **outro projeto** que estava de pé naquela porta: teria
@@ -220,11 +405,11 @@ geradas e contra um scaffold recém-criado:
 | | tipos | raios | hex | containers |
 |---|---:|---:|---:|---:|
 | foundation (scaffold novo) | 55 | 16 | 20 | 2 |
-| Moderação | 49 | 15 | 22 | 2 |
-| Oddie Supply | 84 | 29 | 51 | 4 |
-| Zé Tona | 84 | 24 | 18 | 5 |
-| noway | 88 | 23 | 56 | 4 |
-| Mata Sede | 116 | 41 | 135 | 4 |
+| loja gerada A | 49 | 15 | 22 | 2 |
+| loja gerada B | 84 | 29 | 51 | 4 |
+| loja gerada C | 84 | 24 | 18 | 5 |
+| loja gerada D | 88 | 23 | 56 | 4 |
+| loja gerada E | 116 | 41 | 135 | 4 |
 | *teto que veio no script* | *8* | *5* | *0* | *1* |
 
 **A foundation já estoura todos os tetos antes de qualquer briefing.** Ligar como gate hoje
@@ -288,7 +473,7 @@ a rota morta sem ninguém perceber. Testado com o arquivo plantado.
 
 Arquivo: `CLI - Unbox v0.17.1.zip`.
 
-### v0.17.0 — rodada 3 do case Oddie: PageSpeed, AEO, imagem e rastreamento
+### v0.17.0 — rodada 3 do case em produção: PageSpeed, AEO, imagem e rastreamento
 
 Terceiro relatório da mesma loja, agora de um dia inteiro em PageSpeed, SEO/AEO, acessibilidade e
 tracking. Oito dos onze itens eram do template. Dois não se aplicavam (a foundation já emitia
@@ -397,7 +582,7 @@ compra perdido.
 
 Arquivo: `CLI - Unbox v0.16.5.zip`.
 
-### v0.16.4 — rodada 2 do case Oddie: o backend dizia o que estava errado e o front jogava fora
+### v0.16.4 — rodada 2 do case em produção: o backend dizia o que estava errado e o front jogava fora
 
 Oito itens de uma loja em produção entre 21/08 e 01/09, sete deles em código compartilhado do
 template. Seis têm a mesma forma: **a Unbox informou a causa e o front descartou a informação.**
@@ -426,7 +611,7 @@ aparecem no formulário.
 
 **O DDD é validado.** O schema conferia só o comprimento (10 a 11 dígitos), e a Unbox recusa o
 pedido por DDD inexistente. O zero à esquerda passou a ser removido antes de validar, porque é o
-que a pessoa quis dizer ("011 99360-3233" vira 11993603233, "019 8765-4321" vira DDD 19), e o DDD
+que a pessoa quis dizer ("011 99999-8888" vira 11999998888, "019 8765-4321" vira DDD 19), e o DDD
 é conferido contra a lista da Anatel. Testado com as duas formas do relatório e com DDDs falsos.
 
 **O erro do login por código deixou de cair no genérico.** O login sem senha responde em formato
@@ -517,21 +702,21 @@ Arquivo: `CLI - Unbox v0.16.2.zip`.
 
 ### v0.16.1 — o tipo de página que o GTM central lê, em todas as rotas
 
-Segunda leitura do relatório da loja Uncle Jay, agora com o item de tracking (§4: "o pageview de
+Segunda leitura do relatório da mesma loja em produção, agora com o item de tracking (§4: "o pageview de
 entrada nunca é disparado"). O resto do relatório já tinha saído nas 0.15.3, 0.15.6 e 0.16.0.
 
-**Medi o container central antes de mexer, e a medição corrigiu o diagnóstico.** Baixei o JS do
-`GTM-PZLT336` e enumerei os gatilhos de evento dele: `gtm.js`, `gtm.historyChange(-v2)`,
-`gtm.click`, `dataLayerReady` e os de ecommerce. **Não existe gatilho de custom event
+**Medi o container central antes de mexer, e a medição corrigiu o diagnóstico.** Conferi no JS do
+`GTM-PZLT336` que gatilhos de evento ele tem (a configuração de dentro da conta não se escreve
+aqui). **Não existe gatilho de custom event
 `page_view`** — empurrar `page_view` no dataLayer não acionaria nada lá. Depois rodei a loja
 gerada, sem `NEXT_PUBLIC_GA_ID` e sem Pixel:
 
 - **O pageview de ENTRADA é contado**, ao contrário do que o relatório supõe: o hit
-  `en=page_view` sai para o `G-RVTH4D73PL` no carregamento, disparado pela tag GA4 do próprio
-  container no gatilho All Pages.
-- **A navegação SPA é que não vira pageview**: quatro `gtm.historyChange` no dataLayer e o
-  contador de hits parado em 1. Isso é configuração do container (falta uma tag GA4 no gatilho
-  History Change) e só a Unbox pode resolver — está fora do que o CLI controla.
+  `en=page_view` sai no carregamento, disparado pela tag GA4 que o próprio container já tem no
+  gatilho de todas as páginas.
+- **A navegação SPA é que não vira pageview**: quatro trocas de rota no dataLayer e o contador
+  de hits parado em 1. Isso é configuração do container, não do código, e só a Unbox pode
+  resolver: está fora do que o CLI controla.
 - **O buraco que era nosso:** `dataLayerReady`, o único gatilho de tipo de página que o container
   tem, só era emitido em PDP, carrinho, checkout e confirmação. Home, catálogo, categoria e busca
   não emitiam nada — exatamente onde cai o tráfego de campanha. Agora as quatro emitem, com
@@ -645,7 +830,7 @@ Arquivo: `CLI - Unbox v0.16.0.zip`.
 
 ### v0.15.6 — dado que a loja não tem, o bloco não renderiza
 
-Relatório de uma loja gerada pelo CLI e levada a produção (Uncle Jay). A maior parte dos itens
+Relatório de uma loja gerada pelo CLI e levada a produção. A maior parte dos itens
 tinha a mesma raiz: **a foundation preenchia vazio com conteúdo plausível**, e o lojista não tinha
 como saber o que era dele e o que era do template. Parte disso foi ao ar como fato — e parte é
 violação de política do Google, de norma da ANVISA ou do CDC. Vários itens do relatório já tinham
@@ -700,10 +885,10 @@ footer por `#__next` são da loja nativa da Unbox, não da foundation.
 
 ### v0.15.5 — dataLayer: uma camada, um contrato, e o que o GTM central da Unbox lê
 
-Vem de duas fontes: a auditoria do tracking da foundation e o relatório de um cliente (She
-Talks) sobre a loja nativa da Unbox, com sete defeitos reproduzíveis. Medi o container central
-`GTM-PZLT336` e duas lojas nativas para saber o que ele espera; a foundation agora entrega isso
-e evita cada um dos sete.
+Vem de duas fontes: a auditoria do tracking da foundation e o relatório de um cliente sobre a
+loja nativa da Unbox, com sete defeitos reproduzíveis. Medi o container central `GTM-PZLT336` e
+duas lojas nativas para saber o que ele espera; a foundation agora entrega isso e evita cada um
+dos sete.
 
 **O defeito estrutural.** `lib/analytics.ts` priorizava o `gtag` e só usava o dataLayer na
 ausência dele. Bastava a loja preencher `NEXT_PUBLIC_GA_ID` para o GTM central ficar cego a
@@ -1058,7 +1243,7 @@ contradizem decisões nossas):
 
 Ajustes em cima da v0.13.0:
 
-- **Header novo `equilibrado`** (pedido do Bruno): uma linha só, com as categorias à
+- **Header novo `equilibrado`** (pedido do time): uma linha só, com as categorias à
   esquerda, o logo ao centro e as três ações (busca, conta, carrinho) em ícone à direita.
   É o meio-termo entre o `compacto` e o `centralizado` — logo como eixo da página sem gastar
   a segunda faixa. Já são **5 headers** na biblioteca.
@@ -1132,7 +1317,7 @@ Retorno da revisão de autenticação do time:
 
 ### Beta v0.9.7 (r3) — create-unbox-store 0.12.12
 
-**Correção de escopo do M0** (apontada pelo Bruno): o "Diagnóstico de Ambição + separação
+**Correção de escopo do M0** (apontada na revisão): o "Diagnóstico de Ambição + separação
 briefing × DESIGN-DRAFT" pertence ao agente de GERAÇÃO de briefing (montante, fora do CLI) —
 tinha entrado por engano no agente 15 da foundation na v0.9.6. Removido do 15: a seção M0
 inteira (diagnóstico de 4 eixos, instrumentos universais/condicionais, nota de calibração) e
@@ -1142,7 +1327,7 @@ anexo DESIGN-DRAFT como default a desafiar com `frontend-design`.
 
 ### Beta v0.9.7 (r2) — create-unbox-store 0.12.11
 
-**Checkout SEMPRE com `?id=&token=` na URL** (pedido do Bruno — sem isso a recuperação de
+**Checkout SEMPRE com `?id=&token=` na URL** (pedido do time — sem isso a recuperação de
 carrinho não existe pra quem só enxerga a navegação):
 
 - O checkout customizado agora segue o MESMO contrato do hospedado da Unbox: a URL carrega
@@ -1198,7 +1383,7 @@ vivo, varredura de consistência docs↔código e caça a código morto):
 
 ### Beta v0.9.6 — create-unbox-store 0.12.9
 
-Dois reforços de processo (proposta SEDE v2 + agente de AEO da operação):
+Dois reforços de processo (proposta de elevação de média v2 + agente de AEO da operação):
 
 - **M0 — o briefing começa por um julgamento**: a primeira seção obrigatória do
   `marca/BRIEFING.md` agora é o **Diagnóstico de Ambição** (4 eixos com evidência citada:
@@ -1210,7 +1395,7 @@ Dois reforços de processo (proposta SEDE v2 + agente de AEO da operação):
   DESIGN-DRAFT**: o briefing prende mundo/voz/dados/aceitação como LEI; execução visual
   (hex, fontes, radius, motion) vira anexo rotulado "default a desafiar com
   frontend-design" — o `DESIGN-<MARCA>.md` do M2 nasce desse draft, evoluído por quem
-  constrói. Calibração explícita: a SEDE é arquétipo, não padrão.
+  constrói. Calibração explícita: essa proposta é arquétipo, não padrão.
 - **Agente 17 — AEO (novo, opcional)**: prepara a loja pra ser citada por motores de
   resposta (ChatGPT, Claude, Perplexity, AI Overviews). Menu de 6 módulos: `llms.txt`
   gerado do catálogo, FAQ answer-friendly + FAQPage schema, Product schema enriquecido
@@ -1222,7 +1407,7 @@ Dois reforços de processo (proposta SEDE v2 + agente de AEO da operação):
 
 ### Beta v0.9.5 (r2) — create-unbox-store 0.12.8
 
-Porta de preview mais esperta (pedido do Bruno):
+Porta de preview mais esperta (pedido do time):
 
 - **Escopo automático por domínio**: a porta só existe em host de PREVIEW (`*.vercel.app`,
   `*.myunbox.com.br`, + sufixos opcionais em `PREVIEW_HOSTS`). Em **domínio próprio da
@@ -1230,16 +1415,18 @@ Porta de preview mais esperta (pedido do Bruno):
   localhost também fica desligada (dev e QA livres; `PREVIEW_FORCE=1` liga pra testar).
   `PREVIEW_DISABLED=1` segue como kill switch manual. O `.env.local` gerado não precisa
   mais de nenhuma env de porta.
-- **Chave do time**: qualquer URL da loja com `?chave=<PREVIEW_PASSWORD>` (padrão `unbox`)
-  grava o cookie de 30 dias e segue direto, sem formulário — o parâmetro é removido da URL
-  no redirect. Ex.: `https://loja.vercel.app/?chave=unbox`. Chave errada cai na porta
-  normal.
+- **Chave do time**: qualquer URL da loja com `?chave=<PREVIEW_PASSWORD>` grava o cookie de
+  30 dias e segue direto, sem formulário — o parâmetro é removido da URL no redirect. Ex.:
+  `https://loja.vercel.app/?chave=SUA_CHAVE`. Chave errada cai na porta normal. (Esta versão
+  trazia uma senha de fábrica no código, que era a mesma em toda loja gerada e viajava no
+  pacote público. Não existe mais: o CLI sorteia uma por instalação, e sem a variável o
+  atalho é recusado.)
 - Validado ao vivo nos 7 cenários: localhost aberto, vercel.app/myunbox travados, domínio
   próprio aberto, chave certa entra e limpa a URL, cookie persiste, chave errada barra.
 
 ### Beta v0.9.5 — create-unbox-store 0.12.7
 
-**Porta de preview com captura de lead + Pipedrive** (receita zetona/oto, agora de fábrica):
+**Porta de preview com captura de lead + Pipedrive** (receita de duas lojas em produção, agora de fábrica):
 
 - Toda loja nasce travada atrás da tela `/acesso` ("Prévia privada"): nome, marca, WhatsApp
   e e-mail liberam por cookie de 30 dias — sem senha, preencher é a chave. Com
@@ -1260,7 +1447,7 @@ Porta de preview mais esperta (pedido do Bruno):
   cookie assinado libera a loja, logs `[preview-acesso]`/`[preview-lead]`/
   `[preview-lead-pipedrive]` estruturados, tela renderizada com os tokens da marca.
 
-**M5 recalibrado (pedido do Bruno)**: o gate de honestidade agora bloqueia fabricação
+**M5 recalibrado (pedido do time)**: o gate de honestidade agora bloqueia fabricação
 **SILENCIOSA**, não a escolha do lojista. O agente segue proibido de inventar dado, mas o
 que o LOJISTA, perguntado, mandar manter é decisão dele — registrada em
 `marca/honestidade-permitido.txt` e anotada no DESIGN-<MARCA>.md. O que não existe é
@@ -1268,7 +1455,7 @@ placeholder fabricado ir pro ar sem ninguém ter decidido.
 
 ### Beta v0.9.4 — create-unbox-store 0.12.6
 
-**Protocolo SEDE** (proposta do case SEDE Energy): eleva a média das lojas geradas tornando
+**Protocolo de elevação da média** (proposta vinda de um case de loja em produção): eleva a média das lojas geradas tornando
 obrigatório o que era opcional e bloqueando o "pronto" no que era só aviso. Zero dependência
 nova; tudo em processo dos agentes + um utilitário.
 
@@ -1301,7 +1488,7 @@ nova; tudo em processo dos agentes + um utilitário.
 
 ### Beta v0.9.3 — create-unbox-store 0.12.5
 
-**Recuperação de carrinho abandonado de ponta a ponta** (pedido do Bruno: garantir que todo
+**Recuperação de carrinho abandonado de ponta a ponta** (pedido do time: garantir que todo
 carrinho/checkout gere o link com id pra recuperação):
 
 - O elo que faltava: o link `?id=&token=` e a restauração já existiam, mas o ponteiro do
@@ -1321,7 +1508,7 @@ carrinho/checkout gere o link com id pra recuperação):
 
 ### Beta v0.9.2 — create-unbox-store 0.12.4
 
-Correções do case Oddie/Zétona (relatório de 11 defeitos; os de código compartilhado
+Correções de dois cases em produção (relatório de 11 defeitos; os de código compartilhado
 entram aqui — os itens 2, 3, 4 e 9 do relatório já tinham entrado na Beta v0.9):
 
 - **Captcha: chave certa no header** (bloqueava compra): `x-captcha-verification` agora
@@ -1376,7 +1563,7 @@ Onboarding sem atrito (feedback de cliente real travando no primeiro contato):
 
 ### Beta v0.9 — create-unbox-store 0.12.0
 
-Correção integral do relatório de melhorias do time da Oddie (P0, P1, P2 e F3).
+Correção integral do relatório de melhorias do time de uma loja em produção (P0, P1, P2 e F3).
 
 - **P0 — a loja não mente mais**: os defaults comerciais de `lib/store-config.ts` agora saem
   zerados/vazios (`PIX_DISCOUNT_PCT = 0`, `FREE_SHIPPING_THRESHOLD = null`, `GIFT_TIERS = []`,
@@ -1409,13 +1596,13 @@ Correção integral do relatório de melhorias do time da Oddie (P0, P1, P2 e F3
 - F1 (gate de senha) e F2 (extração de home-data) ficam pra quando houver fôlego, como o
   próprio relatório sugere.
 
-⚠️ **Lojas JÁ no ar** (Oddie, temperosbadia etc.) foram geradas com os defaults antigos:
+⚠️ **Lojas JÁ no ar** (as geradas antes desta versão) saíram com os defaults antigos:
 vale auditar com `npm run unbox:dump` se o que elas prometem (Pix 5%, frete grátis R$199,
 brindes) existe no painel de cada uma, e zerar a store-config onde não existir.
 
 ### Beta v0.8 (r4) — create-unbox-store 0.11.3
 
-- **Fix: barra de rolagem horizontal** (reportado por dev; afetava Oddie e temperosbadia):
+- **Fix: barra de rolagem horizontal** (reportado por dev; afetava duas lojas em produção):
   o hack `.full-bleed` usa `100vw`, que INCLUI a largura da scrollbar vertical no
   Windows/Linux — sobravam ~15px e nascia a barra horizontal. Corrigido na raiz com
   `html { overflow-x: clip }` (fallback `hidden`): corta o excedente sem criar scroll
@@ -1425,7 +1612,7 @@ brindes) existe no painel de cada uma, e zerar a store-config onde não existir.
 ### Beta v0.8 (r3) — create-unbox-store 0.11.2
 
 - Área da conta enxuta: itens **Assinaturas** e **Endereços** removidos do menu lateral e
-  dos cards da visão geral (pedido do Bruno, ref. loja Oddie). As rotas continuam existindo
+  dos cards da visão geral (pedido do time, a partir de uma loja em produção). As rotas continuam existindo
   pra deep links (e-mails de assinatura etc.); pra reexibir, é recolocar os itens no `NAV`
   de `components/account/account-shell.tsx`.
 
@@ -1466,7 +1653,7 @@ brindes) existe no painel de cada uma, e zerar a store-config onde não existir.
 
 ### Beta v0.7 (r2) — create-unbox-store 0.10.1
 
-- **Fluxo de compra refeito como COMPONENTE** (feedback do Bruno + referência de loja real):
+- **Fluxo de compra refeito como COMPONENTE** (feedback do time + referência de loja real):
   - Nova seção **`purchase-hero`** no registry: galeria + tiers de quantidade + vantagens +
     garantia (CDC), com âncora `#comprar` — entra DIRETO na home (receita do promocional já
     vem com ela) ou no topo de landing/PDP. CTAs internos apontam pra `#comprar` em vez de
@@ -1604,7 +1791,7 @@ brindes) existe no painel de cada uma, e zerar a store-config onde não existir.
 
 ### Beta v0.3 — create-unbox-store 0.6.0
 
-- **Agente 15 (Branding & Identidade) + briefing automático no primeiro acesso** (por Ricardo):
+- **Agente 15 (Branding & Identidade) + briefing automático no primeiro acesso**:
   - Novo `agents/definitions/15-branding.md` no projeto gerado: entrevista de marca guiada
     (expectativa → referências → identidade → site atual → Instagram → imagens → dados reais),
     postura de especialista, regra "perguntar antes de mostrar", trava "nenhum componente sem

@@ -26,10 +26,11 @@ import {
   type Manifest,
   type ManifestApps,
   type ManifestEntry,
+  type ManifestPaginasDoLojista,
   type ManifestSectionType,
   type ManifestSemContainer,
   emptyDocument,
-  isColor, normalizarPagina, resolveValue, type SectionKind, SECTION_KIND_LABEL } from "./document";
+  isColor, juntarFatia, normalizarPagina, resolveValue, type SectionKind, SECTION_KIND_LABEL } from "./document";
 
 export interface EditableTokenSpec {
   token: string;
@@ -81,6 +82,13 @@ interface SectionRegistration {
 interface Ctx {
   doc: ContentDocument;
   editing: boolean;
+  /**
+   * O RASCUNHO DO EDITOR JÁ CHEGOU (o primeiro `unbox-editor:apply`). Não é o mesmo que `editing`:
+   * o modo edição liga num efeito, quadros ANTES da primeira mensagem, e o rascunho pode nunca
+   * chegar (o editor só responde ao `ready` quando terminou de carregá-lo). Enquanto ele não chega,
+   * o documento em vigor é o publicado, e a fatia da página do lojista continua valendo.
+   */
+  rascunhoChegou: boolean;
   selectMode: boolean;
   scope: string[];
   /**
@@ -121,6 +129,7 @@ const noop = () => () => {};
 const EditableContext = React.createContext<Ctx>({
   doc: emptyDocument(""),
   editing: false,
+  rascunhoChegou: false,
   selectMode: false,
   scope: [],
   container: undefined,
@@ -154,7 +163,9 @@ const SECTION_CSS = `[data-unbox-sec-bg="1"]>*{background-color:var(--unbox-sec-
 /** o primeiro texto visível da seção (título, se houver; senão o primeiro texto editável), até 60 caracteres */
 function trechoDaSecao(node: Element | null): string | undefined {
   if (!node) return undefined;
-  const cand = node.querySelector("h1[data-editor-path],h2[data-editor-path],h3[data-editor-path],[data-editor-type='text']");
+  // o texto formatado entra por `innerText`, que já é o texto sem as tags: a linha da seção de um artigo fala o
+  // primeiro parágrafo, não `<p>`
+  const cand = node.querySelector("h1[data-editor-path],h2[data-editor-path],h3[data-editor-path],[data-editor-type='text'],[data-editor-type='richtext']");
   const txt = (cand as HTMLElement | null)?.innerText?.replace(/\s+/g, " ").trim();
   if (!txt) return undefined;
   return txt.length > 60 ? txt.slice(0, 59) + "…" : txt;
@@ -245,7 +256,8 @@ interface OverlayHandle {
 }
 // o nome do que está sob o cursor, na palavra do lojista. Tipo sem entrada aqui deixa o chip só com o
 // rótulo — o tipo CRU do documento ("vitrine", "html") é nome nosso e não vai para a tela dele
-const TIPO_NOME: Record<string, string> = { text: "Texto", image: "Imagem", link: "Link", color: "Cor", vitrine: "Vitrine", video: "Vídeo", html: "Bloco de HTML" };
+// "richtext" é "Texto" para o lojista: negrito e link são jeitos de escrever o texto, não outro tipo de coisa
+const TIPO_NOME: Record<string, string> = { text: "Texto", image: "Imagem", link: "Link", color: "Cor", vitrine: "Vitrine", video: "Vídeo", html: "Bloco de HTML", richtext: "Texto" };
 /** a camada de destaque: três caixas fixas por cima da loja, medidas a cada scroll/resize/apply */
 const Overlay = React.forwardRef<OverlayHandle, object>(function Overlay(_props, ref) {
   const raiz = React.useRef<HTMLDivElement | null>(null);
@@ -368,6 +380,7 @@ export function EditableProvider({
   tokens = [],
   editorOrigin,
   apps,
+  paginasDoLojista,
   children,
 }: {
   doc: ContentDocument | null;
@@ -385,10 +398,27 @@ export function EditableProvider({
    * está fazendo, sem nunca ver o valor do ambiente.
    */
   apps?: ManifestApps;
+  /**
+   * PÁGINAS DO LOJISTA (foundation 13): a loja declara que RENDERIZA as páginas, os artigos e as coleções do
+   * documento, e diz o prefixo das páginas avulsas (`/paginas`), as coleções que já existem no código (`blog`) e
+   * os primeiros segmentos de URL que uma coleção não pode ocupar (`RESERVADOS_FIXOS` mais as rotas da loja e
+   * as entradas de `public/`, calculados no servidor pelo app/layout.tsx: este componente é de cliente e não
+   * enxerga o sistema de arquivos). Vai direto no manifesto (`paginasDoLojista`).
+   *
+   * É ESTA PROP que libera a criação de páginas no editor, não o número da versão: `validateOp` recusa toda
+   * operação de página contra um manifesto sem ela. Uma loja que copiou a `lib/editable` nova e ainda não
+   * tem as rotas e a casca NÃO a passa; se passasse, o registro entraria no documento e a loja responderia
+   * 404 para sempre, com a barra dizendo "não publicado".
+   */
+  paginasDoLojista?: ManifestPaginasDoLojista;
   children: React.ReactNode;
 }) {
   const [doc, setDoc] = React.useState<ContentDocument>(initialDoc ?? emptyDocument(shop));
   const [editing, setEditing] = React.useState(false);
+  // ver `rascunhoChegou` no contexto: é o que desliga a fatia da página do lojista, e o que a desliga
+  // NÃO pode ser `editing` — entre ligar o modo edição e o rascunho chegar há uma janela em que o
+  // publicado é o único documento que existe
+  const [rascunhoChegou, setRascunhoChegou] = React.useState(false);
   const [selectMode, setSelectMode] = React.useState(true);
   // token de prévia: sai da URL e vive só aqui (ver `previewToken` no contexto)
   const [previewToken, setPreviewToken] = React.useState<string | null>(null);
@@ -544,9 +574,17 @@ export function EditableProvider({
     //      (`apps.rastreio`, só presença).
     //      Abaixo de 12 a loja não lê `apps`: o valor entraria no documento e nenhum script mudaria na
     //      página, e é por isso que `validateOp` recusa `set_app` contra um manifesto sem esta versão.
+    // 13 = PÁGINAS DO LOJISTA, COLEÇÕES E TEXTO FORMATADO. A loja sabe renderizar as páginas, os artigos e
+    //      as coleções do documento (`doc.paginas`, `doc.colecoes`; a casca em `/previa-do-editor/<rota>`
+    //      para a prévia, com a página do manifesto normalizada de volta para a rota), responder 308 pelo
+    //      mapa `doc.redirecionamentos`, e tem o tipo "richtext" (`Editable.RichText`, sufixo `.rico`, lista
+    //      fechada de tags). O que LIBERA a criação de páginas não é este número, é `paginasDoLojista`
+    //      (a prop): o número diz que a lib sabe; a prop diz que ESTA loja tem as rotas. Sem os dois,
+    //      `validateOp` recusa toda operação de página, porque o registro entraria no documento e a loja
+    //      responderia 404 para sempre.
     const fora: ManifestSemContainer[] = [...semContainer.current.values()].map((r) => ({ ...r, pagina }));
-    return { shop, capturedAt: new Date().toISOString(), url: pagina, foundation: 12, entries, sections: secs, tipos, semContainer: fora, tokens: toks, ...(apps ? { apps } : {}) };
-  }, [shop, tokens, apps]);
+    return { shop, capturedAt: new Date().toISOString(), url: pagina, foundation: 13, entries, sections: secs, tipos, semContainer: fora, tokens: toks, ...(apps ? { apps } : {}), ...(paginasDoLojista ? { paginasDoLojista } : {}) };
+  }, [shop, tokens, apps, paginasDoLojista]);
 
   // manifesto: publica depois que os registros assentam (debounce)
   const manifestTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -665,7 +703,10 @@ export function EditableProvider({
       if (!m || m.source !== "unbox-editor") return;
       switch (m.type) {
         case "unbox-editor:apply":
-          if (m.doc && m.doc.schema === 1) setDoc(m.doc);
+          if (m.doc && m.doc.schema === 1) {
+            setDoc(m.doc);
+            setRascunhoChegou(true);
+          }
           break;
         case "unbox-editor:token":
           // token de prévia novo (resposta a `renovarToken`). Trocá-lo faz a vitrine que falhou
@@ -723,7 +764,11 @@ export function EditableProvider({
       }
     };
     window.addEventListener("message", onMessage);
-    post({ type: "unbox-editor:ready", url: window.location.href });
+    // `pagina` vai NORMALIZADA (`normalizarPagina`: sem query, sem hash, sem o prefixo da casca em prévia):
+    // é a mesma chave de `Manifest.url`. O `url` cru continua indo para quem já o lê, mas a página do
+    // lojista aberta em `/previa-do-editor/blog/x` é `/blog/x`, e quem tirar a página do `url` cru
+    // trataria a prévia como uma rota que não existe.
+    post({ type: "unbox-editor:ready", url: window.location.href, pagina: normalizarPagina(window.location.pathname) });
     scheduleManifest();
     return () => window.removeEventListener("message", onMessage);
   }, [editing, editorOrigin, post, buildManifest, scheduleManifest, select]);
@@ -822,8 +867,8 @@ export function EditableProvider({
   const value = React.useMemo<Ctx>(
     // `container: undefined` de propósito: a raiz do provider não é a home. Quem quer editar declara
     // o container da sua página (`Editable.Sections container="sobre"`); quem não declara não edita.
-    () => ({ doc, editing, selectMode, scope: [], container: undefined, layout: true, register, registerSection, registerTipos, select, foraDeContainer, previewToken, renovarToken }),
-    [doc, editing, selectMode, register, registerSection, registerTipos, select, foraDeContainer, previewToken, renovarToken],
+    () => ({ doc, editing, rascunhoChegou, selectMode, scope: [], container: undefined, layout: true, register, registerSection, registerTipos, select, foraDeContainer, previewToken, renovarToken }),
+    [doc, editing, rascunhoChegou, selectMode, register, registerSection, registerTipos, select, foraDeContainer, previewToken, renovarToken],
   );
 
   // tokens editados → :root. Só os da allowlist da loja.
@@ -850,6 +895,39 @@ export function EditableProvider({
 export function EditableScope({ path, children }: { path: string; children: React.ReactNode }) {
   const ctx = useEditableContext();
   const value = React.useMemo(() => ({ ...ctx, scope: [...ctx.scope, path] }), [ctx, path]);
+  return <EditableContext.Provider value={value}>{children}</EditableContext.Provider>;
+}
+
+/**
+ * A FATIA DE UMA PÁGINA DO LOJISTA — o que o layout raiz não mandou.
+ *
+ * O layout entrega o documento SEM as páginas do lojista (`documentoSemPaginas`), porque ele viaja
+ * no HTML de toda página e o texto de cem artigos não tem o que fazer numa página de produto. A rota
+ * que RENDERIZA uma dessas páginas envolve o conteúdo aqui e acrescenta só o que ela usa
+ * (`fatiaDoDocumento`): a própria página, ou a coleção mais o cabeçalho de cada artigo da listagem.
+ *
+ * Sem estado e sem ponte: lê o contexto de cima e devolve o mesmo contexto com o documento junto da
+ * fatia. Quem junta é `juntarFatia` (document.ts), pura, para a régua da loja ser a régua do teste.
+ *
+ * A FATIA SÓ É IGNORADA DEPOIS QUE O RASCUNHO CHEGA (`ctx.rascunhoChegou`), e não durante todo o
+ * modo edição. Dali em diante o rascunho inteiro está no contexto e é a autoridade: juntar a fatia
+ * faria um valor APAGADO no rascunho reaparecer, porque a fatia é do PUBLICADO e ainda o teria.
+ * ANTES disso, o publicado é o único documento que existe, e desligar a fatia ali apagava da tela a
+ * página inteira do lojista — na prévia, um piscar entre a renderização do servidor e o rascunho; e
+ * para sempre quando o rascunho não chegava.
+ *
+ * Nem `editing` nem `rascunhoChegou` mudam na primeira renderização (os dois saem de efeito ou de
+ * mensagem), então o servidor e a primeira renderização do cliente veem o mesmo documento: não há
+ * divergência de hidratação por causa deste componente.
+ */
+export function EditableFatia({ fatia, children }: { fatia: ContentDocument | null; children: React.ReactNode }) {
+  const ctx = useEditableContext();
+  const value = React.useMemo<Ctx>(() => {
+    const doc = juntarFatia(ctx.doc, fatia, ctx.rascunhoChegou);
+    // sem nada a juntar, o contexto de cima segue inteiro: um objeto novo aqui re-renderizaria à toa
+    // tudo que está dentro
+    return doc === ctx.doc ? ctx : { ...ctx, doc };
+  }, [ctx, fatia]);
   return <EditableContext.Provider value={value}>{children}</EditableContext.Provider>;
 }
 

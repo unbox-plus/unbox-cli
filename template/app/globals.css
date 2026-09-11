@@ -455,3 +455,69 @@ html { scroll-padding-top: var(--chrome-h, 88px); }
     font-size: 16px !important;
   }
 }
+
+/* ── PROSA DO TEXTO FORMATADO (`.texto-rico`) ───────────────────────────────────────────
+   O primitivo `Editable.RichText` (lib/editable/primitives.tsx) injeta o texto que o lojista
+   escreveu dentro de `<div class="texto-rico">` e NÃO traz estilo nenhum: a aparência da prosa
+   é da loja, como a de qualquer outra seção. Sem estas regras, o reset do Tailwind deixa
+   parágrafo, lista e subtítulo todos do mesmo tamanho e colados, e o artigo fica ilegível.
+
+   A lista de tags é fechada na foundation (p, br, strong, b, em, i, u, s, a, ul, ol, li, h2,
+   h3, h4, blockquote, hr): o que está estilizado aqui é exatamente o que pode aparecer, e
+   nada mais chega a ser injetado.
+
+   Só dentro de `.texto-rico`: nenhuma destas regras vaza para o resto da loja. */
+.texto-rico > :first-child { margin-top: 0; }
+.texto-rico > :last-child { margin-bottom: 0; }
+
+.texto-rico p { margin: 0 0 1.1em; }
+
+.texto-rico h2,
+.texto-rico h3,
+.texto-rico h4 {
+  font-family: var(--font-display), var(--font-sans), sans-serif;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--store-ink);
+  margin: 1.8em 0 0.6em;
+}
+.texto-rico h2 { font-size: 1.5em; }
+.texto-rico h3 { font-size: 1.25em; }
+.texto-rico h4 { font-size: 1.08em; }
+
+.texto-rico ul,
+.texto-rico ol { margin: 0 0 1.1em; padding-left: 1.4em; }
+.texto-rico ul { list-style: disc; }
+.texto-rico ol { list-style: decimal; }
+.texto-rico li { margin: 0.35em 0; }
+.texto-rico li::marker { color: var(--store-muted); }
+
+/* O LINK SAI EM `--store-primary`, e NÃO em `--store-cta`. `--store-cta` é a cor de PREENCHIMENTO do
+   botão (ela tem `--store-cta-fg` próprio para o texto que fica EM CIMA dela), e usada como cor de
+   texto corrido ela reprova o contraste no próprio padrão deste template: medida contra `--store-bg`,
+   dá 3,05:1, e texto corrido precisa de 4,5:1 (WCAG AA). `--store-primary` dá 16,97:1 no mesmo fundo
+   e continua sendo cor da marca. O sublinhado fica de qualquer jeito: cor sozinha nunca é o que
+   distingue um link. Trocar `--store-primary` por loja é trocar esse número, então o contraste do
+   link entra na conferência visual de cada marca. */
+.texto-rico a {
+  color: var(--store-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.texto-rico strong, .texto-rico b { font-weight: 700; }
+.texto-rico em, .texto-rico i { font-style: italic; }
+
+.texto-rico blockquote {
+  margin: 1.5em 0;
+  padding: 0.15em 0 0.15em 1.1em;
+  border-left: 3px solid var(--store-line-2, var(--store-line));
+  color: var(--store-ink-2);
+  font-style: italic;
+}
+
+.texto-rico hr {
+  margin: 2em 0;
+  border: 0;
+  border-top: 1px solid var(--store-line);
+}

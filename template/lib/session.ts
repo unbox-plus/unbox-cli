@@ -75,7 +75,21 @@ export async function clearCustomerToken(): Promise<void> {
 // (e-mail, endereço, itens, bandeira do cartão) só com o referenceId, que é curto. Agora o
 // cookie precisa ter sido emitido por este servidor, para este pedido, depois de um
 // placeOrder bem-sucedido neste navegador. Cookie httpOnly impede LER, não impede ENVIAR.
+// A RECUSA MORA AQUI, e não no lib/env-check.ts: aquele só avisa no log (ele roda no import do
+// lib/config.ts, que o layout raiz carrega em toda página, então lançar lá derrubaria a loja
+// inteira por uma variável que talvez nem seja usada naquela visita). Aqui é o ponto de USO:
+// é onde dá para dizer "não faço isto" sem levar junto a loja que não precisa de sessão.
+//
+// E recusar é o único desfecho honesto: assinar com segredo vazio dá uma assinatura constante,
+// igual em toda loja e reproduzível por quem leu o pacote, que é exatamente a posse forjável
+// que este HMAC existe para impedir. Melhor não emitir a prova do que emitir uma prova falsa.
 function assinarPosse(referenceId: string, token: string): string {
+  if (!serverEnv.sessionSecret) {
+    throw new Error(
+      "SESSION_SECRET ausente: a posse de pedido não é assinada nem conferida sem ele. " +
+      "Defina um valor aleatório longo no ambiente do deploy e refaça o deploy.",
+    );
+  }
   return crypto.createHmac("sha256", serverEnv.sessionSecret).update(`${referenceId}:${token}`).digest("hex");
 }
 

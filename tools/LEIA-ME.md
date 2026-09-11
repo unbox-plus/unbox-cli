@@ -1,39 +1,73 @@
-# tools/ — utilitários de desenvolvimento do CLI
+# tools/ · utilitários de desenvolvimento do CLI
 
-Nada aqui é publicado: o `package.json` só empacota `bin`, `src` e `template`.
+Nada aqui é publicado: o `files` do `package.json` empacota `bin`, `src` e `template`, e só.
 
-- `tokenize-neutrals.mjs` / `tokenize-radius.mjs` — scripts de migração usados uma vez na
+Isso já esteve escrito aqui enquanto era mentira. Entre a v0.20.3 e a v0.21.2 o `files`
+listava `tools` também, então tudo desta pasta viajou no tarball público, inclusive o gate
+com a lista de clientes em texto aberto e os caminhos da máquina de quem escreveu o
+`workflow-storefront.legado.js`. O `files` voltou a ter três entradas, e a frase acima
+voltou a ser verdade.
+
+- `tokenize-neutrals.mjs` / `tokenize-radius.mjs`: scripts de migração usados uma vez na
   tokenização da foundation (v0.6).
-- `workflow-storefront.legado.js` — orquestrador multiagente da era "construir um storefront
+- `workflow-storefront.legado.js`: orquestrador multiagente da era "construir um storefront
   do zero, sem o CLI". **Saiu do `template/` na v0.15.0** por três motivos: o próprio
   `agents/MANAGER.md` já dizia que ele não se aplica a quem usa o CLI; ele custava ~11k tokens
   de contexto se o agente o abrisse por engano, com "Regras de Ouro" divergentes das do
   MANAGER; e as linhas 13-15 tinham caminhos absolutos da máquina do desenvolvedor, que
-  viajavam para dentro do projeto de todo cliente.
+  viajavam para dentro do projeto de todo cliente. Esses caminhos agora vêm por argumento ou
+  por variável de ambiente (`UNBOX_SDK_PATH`, `UNBOX_DOCS_PATH`).
 
   Fica aqui como referência: o padrão dele (agentes em paralelo que NÃO escrevem em disco,
   devolvem `{path, content}` por schema, e um passo serial grava) é o que a fase multiagente
   do briefing deve adotar.
 
-## `notion-doc.mjs` — a página do Notion
+## `check-template-neutro.mjs` · o gate do `prepack`
+
+Varre EXATAMENTE o que o `npm pack` levaria (pergunta a lista ao próprio npm) e bloqueia o
+empacotamento se achar nome de cliente, caminho pessoal, identificador interno, segredo de
+fábrica, dado de uma pessoa ou vocabulário de um ramo específico. Também reprova travessão no
+texto que o wizard imprime, nos arquivos de `bin/` e `src/` que o npm listar.
+
+A unidade de medida da varredura de NOME é o arquivo, não a linha: um nome que já estava na
+lista passou pelo gate na v0.21.2 porque caiu no fim de uma linha do README e continuou na
+seguinte. Quem escreve o texto não escolhe onde a linha quebra.
+
+Dado de uma pessoa não tem forma própria: um CPF é feito dos mesmos algarismos que qualquer
+número. Então o gate CALCULA. Documento entra pelo dígito verificador (se fecha a conta, é
+documento de alguém e não é enfeite) e telefone entra pela repetição (fixture de verdade usa o
+mesmo algarismo várias vezes; número copiado de relatório tem dígito espalhado).
+
+```bash
+npm run check:neutro                                   # varredura
+node tools/check-template-neutro.mjs --hash "Marca X"  # nome novo para a lista, já digerido
+```
+
+A lista de nomes proibidos é de HASHES, não de nomes: o gate precisa saber quem são os
+clientes para cobrar a régua, mas escrever a carteira num arquivo seria o próprio vazamento
+que ele existe para impedir. `--hash` gera a linha a colar, sem que o nome apareça no
+repositório.
+
+## `notion-doc.mjs` · a página interna do CLI
 
 Gera o conteúdo da página **create-unbox-store — CLI de geração de loja**, em
-`Documentações → Lojas Store` do Notion de tecnologia:
-
-`https://app.notion.com/p/3cbf44e324da8125a0afd7fbe6916247`
+`Documentações → Lojas Store` do Notion de tecnologia. O link e o id da página ficam fora
+deste repositório de propósito: identificador de página interna não é informação de produto,
+e este arquivo já viajou uma vez num pacote público. Quem precisa da página a acha pelo
+título na busca do Notion.
 
 ```bash
 node tools/notion-doc.mjs
 ```
 
-A versão sai do `package.json` e o changelog é extraído do `README.md` — as duas únicas
+A versão sai do `package.json` e o changelog é extraído do `CHANGELOG.md`, as duas únicas
 fontes da verdade, então a página não pode divergir do pacote. A prosa de apresentação é
 curada dentro do script (uma página para o time não é um despejo do README); as entradas
 `### vX.Y.Z` viram toggles, e a era "Beta" fica condensada em uma linha por versão dentro de
-um toggle único, com o texto integral seguindo no README.
+um toggle único, com o texto integral seguindo no `CHANGELOG.md`.
 
 **Depois de todo release:** rode o comando e substitua o conteúdo da página com a saída. O
 próprio topo da página diz isso, para quem chegar por lá não editar o changelog à mão.
 
-O link fica aqui e não no `README.md` de propósito: aquele README viaja dentro do zip
-entregue ao cliente, e não deve apontar para o Notion interno da Unbox.
+O link ficava aqui e não no `README.md` porque aquele README é público: viaja no pacote do npm
+e está no repositório do GitHub. Agora não fica em lugar nenhum dos dois.

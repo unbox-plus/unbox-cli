@@ -36,8 +36,11 @@ export function checkEnv() {
   if (process.env.NODE_ENV === "production" && (!site || /localhost|127\.0\.0\.1/.test(site) || !site.startsWith("https://"))) {
     problemas.push("NEXT_PUBLIC_SITE_URL: ausente ou localhost em PRODUÇÃO — canonical, sitemap, robots, Open Graph, JSON-LD e o link de recuperação de carrinho saem apontando para localhost");
   }
-  if (process.env.NODE_ENV === "production" && (!process.env.SESSION_SECRET || process.env.SESSION_SECRET.includes("dev-insecure"))) {
-    problemas.push("SESSION_SECRET: vazio ou default de desenvolvimento em PRODUÇÃO — a posse dos pedidos (cookie unbox_order_*) fica forjável; gere um valor aleatório longo");
+  // Isto é AVISO, e não é a defesa: a defesa está em lib/session.ts, que RECUSA assinar e
+  // conferir a posse sem segredo. O aviso continua existindo para o problema aparecer no
+  // primeiro boot, e não só quando alguém fechar o primeiro pedido.
+  if (process.env.NODE_ENV === "production" && !process.env.SESSION_SECRET) {
+    problemas.push("SESSION_SECRET: ausente em PRODUÇÃO. A loja vai RECUSAR emitir e conferir a posse dos pedidos (cookie unbox_order_*), então o checkout falha ao gravar o pedido; gere um valor aleatório longo e refaça o deploy");
   }
   if (problemas.length) {
     console.warn("\n⚠ [env] valores que parecem COMENTÁRIO copiado como valor (o .env tinha `CHAVE=  # texto`?):");

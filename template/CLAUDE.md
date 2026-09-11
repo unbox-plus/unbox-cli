@@ -161,13 +161,99 @@ silêncio, sem erro de build:
 - `next.config.ts`: `frame-ancestors` com `NEXT_PUBLIC_EDITOR_ORIGIN` (o editor abre a loja num
   iframe; `X-Frame-Options` não aceita origem externa) e `outputFileTracingIncludes` dos `page.tsx`
   (sem isso a varredura acha zero em produção).
-- `middleware.ts` deixa passar `?unbox_editor_token=` (a prévia atrás da porta) e as rotas que o
-  editor chama de servidor (`/api/revalidate`, `/api/unbox/catalogo`, `/api/unbox/paginas`).
+- `middleware.ts` deixa passar `?unbox_editor_token=` (a prévia atrás da porta), grava o cookie da
+  prévia das páginas do lojista em TODO host (a porta de preview só existe em host de preview) e deixa
+  passar as rotas que o editor chama de servidor (`/api/revalidate`, `/api/unbox/catalogo`,
+  `/api/unbox/paginas`).
 - `/api/revalidate` aceita `x-editor-token`, purga a tag `unbox-editor-content` e devolve o recibo
   com `conteudo`: é com ele que o editor afirma "a loja está no ar com a versão N".
 - `app/layout.tsx`: `EditableProvider` em volta do chrome e a linha única `<Rastreio>` no fim do
   `<body>`. Nenhum snippet de GTM, GA4 ou Pixel escrito à mão fora dela, senão o provedor dispara
   duas vezes.
+
+**Páginas do lojista e coleções** (as rotas `/paginas/<endereço>`, `/<coleção>` e `/<coleção>/<artigo>`,
+que o dono da loja cria pelo editor). Mais treze pontos, e cada um já custou uma vez:
+
+- `app/layout.tsx` passa `paginasDoLojista={declaracaoDoLojista()}` ao provider. É o INTERRUPTOR: sem
+  essa prop, o editor não oferece páginas nesta loja. Só passe enquanto as rotas de
+  `app/(loja)/paginas`, `app/(loja)/[colecao]` e a casca de `components/paginas/` existirem.
+- **SEM os `reservados` no layout, e COM eles em `/api/unbox/paginas`.** São duas portas com dois
+  públicos: o provider serve o navegador de quem COMPRA (esta prop sai serializada no HTML de toda
+  página), e a rota de API serve o EDITOR, servidor a servidor. A lista tem dezenas de rotas internas e
+  nomes de arquivo de `public/`, ninguém no navegador do comprador a lê, e ela custava ~560 bytes por
+  rota. Não acrescente o argumento no layout "para ficar igual".
+- Uma coleção nunca pode ter o nome de um primeiro segmento de rota do código nem de uma entrada de
+  `public/`: a rota estática ganha da dinâmica e a coleção nunca abriria. A lista é CALCULADA
+  (`lib/reservados.ts`) e vai ao editor pela rota de API, que recusa o endereço antes de gravar. Rota
+  nova entra sozinha; não digite a lista.
+- A varredura dos RESERVADOS é a de `app/` INTEIRA (`segmentosDoCodigo()`), não a das páginas
+  editáveis, que olha só `app/(loja)/`. Uma rota em `app/parceiros/page.tsx` ocupa `/parceiros` e
+  ganha da coleção do mesmo jeito. São duas perguntas diferentes e por isso duas varreduras.
+- `next.config.ts`: `outputFileTracingIncludes` cobre `"/**"`, e não só a rota de páginas, porque a
+  lista de reservados é lida no `app/layout.tsx`, que roda em toda função. Reduzir esse escopo faz a
+  lista sair curta em produção, sem erro nenhum. Ele inclui também `route.*` e os arquivos de metadata
+  do Next, porque eles ocupam primeiro segmento de URL e entram na mesma lista.
+- **Nada de `loading.tsx`** nos segmentos `paginas/[handle]`, `[colecao]` e `[colecao]/[handle]`: com
+  um, o `notFound()` vira 200 com noindex (soft 404) e o endereço apagado nunca sai do índice.
+- A PÁGINA VIVA vem antes do mapa de redirecionamentos: a rota resolve a página, e só quando nada
+  responde é que `redirecionamentoDe` vale (308). Ao contrário, uma entrada antiga escondia a página
+  publicada agora, e o sitemap prometia 200 numa URL que redirecionava.
+- Nenhuma das quatro rotas lê `searchParams` ou `headers()`, que as tornariam dinâmicas e matariam o
+  ISR. `/previa-do-editor` lê os dois de propósito: ela é `force-dynamic` e não tem ISR a perder.
+- `generateMetadata` de cada uma repete o `openGraph` INTEIRO (o App Router substitui o objeto do
+  layout pai, não faz merge) e declara `alternates.canonical` relativo, inclusive na paginação. Pelo
+  mesmo motivo, ele declara `images` SEMPRE: `app/opengraph-image.tsx` só é injetado enquanto ninguém
+  declara `openGraph`, então deixar `images` de fora não "cai" na imagem da loja, apaga o cartão.
+- A DESCRIÇÃO tirada do corpo sai de uma lista FECHADA de campos de prosa (`CAMPOS_DE_PROSA`, em
+  `lib/paginas-seo.ts`), na ordem de leitura. Varrer `values` alfabeticamente fazia `cta` ganhar de
+  `titulo`, e a description de uma página sem resumo saía "Comprar agora". Campo de prosa novo num
+  componente desta loja entra nessa lista.
+- `/previa-do-editor` exige o token assinado do editor (`verifyEditorToken(…, "preview")`), na query ou
+  no cookie que o `middleware.ts` grava a partir dela. É a rota que renderiza página OCULTA, e a loja
+  responde 404 nessa mesma página; o middleware não serve de porta porque ele só fecha a loja em host
+  de preview.
+- A loja PENEIRA os mapas do publicado ao lê-los (`lib/paginas-publicadas.ts`): id que não bate com o
+  registro, artigo de coleção inexistente e endereço reservado ficam de fora. A régua do editor já
+  recusa tudo isso ao gravar; a peneira existe porque o documento pode chegar por outro caminho, e o
+  sitemap é a superfície pública onde o erro sai.
+- O card da listagem usa `next/image`, o mesmo que a página do artigo: com `<img>` cru, as duas telas
+  obedeciam a listas de hosts diferentes e a mesma foto abria numa e quebrava na outra.
+- Rota nova das páginas entra em `CONTAINERS_POR_ROTA` com curinga (`pagina-*`, `colecao-*`,
+  `artigo-*`) e em `ROTAS_DO_LOJISTA` (`lib/rotas-editaveis.ts`), senão o gate reprova. E **nenhum
+  container do código pode começar com `pagina-`, `artigo-` ou `colecao-`**: esses prefixos são das
+  páginas do lojista, e o gate reprova quem os usar.
+- **ROTA QUE RENDERIZA CONTAINER DO LOJISTA PRECISA DA FATIA DO DOCUMENTO.** O `app/layout.tsx` entrega
+  ao provider `documentoSemPaginas(conteudo)`: o documento viaja serializado no HTML de TODA página, e
+  sem esse corte cem artigos publicados viajariam junto com a página de um produto. Quem renderiza uma
+  página do lojista acrescenta o que ela usa, com `<EditableFatia fatia={fatiaDoDocumento(doc, [...])}>`
+  em volta da casca — a página avulsa e o artigo levam o próprio container; a listagem leva o container
+  da coleção MAIS o **cabeçalho** de cada artigo que ela mostra (`${a.id}.${SECAO_CABECALHO}.`), porque o
+  card lê três caminhos e o corpo do artigo não aparece nele. Hoje isso está nas duas metades de servidor
+  (`components/paginas/pagina-do-lojista.tsx` e `colecao-do-lojista.tsx`), e é por elas que as quatro
+  rotas e a prévia passam. **Rota nova que renderize container do lojista sem a fatia não dá erro nenhum:
+  o texto do lojista simplesmente some da tela e no lugar dele aparece o literal do código** — o
+  `unbox:editavel` reprova o build por isso, conferindo no fonte que toda rota de `ROTAS_DO_LOJISTA`
+  chega a um `<EditableFatia>`. Medido no template com 40 artigos de ~3.600 caracteres, em build de
+  produção (em `next dev` o corte não aparece: o React serializa as props de servidor no HTML): a
+  página inicial caiu de 282.936 para 83.081 bytes, a de produto de 302.550 para 102.695 e a listagem
+  de 269.394 para 74.762.
+
+**SEO das páginas do lojista, os detalhes que não se veem no navegador:**
+
+- `app/robots.ts` exporta duas listas: `DISALLOW` (por SEGMENTO, que é como o Next roteia e como
+  `bloqueadaPeloRobots()` decide o que o editor oferece) e `DISALLOW_NO_ROBOTS`, que é a mesma coisa na
+  gramática do arquivo (`/conta$` e `/conta/`). O robots.txt casa por PREFIXO DE TEXTO: com
+  `Disallow: /conta` solto, a coleção `contato` era publicada no sitemap e bloqueada pelo próprio
+  robots.txt da loja.
+- Listagem de coleção SEM nenhum artigo responde 200 e `noindex, follow`: a URL é da loja, mas uma
+  página com uma frase só não é o que se oferece ao índice. Ela volta a ser indexável sozinha no dia
+  do primeiro artigo.
+- Artigo marcado "ocultar de buscadores" mantém o card na listagem (quem lê tem de chegar nele) e sai
+  do `ItemList` do dado estruturado, como já saía do sitemap.
+- O nó da `Organization`/`WebSite` é emitido NA PÁGINA que o referencia por `@id`: parser de dado
+  estruturado não sai da página para resolver um `@id` que só existe na home.
+- `dateModified` e `article:modified_time` só saem quando a data se lê. Na prévia o registro nasce com
+  as datas em branco, e `""` é dado inválido publicado, não campo ausente.
 
 Toda seção nova nasce editável pelos primitivos (`Editable.Text`, `Editable.Image`, `Editable.Icon`,
 `Editable.Section` com `kind` e `label`). As regras completas, com o modo de falha de cada uma, estão
@@ -308,7 +394,10 @@ voltar, inclusive em comentário, porque comentário ensina o agente a escrever 
 - **Posse de pedido é cookie ASSINADO.** `setOrderToken` grava `<token>.<HMAC(SESSION_SECRET)>` e
   `getOrderToken` verifica. Sem isso qualquer valor de cookie abria qualquer pedido pelo
   `referenceId` (modo parceiro nem valida o token). O CLI gera `SESSION_SECRET` no `.env.local`;
-  em produção ele precisa existir (o `env-check` avisa).
+  em produção ele precisa existir, e não existir não é aviso: `lib/session.ts` **recusa** assinar
+  e conferir a posse (lança), porque assinar com segredo vazio dá uma assinatura constante, igual
+  em toda loja, que é a posse forjável que o HMAC existe para impedir. Em desenvolvimento,
+  `lib/config.ts` sorteia um valor no boot e nada disso aparece.
 - **O preço final vem sempre do catálogo.** O servidor recalcula o carrinho a partir dele, então
   o preço enviado no `addCartItems` não altera o que é cobrado.
   Kit "com desconto" calculado no front (`combos.ts`) é promessa que o carrinho desmente: desconto

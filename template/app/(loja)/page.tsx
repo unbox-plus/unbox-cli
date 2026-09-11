@@ -10,13 +10,15 @@ import { ldJson } from "@/lib/json-ld";
 // EDITOR: o documento publicado (só a ESCOLHA das vitrines) e quem a transforma em produtos
 import { getPublishedContent } from "@/lib/editable/server";
 import { resolverVitrinesDoDocumento } from "@/lib/vitrine";
+// A IDENTIDADE DA MARCA NO DADO ESTRUTURADO VEM DE UM LUGAR SÓ (lib/paginas-seo.ts): o nome, o
+// endereço e os dois `@id`. Aqui havia um literal cravado, que o create-unbox-store reescreve,
+// enquanto toda página do lojista emitia o nome de `NEXT_PUBLIC_SITE_NAME` sob EXATAMENTE o mesmo
+// `@id`. Uma entidade com dois nomes é pior que duas entidades: é a loja se contradizendo sobre quem
+// ela é, no lugar em que o buscador mais acredita.
+import { jsonLdDaLoja, SITE_URL } from "@/lib/paginas-seo";
 
 // Canonical por página: o layout raiz não declara (seria herdado por todas as rotas).
 export const metadata: Metadata = { alternates: { canonical: "/" } };
-
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
-// Mesmo literal do app/layout.tsx: o create-unbox-store reescreve "Minha Loja" com o nome real.
-const SITE_NAME = "Minha Loja";
 
 export const revalidate = 300; // ISR — catálogo público e estável
 
@@ -58,11 +60,19 @@ export default async function HomePage() {
 
   // Organization + WebSite: dá à marca uma entidade citável (busca e resposta de IA) e liga a
   // busca interna ao Google (SearchAction). Só fatos deriváveis: nome, URL, logo, busca.
+  // Os `@id` existem para o RESTO do site apontar para estas duas entidades em vez de repeti-las: as
+  // páginas do lojista dizem `publisher: { "@id": ... }` e `isPartOf: { "@id": ... }`. Por isso os
+  // dois nós saem de `jsonLdDaLoja()`, a MESMA função que aquelas páginas chamam: com o `@id` igual,
+  // o conteúdo tem de ser igual também, senão o buscador lê a mesma entidade dizendo duas coisas.
+  const [organizacao, site] = jsonLdDaLoja();
   const jsonLd = [
-    { "@context": "https://schema.org", "@type": "Organization", name: SITE_NAME, url: siteUrl, logo: `${siteUrl}/brand/logo.svg` },
+    organizacao,
+    // A BUSCA INTERNA SÓ AQUI. `potentialAction` é o que liga a busca da loja ao Google (a caixa de
+    // busca no resultado), e o próprio Google pede que ela seja declarada na HOME e só nela: repetida
+    // em toda página, ele passa a ignorá-la. É o único campo que a home tem a mais, e é de propósito.
     {
-      "@context": "https://schema.org", "@type": "WebSite", name: SITE_NAME, url: siteUrl,
-      potentialAction: { "@type": "SearchAction", target: { "@type": "EntryPoint", urlTemplate: `${siteUrl}/busca?q={search_term_string}` }, "query-input": "required name=search_term_string" },
+      ...site,
+      potentialAction: { "@type": "SearchAction", target: { "@type": "EntryPoint", urlTemplate: `${SITE_URL}/busca?q={search_term_string}` }, "query-input": "required name=search_term_string" },
     },
   ];
 

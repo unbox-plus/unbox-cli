@@ -5,7 +5,7 @@ import { Toaster } from "@/components/ui/sonner";
 // que está escrito no código. Sem EDITOR_URL no ambiente, `conteudo` é null e a loja renderiza
 // exatamente o código: o editor fica desligado, sem efeito nenhum.
 import { EditableProvider } from "@/lib/editable";
-import { getPublishedContent, presencaNoAmbiente } from "@/lib/editable/server";
+import { ambienteDeRastreio, documentoSemPaginas, getPublishedContent, presencaNoAmbiente } from "@/lib/editable/server";
 // RASTREIO E MARKETING: a foundation renderiza tudo (GTM da Unbox e do lojista, GA4, Meta Pixel, TikTok,
 // Pinterest, page_view por rota, botão de WhatsApp) numa linha, `<Rastreio>`; este layout não conhece
 // provedor nenhum, e o próximo entra por versão da foundation. Ela lê as MESMAS variáveis de sempre
@@ -14,6 +14,13 @@ import { getPublishedContent, presencaNoAmbiente } from "@/lib/editable/server";
 import { Rastreio } from "@/lib/editable/rastreio";
 import { EDITABLE_TOKENS } from "@/lib/editable/tokens";
 import { EDITOR_ORIGIN, STORE_SLUG } from "@/lib/editable/config";
+// PÁGINAS DO LOJISTA (foundation 13): esta prop é o INTERRUPTOR. Enquanto ela não vier, o editor não
+// oferece páginas nesta loja (a régua do documento recusa toda operação de página, com a frase que o
+// painel mostra). Ela só pode ser passada porque as rotas e a casca existem: app/(loja)/paginas,
+// app/(loja)/[colecao] e components/paginas/. Tirar as rotas sem tirar esta linha faria o editor
+// prometer páginas que a loja não sabe abrir.
+import { declaracaoDoLojista } from "@/lib/paginas-do-lojista";
+import { reservadosDaLoja } from "@/lib/reservados";
 
 // UNBOX-FONTS-BEGIN (bloco reescrito pelo create-unbox-store conforme o estilo escolhido — não renomear os markers)
 import { Geist_Mono, Poppins, Plus_Jakarta_Sans } from "next/font/google";
@@ -76,14 +83,25 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
       <body className={`${sans.variable} ${geistMono.variable} ${displayFont.variable} antialiased`}>
         {/* Header/rodapé/nav da loja NÃO ficam aqui: moram em app/(loja)/layout.tsx (route
             group). Página criada fora de (loja) — acesso, erro, landing — nasce sem chrome. */}
-        <EditableProvider doc={conteudo} shop={STORE_SLUG} tokens={EDITABLE_TOKENS} editorOrigin={EDITOR_ORIGIN || undefined} apps={presencaNoAmbiente(process.env, { unboxGtmId: UNBOX_GTM_ID })}>
+        {/* SÓ O QUE TODA PÁGINA USA. O provider é componente de CLIENTE, então o documento que ele
+            recebe viaja serializado no HTML desta página e de todas as outras. `documentoSemPaginas`
+            tira dele as páginas que o lojista criou (a copy delas e os três mapas de registro): cada
+            página do lojista é 100% documento, e sem este corte cem artigos publicados viajariam
+            junto com a página de um produto. Quem renderiza uma página do lojista acrescenta a fatia
+            dela na própria rota (`<EditableFatia>`). */}
+        <EditableProvider doc={documentoSemPaginas(conteudo)} shop={STORE_SLUG} tokens={EDITABLE_TOKENS} editorOrigin={EDITOR_ORIGIN || undefined} apps={presencaNoAmbiente(process.env, { unboxGtmId: UNBOX_GTM_ID })} paginasDoLojista={declaracaoDoLojista(reservadosDaLoja())}>
           {children}
         </EditableProvider>
         <Toaster position="top-center" />
         {/* rastreio e marketing: o que o lojista publicou na aba Apps vence o ambiente, provedor a provedor,
             e cada provedor dispara UMA vez; o contêiner da Unbox entra sempre. Só muda quando ele PUBLICA.
             Nada de script de GA/Pixel/GTM escrito à mão neste arquivo: seria o mesmo provedor duas vezes. */}
-        <Rastreio doc={conteudo} ambiente={process.env} unboxGtmId={UNBOX_GTM_ID} />
+        {/* o documento INTEIRO aqui, sem o corte de cima: `<Rastreio>` é de servidor e lê `doc.apps`,
+            que não vira HTML — o que sai daqui são os scripts dos provedores que o lojista publicou. */}
+        {/* o ambiente vai PENEIRADO (`ambienteDeRastreio`), e não como `process.env` inteiro: em modo
+            de desenvolvimento o React serializa no HTML as props de todo componente de servidor, e com
+            o ambiente inteiro numa prop cada página servida levava junto os segredos do processo. */}
+        <Rastreio doc={conteudo} ambiente={ambienteDeRastreio(process.env)} unboxGtmId={UNBOX_GTM_ID} />
       </body>
     </html>
   );

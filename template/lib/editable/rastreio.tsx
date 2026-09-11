@@ -2,7 +2,7 @@
 //
 // O app/layout.tsx da loja chama só isto, numa linha:
 //
-//   <Rastreio doc={conteudo} ambiente={process.env} unboxGtmId={UNBOX_GTM_ID} />
+//   <Rastreio doc={conteudo} ambiente={ambienteDeRastreio(process.env)} unboxGtmId={UNBOX_GTM_ID} />
 //
 // e não conhece provedor nenhum. Daqui saem o contêiner central da Unbox (contrato: sempre ligado), o
 // contêiner PRÓPRIO do lojista, o Google Analytics 4, o Meta Pixel, o TikTok Pixel, a Pinterest Tag, o
@@ -16,10 +16,14 @@
 // entra sempre, e o contêiner próprio do lojista só entra se for OUTRO (os dois leem o mesmo dataLayer;
 // o mesmo ID duas vezes seria o mesmo contêiner carregado em dobro).
 //
-// SERVIDOR SÓ: lê `process.env` inteiro (as variáveis são conhecidas pelo nome, `VARIAVEIS_DE_RASTREIO`),
-// e o que chega ao navegador é o snippet com o ID, que já é público de qualquer jeito. A parte que
-// precisa de hook de cliente (o page_view por rota) mora em rastreio-navegacao.tsx. Não importe este
-// arquivo de um componente de cliente.
+// SERVIDOR SÓ: as variáveis são conhecidas pelo nome (`VARIAVEIS_DE_RASTREIO`), e o que chega ao
+// navegador é o snippet com o ID, que já é público de qualquer jeito. A parte que precisa de hook de
+// cliente (o page_view por rota) mora em rastreio-navegacao.tsx. Não importe este arquivo de um
+// componente de cliente.
+//
+// O AMBIENTE CHEGA PENEIRADO (`ambienteDeRastreio`), e não como `process.env` inteiro: em modo de
+// desenvolvimento o React serializa no HTML as props de todo componente de servidor, e com o
+// ambiente inteiro numa prop cada página servida levava junto os segredos do processo.
 //
 // Os IDs chegam validados pela régua de formato (`recusaDeRastreio`): só letras, números e hífen, que
 // é o que permite interpolá-los dentro de um script inline sem escapar nada. O número e a mensagem do
@@ -142,7 +146,9 @@ function BotaoDeWhatsapp({ numero, mensagem }: { numero: string; mensagem?: stri
  * da hidratação em qualquer posição, e o botão de WhatsApp fica por último na ordem de tabulação).
  *
  * - `doc`: o documento publicado (`getPublishedContent()`); `null` = a loja renderiza só o ambiente.
- * - `ambiente`: `process.env`, inteiro. Só as variáveis de `VARIAVEIS_DE_RASTREIO` são lidas.
+ * - `ambiente`: `ambienteDeRastreio(process.env)` — só as variáveis de `VARIAVEIS_DE_RASTREIO`, que são
+ *   as únicas lidas aqui. Passar `process.env` inteiro ainda funciona e é o que não se deve fazer: ver
+ *   o cabeçalho deste arquivo.
  * - `unboxGtmId`: o contêiner CONTRATUAL da Unbox, o literal carimbado no layout pelo CLI (o prebuild
  *   da loja cobra a presença dele lá). Não é configuração do lojista e não passa pelo documento.
  */

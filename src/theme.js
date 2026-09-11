@@ -215,7 +215,15 @@ export function applyStoreName(targetDir, displayName) {
   // metadata do app/layout.tsx (título da aba, template e OpenGraph siteName) e da PDP,
   // que repete siteName no seu próprio openGraph — o App Router substitui o objeto
   // openGraph inteiro do layout pai, não faz merge, então o campo precisa existir lá também.
-  for (const rel of [["app", "layout.tsx"], ["app", "(loja)", "produto", "[productSlug]", "page.tsx"], ["app", "(loja)", "page.tsx"], ["app", "opengraph-image.tsx"]]) {
+  // (e app/api/unbox/paginas/route.ts: é o `nome` que a loja declara ao editor em `loja: { slug, nome }`)
+  //
+  // lib/paginas-seo.ts e app/llms.txt/route.ts pelo MESMO motivo, e eles ficaram de fora até a
+  // revisão de 10/09: os dois têm `process.env.NEXT_PUBLIC_SITE_NAME || "Minha Loja"`, e o `.env.local`
+  // que este CLI escreve não vai para o deploy (o .gitignore da loja ignora `.env*`). Sem a variável no
+  // ambiente da Vercel, a MESMA página dizia dois nomes: o `<title>` trazia o da loja (vem do template
+  // do layout, reescrito aqui) e o `og:site_name` do artigo trazia o placeholder. Reescrever o literal
+  // não tira nada de ninguém: o ambiente continua vencendo quando existe.
+  for (const rel of [["app", "layout.tsx"], ["app", "(loja)", "produto", "[productSlug]", "page.tsx"], ["app", "(loja)", "page.tsx"], ["app", "opengraph-image.tsx"], ["app", "api", "unbox", "paginas", "route.ts"], ["lib", "paginas-seo.ts"], ["app", "llms.txt", "route.ts"]]) {
     const p = path.join(targetDir, ...rel);
     if (!fs.existsSync(p)) continue;
     fs.writeFileSync(p, fs.readFileSync(p, "utf8").replaceAll("Minha Loja", nome));
