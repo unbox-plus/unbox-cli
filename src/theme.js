@@ -163,7 +163,18 @@ export function applyHeroAssets(targetDir, presetName, tokens, neutrals) {
  * Não SEMEIA a lista: ela já vem no template, que é o que a loja gerada copia. Escrevê-la aqui
  * de novo seria manter a mesma lista em dois lugares, e no dia seguinte seriam duas listas. O
  * que muda por loja é o VALOR, e esse já entra por `applyBrandTokens` — um preset que queira
- * títulos maiores declara `"--store-escala-titulos": "1.1"` nos `axes` e nada mais é preciso.
+ * títulos maiores declara `"--store-escala-titulos": "1.1"` nos `axes`.
+ *
+ * E a conferência cobra a FORMA, não só o nome, porque nome é o que menos falha aqui:
+ *   · o token de escala sem o bloco `opcoes` faz `tokenAceita` recusar TODA troca de tamanho (ele
+ *     procura o valor numa lista vazia). Um construtor que copiasse só a linha do token passaria
+ *     por um gate que olha só o nome e entregaria o defeito inteiro;
+ *   · o MARCADOR `--unbox-letra-da-loja` é o que o editor lê do render para saber que esta loja tem
+ *     a escada. Sem ele o painel simplesmente não oferece a troca — e é melhor que ofereça nada do
+ *     que ofereça e não mude nada, mas quem constrói tem de saber na hora;
+ *   · o VALOR da escala entra por `applyBrandTokens`, que troca o texto no arquivo sem conferir
+ *     formato nem faixa. Um `11` no lugar de `1.1` sairia como loja de títulos gigantes (o clamp do
+ *     CSS segura em 1,5, mas a loja nasceria com um tamanho que ninguém pediu).
  */
 export function checarLetraDaLoja(targetDir) {
   const css = path.join(targetDir, "app", "globals.css");
@@ -172,10 +183,31 @@ export function checarLetraDaLoja(targetDir) {
   if (!/--store-escala-titulos/.test(texto) || !/--store-fonte-titulo/.test(texto)) {
     throw new Error("[create-unbox-store] a escada de títulos sumiu de app/globals.css (--store-escala-titulos / --store-fonte-titulo): a foundation pode ter mudado.");
   }
+  if (!/--unbox-letra-da-loja:\s*1\s*;/.test(texto)) {
+    throw new Error("[create-unbox-store] o marcador --unbox-letra-da-loja sumiu de app/globals.css: sem ele o editor não oferece a troca de letra nem de tamanho nesta loja.");
+  }
+  const escala = /^\s*--store-escala-titulos:\s*([^;\n]+);/m.exec(texto);
+  const valor = escala ? Number(escala[1].trim()) : NaN;
+  if (!Number.isFinite(valor) || valor < 0.8 || valor > 1.5) {
+    throw new Error(`[create-unbox-store] --store-escala-titulos está em "${escala ? escala[1].trim() : "(ausente)"}": tem de ser um número entre 0.8 e 1.5, que é a faixa que a escada de títulos aceita.`);
+  }
   const lista = fs.existsSync(tokens) ? fs.readFileSync(tokens, "utf8") : "";
-  for (const token of ["--store-fonte-titulo", "--store-fonte-texto", "--store-escala-titulos"]) {
-    if (!lista.includes(token)) {
+  // a forma de cada um: só o nome não basta — foi o nome que sempre esteve lá
+  const forma = {
+    "--store-fonte-titulo": /tipo:\s*"fonte"/,
+    "--store-fonte-texto": /tipo:\s*"fonte"/,
+    "--store-escala-titulos": /tipo:\s*"escala"[\s\S]{0,200}?opcoes:\s*\[\s*\{/,
+  };
+  for (const [token, esperado] of Object.entries(forma)) {
+    const i = lista.indexOf(token);
+    if (i < 0) {
       throw new Error(`[create-unbox-store] ${token} não está em lib/editable/tokens.ts: a loja teria a escada no CSS e o editor sem como mexer nela.`);
+    }
+    // o trecho a partir do token até o fim da declaração dele (a próxima abre com `{ token:`)
+    const resto = lista.slice(i);
+    const fim = resto.indexOf("{ token:", 1);
+    if (!esperado.test(fim > 0 ? resto.slice(0, fim) : resto)) {
+      throw new Error(`[create-unbox-store] ${token} está em lib/editable/tokens.ts sem a forma que o editor cobra (${token === "--store-escala-titulos" ? 'tipo: "escala" e ao menos um degrau em opcoes' : 'tipo: "fonte"'}): o painel mostraria o campo e toda troca seria recusada.`);
     }
   }
 }

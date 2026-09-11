@@ -335,10 +335,12 @@
          h3      18,0    19,4    20,3    21,0    subtítulo dentro de uma seção
          h4      16,0    16,5    16,8    17,0    rótulo de bloco
 
-   --store-escala-titulos MULTIPLICA o RESULTADO do clamp, e por isso a multiplicação fica
-   fora dele: o mínimo e o máximo sobem juntos. Multiplicando só o termo do meio, o celular
-   e o desktop largo ficariam parados — o lojista mexeria no seletor e nada aconteceria
-   justamente nas duas pontas que ele olha.
+   A escala MULTIPLICA o RESULTADO do clamp, e por isso a multiplicação fica fora dele: o
+   mínimo e o máximo sobem juntos. Multiplicando só o termo do meio, o celular e o desktop
+   largo ficariam parados — o lojista mexeria no seletor e nada aconteceria justamente nas
+   duas pontas que ele olha. O que entra na conta é --unbox-escala-titulos, que é o número do
+   lojista já com teto e piso (logo abaixo do @property); a escolha dele continua em
+   --store-escala-titulos.
 
    Os dois degraus de baixo têm piso em max(). Com a escala no degrau menor, h3 e h4 se
    encontrariam no celular e a escada ficaria plana embaixo, que é o defeito que ela existe
@@ -359,17 +361,46 @@
   initial-value: 1;
 }
 
+:root {
+  /* O TETO E O PISO DA ESCALA, e eles moram no CSS porque é aqui que valem para todo mundo. O
+     @property acima garante que o valor é um NÚMERO; ele não sabe dizer que 999 não é tamanho de
+     título — e 999 rendia títulos de 10000px. O outro caminho para mexer no tamanho (o preset do
+     create-unbox-store, que declara `--store-escala-titulos` nos `axes`) escreve o valor direto
+     neste arquivo, sem passar pela lista do editor: um `11` no lugar de `1.1` sairia como loja de
+     títulos de 308px. 0,8 e 1,5 são as pontas do que o editor oferece, com folga de um degrau.
+     A conta fica numa variável só para o clamp não ser repetido em cada degrau abaixo: duas
+     cópias de um limite são dois limites no dia seguinte. */
+  --unbox-escala-titulos: clamp(0.8, var(--store-escala-titulos), 1.5);
+  /* O EDITOR PERGUNTA À FOLHA, e não ao número de versão da lib. A lib nova chega a uma loja já
+     construída por cópia de arquivo; ESTE arquivo não vai junto. A loja declararia saber ler a
+     letra sem ter nada disto, e o lojista trocaria a fonte dos títulos sem nada mudar na tela —
+     que é o pior defeito que este projeto conhece. Este marcador é esta folha dizendo "a escada e
+     as cadeias de font-family estão aqui", e a prévia o lê do valor computado. Quem o apagar
+     desliga os controles de letra do painel, que é exatamente o certo se a escada foi junto. */
+  --unbox-letra-da-loja: 1;
+}
+
 h1, h2, h3, h4 {
   /* --unbox-sec-* é a letra que o lojista deu a UMA seção inteira (foundation 14). Vem de
      variável, e não de herança, porque esta regra casa com o elemento e regra no elemento
      vence valor herdado: sem lê-la aqui, a troca de letra da seção pularia os títulos dela. */
-  font-family: var(--unbox-sec-fonte-titulo, var(--store-fonte-titulo, var(--font-heading), var(--font-sans), system-ui, sans-serif));
+  /* --font-display, e não --font-heading: as duas nascem no next/font, mas a declaração de
+     --font-heading está no `@theme inline` (`:root`), onde --font-display ainda não existe — ela
+     é declarada na className do <body>. Medido no render: --font-heading computa vazio, e uma
+     var() vazia sem reserva derruba a declaração inteira. Enquanto os dois tokens do lojista
+     estivessem vazios, esta linha era inerte: todo título pegava a letra pelo .font-display, e os
+     poucos títulos SEM essa classe saíam na letra do corpo. */
+  font-family: var(--unbox-sec-fonte-titulo, var(--store-fonte-titulo, var(--font-display), var(--font-sans), system-ui, sans-serif));
   font-weight: var(--unbox-sec-peso-titulo, 800);
 }
-h1 { font-size: calc(clamp(24px, 1.392rem + 0.462vw, 28px) * var(--store-escala-titulos)); line-height: 1.12; }
-h2 { font-size: calc(clamp(22px, 1.212rem + 0.694vw, 28px) * var(--store-escala-titulos)); line-height: 1.15; }
-h3 { font-size: max(17px, calc(clamp(18px, 1.044rem + 0.347vw, 21px) * var(--store-escala-titulos))); line-height: 1.25; }
-h4 { font-size: max(16px, calc(clamp(16px, 0.973rem + 0.116vw, 17px) * var(--store-escala-titulos))); line-height: 1.3; }
+h1 { font-size: calc(clamp(24px, 1.392rem + 0.462vw, 28px) * var(--unbox-escala-titulos)); line-height: 1.12; }
+h2 { font-size: calc(clamp(22px, 1.212rem + 0.694vw, 28px) * var(--unbox-escala-titulos)); line-height: 1.15; }
+/* o piso do h3 é 18px e não 17px, e no desenho do construtor (escala 1) isso não muda um pixel:
+   o mínimo do clamp já é 18. Ele só aparece no degrau "Menor", onde h3 caía a 17 e o h4 ficava em
+   16 — um degrau de 1px, que é a escada ficando plana justamente embaixo, que é o defeito que ela
+   existe para consertar. */
+h3 { font-size: max(18px, calc(clamp(18px, 1.044rem + 0.347vw, 21px) * var(--unbox-escala-titulos))); line-height: 1.25; }
+h4 { font-size: max(16px, calc(clamp(16px, 0.973rem + 0.116vw, 17px) * var(--unbox-escala-titulos))); line-height: 1.3; }
 
 /* ── OS TÍTULOS QUE FOGEM DA ESCADA ──────────────────────────────────────────────────────
    Cinco, e cada um por um motivo que a escada não absorve.
@@ -384,13 +415,13 @@ h4 { font-size: max(16px, calc(clamp(16px, 0.973rem + 0.116vw, 17px) * var(--sto
    Estão AQUI, e não numa classe do Tailwind no componente, para que o tamanho de todo
    título da loja continue morando num arquivo só, e para que a escala do lojista os
    multiplique junto com o resto. Herói parado enquanto a loja cresce é meia troca. */
-.titulo-heroi-foto  { font-size: calc(clamp(34px, 1.475rem + 2.773vw, 52px) * var(--store-escala-titulos)); line-height: 1.08; }
-.titulo-heroi-texto { font-size: calc(clamp(32px, 1.567rem + 1.849vw, 44px) * var(--store-escala-titulos)); line-height: 1.12; }
-.titulo-heroi-lado  { font-size: calc(clamp(28px, 1.461rem + 1.233vw, 36px) * var(--store-escala-titulos)); line-height: 1.15; }
-.titulo-produto     { font-size: calc(clamp(27px, 1.435rem + 1.079vw, 34px) * var(--store-escala-titulos)); line-height: 1.12; }
+.titulo-heroi-foto  { font-size: calc(clamp(34px, 1.475rem + 2.773vw, 52px) * var(--unbox-escala-titulos)); line-height: 1.08; }
+.titulo-heroi-texto { font-size: calc(clamp(32px, 1.567rem + 1.849vw, 44px) * var(--unbox-escala-titulos)); line-height: 1.12; }
+.titulo-heroi-lado  { font-size: calc(clamp(28px, 1.461rem + 1.233vw, 36px) * var(--unbox-escala-titulos)); line-height: 1.15; }
+.titulo-produto     { font-size: calc(clamp(27px, 1.435rem + 1.079vw, 34px) * var(--unbox-escala-titulos)); line-height: 1.12; }
 /* A capa de página e a de coleção já nasceram com clamp, e com peso 700 de propósito: o
    título ali é texto do LOJISTA e pode ser longo, então ele pesa menos que o de uma seção. */
-.titulo-capa        { font-size: calc(clamp(28px, 4.6vw, 44px) * var(--store-escala-titulos)); font-weight: var(--unbox-sec-peso-titulo, 700); line-height: 1.15; }
+.titulo-capa        { font-size: calc(clamp(28px, 4.6vw, 44px) * var(--unbox-escala-titulos)); font-weight: var(--unbox-sec-peso-titulo, 700); line-height: 1.15; }
 
 /* Quebra do container restrito do <main> p/ seções full-bleed da PDP */
 .full-bleed {
@@ -593,12 +624,12 @@ html { scroll-padding-top: var(--chrome-h, 88px); }
    qualquer largura. (A lista de tags que o lojista pode escrever não inclui h1, então esta
    linha só alcança as páginas de documento — artigo nenhum muda por causa dela.)
 
-   O `* var(--store-escala-titulos)` é o mesmo da escada: quem aumenta o tamanho dos títulos da
+   O `* var(--unbox-escala-titulos)` é o mesmo da escada: quem aumenta o tamanho dos títulos da
    loja espera que o artigo acompanhe. Só os títulos crescem; o corpo do texto fica onde está. */
-.texto-rico h1 { font-size: calc(1.9em * var(--store-escala-titulos)); }
-.texto-rico h2 { font-size: calc(1.5em * var(--store-escala-titulos)); }
-.texto-rico h3 { font-size: calc(1.25em * var(--store-escala-titulos)); }
-.texto-rico h4 { font-size: calc(1.08em * var(--store-escala-titulos)); }
+.texto-rico h1 { font-size: calc(1.9em * var(--unbox-escala-titulos)); }
+.texto-rico h2 { font-size: calc(1.5em * var(--unbox-escala-titulos)); }
+.texto-rico h3 { font-size: calc(1.25em * var(--unbox-escala-titulos)); }
+.texto-rico h4 { font-size: calc(1.08em * var(--unbox-escala-titulos)); }
 
 .texto-rico ul,
 .texto-rico ol { margin: 0 0 1.1em; padding-left: 1.4em; }

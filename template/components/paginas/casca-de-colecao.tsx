@@ -166,7 +166,7 @@ function CardDoArtigo({ artigo, colecao }: { artigo: ArtigoDaLista; colecao: str
         ) : null}
         {/* `break-words` pelo motivo escrito em casca-de-pagina.tsx: o título é do lojista, e num
             card de grade uma palavra longa empurra a coluna inteira */}
-        <h3 className="font-display break-words font-semibold text-[var(--store-ink)] group-hover:underline">{titulo}</h3>
+        <h3 className="font-display break-words text-[var(--store-ink)] group-hover:underline">{titulo}</h3>
         {quando || artigo.registro.autor ? (
           <p className="flex flex-wrap items-center gap-2 text-[13px] text-[var(--store-muted)]">
             {quando ? <time dateTime={quando.iso}>{quando.porExtenso}</time> : null}

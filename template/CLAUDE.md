@@ -33,14 +33,24 @@ com um comentário de "quando usar / quando não usar"; os de seção não, por 
 | Menu mobile | `components/chrome/header-bar-mobile.tsx` |
 
 **Título não leva tamanho na classe.** `h1` a `h4` já têm tamanho, peso, família e entrelinha na
-escada de `app/globals.css`, e é de lá que o lojista mexe em todos de uma vez pelo editor. Escrever
-`text-[26px]`, `font-extrabold` ou `leading-[1.1]` num título faz três estragos de uma vez: a classe
-vence a escada, o seletor de tamanho do editor deixa de mover aquele título, e a troca de fonte da
-seção passa por cima dele sem tocá-lo. Se o título precisa MESMO de outro tamanho (é o caso do herói
-e do nome do produto), a saída é uma classe nova no mesmo bloco da escada, em `clamp()` e multiplicada
-por `--store-escala-titulos` — nunca um ponto de quebra (`sm:`), que é um salto seco numa largura só.
-Escolha o degrau pelo que o título É: `h1` título de página, `h2` título de seção, `h3` subtítulo
-dentro de uma seção, `h4` rótulo de bloco.
+escada de `app/globals.css`, e é de lá que o lojista mexe em todos de uma vez pelo editor. Escolha o
+degrau pelo que o título É: `h1` título de página, `h2` título de seção, `h3` subtítulo dentro de uma
+seção, `h4` rótulo de bloco.
+
+`text-[26px]`, `font-extrabold` ou `leading-[1.1]` num título NÃO vencem a escada — medido no render:
+no Tailwind v4 as utilitárias vivem em `@layer utilities` e a escada está fora de layer, e regra fora
+de layer vence regra em layer. O estrago é o contrário do que parece: você escreve o tamanho, nada
+muda na tela, e o passo seguinte é `!important` — que é justamente o que a escada não pode ter,
+porque `!important` na folha vence o `style=` inline do lojista e mata a troca de letra por elemento.
+O que VENCE mesmo a escada é classe própria do `globals.css` e `!important` em qualquer lugar; é por
+isso que `.font-display` precisou ler a mesma cadeia de `font-family` que `h1..h4`.
+
+Então: se o título precisa MESMO de outro tamanho (é o caso do herói e do nome do produto), a saída é
+uma classe nova no mesmo bloco da escada, em `clamp()` e multiplicada por `--unbox-escala-titulos` —
+nunca um ponto de quebra (`sm:`), que é um salto seco numa largura só.
+
+E o que MANTER na classe do título: `font-display`. Quase todo título da loja a carrega, e é ela que
+leva a fonte de títulos até ele — tirá-la faz o título cair na letra do corpo.
 
 **Não edite** `site-header.tsx` / `site-footer.tsx` para trocar aparência. Eles são a casca fixa:
 fazem o fetch, derivam o nome da loja e montam o `<header>`/`<footer>` raiz. O miolo variável

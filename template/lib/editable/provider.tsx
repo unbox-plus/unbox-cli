@@ -33,7 +33,7 @@ import {
   type ManifestFonte,
   type OpcaoDeToken,
   type TipoDeToken,
-  ehFamiliaDeLetra, juntarFatia, normalizarPagina, PESOS_DA_LETRA, resolveValue, type SectionKind, SECTION_KIND_LABEL, tokenAceita } from "./document";
+  ehFamiliaDeLetra, juntarFatia, normalizarPagina, PESOS_DA_LETRA, resolveValue, type SectionKind, SECTION_KIND_LABEL, tokenAceita, valorDeTokenEmCss } from "./document";
 
 export interface EditableTokenSpec {
   token: string;
@@ -165,13 +165,24 @@ function detectEditing(): boolean {
 }
 
 /**
- * O QUE O NAVEGADOR CARREGOU DE LETRA NESTA PÁGINA (foundation 14).
+ * AS LETRAS QUE ESTA LOJA TEM (foundation 14), lidas do navegador na prévia.
  *
  * As fontes de uma loja são as que estão no projeto DELA. Em vez de o editor manter uma lista (100
  * lojas, 100 listas), a prévia pergunta ao navegador — o mesmo movimento que o manifesto já faz com
  * a cor, lendo o valor computado em vez de acreditar no código.
+ *
+ * ATENÇÃO AO QUE ESTA LISTA É: `document.fonts` traz o que a FOLHA DECLAROU, não o que a tela
+ * mostra. Isso é de propósito — a lista existe para o lojista TROCAR de letra, e trocar para uma
+ * que a loja declarou é escolha válida mesmo que nenhuma tela use aquela família hoje. É também o
+ * que o painel diz a ele: "as letras da lista são as que já vieram com esta loja".
+ *
+ * E não dá para separar declarada de mostrada por aqui: `f.status` não responde isso. Medido numa
+ * loja gerada do tarball, com a mono do template em ZERO elementos da página, uma das faces dela
+ * já vinha `loaded` — o `<link rel=preload>` que o next/font escreve basta para virar o estado.
+ * Cortar por `status` só faria mal do outro lado: peso que esta PÁGINA não usa fica `unloaded`, e
+ * a Poppins desta mesma loja apareceria com dois pesos em vez dos quatro que ela declara.
  */
-function letrasCarregadas(): ManifestFonte[] {
+function letrasDaLoja(): ManifestFonte[] {
   if (typeof document === "undefined" || !document.fonts) return [];
   const porFamilia = new Map<string, Set<number>>();
   document.fonts.forEach((f) => {
@@ -181,6 +192,14 @@ function letrasCarregadas(): ManifestFonte[] {
     // (serve para o texto não pular quando a letra de verdade chega), não é escolha de ninguém, e
     // oferecê-la ao lojista seria oferecer a letra do sistema com nome de marca
     if (/fallback/i.test(familia)) return;
+    // a tarja de erro do `next dev` traz as fontes dela (`__nextjs-Geist`): são do ANDAIME, e somem
+    // no `next start`. Oferecê-las faria o lojista escolher, na loja do construtor, uma letra que a
+    // loja publicada não tem
+    if (/^__nextjs/i.test(familia)) return;
+    // família SÓ-ITÁLICA existe (uma loja construída carrega uma com as seis faces em italic).
+    // Oferecê-la como se fosse a normal é prometer uma letra e entregar outra: o lojista escolhe
+    // pelo nome e recebe texto inclinado. Quem quer itálico tem o botão de itálico
+    if (f.style && f.style !== "normal") return;
     const pesos = porFamilia.get(familia) ?? new Set<number>();
     for (const p of pesosDoDescritor(f.weight)) pesos.add(p);
     porFamilia.set(familia, pesos);
@@ -196,6 +215,11 @@ function letrasCarregadas(): ManifestFonte[] {
  * seletor com uma opção só, escrita "100 900".
  */
 function pesosDoDescritor(w: string): number[] {
+  // `bold` e `normal` são descritor tão válido quanto 700 e 400, e é assim que um @font-face escrito
+  // à mão costuma entrar (é como a fonte de marca de uma loja construída chegou). Lendo só dígitos,
+  // uma fonte que só tem negrito era anunciada ao lojista como "Normal".
+  const palavra = /^\s*(normal|bold)\s*$/i.exec(w || "");
+  if (palavra) return [palavra[1].toLowerCase() === "bold" ? 700 : 400];
   const nums = ((w || "400").match(/\d{2,3}/g) ?? []).map(Number).filter((n) => n >= 100 && n <= 900);
   if (nums.length === 0) return [400];
   if (nums.length === 1) return [Math.round(nums[0] / 100) * 100];
@@ -641,8 +665,14 @@ export function EditableProvider({
     //      quais letras a loja carregou (`fontes`). Abaixo de 14 a loja não lê nada disso: o painel
     //      não oferece a troca, porque o valor entraria no documento e a tela ficaria igual.
     const fora: ManifestSemContainer[] = [...semContainer.current.values()].map((r) => ({ ...r, pagina }));
-    const fontes = letrasCarregadas();
-    return { shop, capturedAt: new Date().toISOString(), url: pagina, foundation: 14, entries, sections: secs, tipos, semContainer: fora, tokens: toks, ...(fontes.length ? { fontes } : {}), ...(apps ? { apps } : {}), ...(paginasDoLojista ? { paginasDoLojista } : {}) };
+    const fontes = letrasDaLoja();
+    // A LETRA DA CASA NÃO SE DEDUZ DO NÚMERO ACIMA. A lib chega a uma loja já construída por cópia de
+    // arquivo, e o `app/globals.css` dela não vem junto: a loja declararia 14 sem ter a escada de
+    // títulos nem as cadeias de `font-family`, e o lojista trocaria a letra da seção sem nada mudar
+    // na tela. Então quem responde é a folha DELA, por um marcador que só o bloco da escada declara,
+    // e a resposta é lida do valor computado — como já se faz com a cor.
+    const letraDaLoja = cs ? cs.getPropertyValue("--unbox-letra-da-loja").trim() === "1" : false;
+    return { shop, capturedAt: new Date().toISOString(), url: pagina, foundation: 14, entries, sections: secs, tipos, semContainer: fora, tokens: toks, ...(fontes.length ? { fontes } : {}), ...(letraDaLoja ? { letraDaLoja } : {}), ...(apps ? { apps } : {}), ...(paginasDoLojista ? { paginasDoLojista } : {}) };
   }, [shop, tokens, apps, paginasDoLojista]);
 
   // manifesto: publica depois que os registros assentam (debounce)
@@ -746,7 +776,10 @@ export function EditableProvider({
       const corHex = cor ? (cor[3] >= 1 ? hex(cor) : fundo && rgba(fundo) ? hex([0, 1, 2].map((i) => cor[i] * cor[3] + rgba(fundo)![i] * (1 - cor[3])).concat([1]) as [number, number, number, number]) : undefined) : undefined;
       post({
         type: "unbox-editor:select",
-        entry: { ...entry, section: sec?.dataset.editorSection, container: sec?.dataset.editorContainer, current: docRef.current.values[entry.path], computed: { color: corHex, background: fundo } },
+        // `fontFamily` computada: é ela que diz ao painel em que família buscar as espessuras quando o
+        // lojista ainda não escolheu nenhuma. Sem ela o seletor oferecia a união dos pesos de TODAS as
+        // letras da loja, e a metade que a família deste título não carrega não movia um pixel.
+        entry: { ...entry, section: sec?.dataset.editorSection, container: sec?.dataset.editorContainer, current: docRef.current.values[entry.path], computed: { color: corHex, background: fundo, fontFamily: cs.fontFamily || undefined } },
         rect: { x: r.x, y: r.y, w: r.width, h: r.height },
       });
     },
@@ -938,7 +971,9 @@ export function EditableProvider({
   // menos, o lojista trocaria a letra, o editor diria que aplicou, e nada andaria na prévia.
   const tokenCss = Object.entries(doc.tokens ?? {})
     .filter(([k, v]) => porToken.has(k) && /^--[a-z0-9-]+$/.test(k) && typeof v === "string" && tokenAceita(porToken.get(k), v))
-    .map(([k, v]) => `${k}:${v.trim()}`)
+    // a letra sai com a pilha de reserva (`valorDeTokenEmCss`): a cadeia do globals.css termina AQUI,
+    // e uma família sozinha apaga toda a reserva da loja — a fonte que não resolve cairia em Times
+    .map(([k, v]) => `${k}:${valorDeTokenEmCss(porToken.get(k), v as string)}`)
     .join(";");
 
   return (

@@ -1,9 +1,11 @@
 ## Changelog
 
-### v0.21.3 — o que saiu do pacote, o segredo que deixou de ter valor de fábrica, e o gate que passou a medir o arquivo inteiro
+### v0.21.3 — a escada dos títulos, o segredo que deixou de ter valor de fábrica, o que saiu do pacote e o gate que passou a medir o arquivo inteiro
 
-Rodada de limpeza do que o pacote publicava sem precisar. Quase tudo é o que viaja no tarball e o que o
-`prepack` consegue reprovar, sem efeito na loja gerada. **Há UMA exceção, e ela muda o comportamento da
+Duas coisas grandes e uma rodada de limpeza. A grande do lado da LOJA é a escada dos títulos, que tira o
+tamanho da classe de cada componente e o põe num bloco só de `app/globals.css`, com a letra e o tamanho na
+mão do lojista pelo editor. O resto é o que viaja no tarball e o que o `prepack` consegue reprovar, sem
+efeito na loja gerada. **Há UMA exceção, e ela muda o comportamento da
 loja em produção: `SESSION_SECRET` deixou de ter valor de fábrica e passou a ser obrigatório para fechar
 pedido.** Está logo abaixo, antes do resto, porque é a única coisa desta versão que exige providência no
 ambiente do deploy ANTES de publicar.
@@ -32,7 +34,74 @@ então `lib/session.ts` **recusa** assinar e conferir. O que isso significa na p
   talvez nem seja usada naquela visita. A defesa é a guarda do checkout; o aviso serve para o problema
   aparecer no primeiro deploy, e não no primeiro pedido.
 
-O resto da versão não muda comportamento nenhum:
+**A escada dos títulos, e o tamanho da letra na mão do lojista.** O reset do Tailwind zera `font-size` e
+`font-weight` de `h1..h6`, e o `app/globals.css` só dizia a família: cada um dos 91 títulos da loja
+carregava o próprio tamanho na classe. Dava 18 tamanhos diferentes, irmãos da mesma lista em degraus
+trocados, e duas páginas inteiras (`/termos` e `/privacidade`) com o título do mesmo tamanho do texto — 14px,
+menor que o corpo da loja. Agora `h1` a `h4` têm tamanho, peso, família e entrelinha num bloco só, e cada
+degrau é um `clamp()` que passa por (375px, mínimo) e (1240px, máximo): 28/28/21/17 no desktop, 24/22/18/16
+no celular. Os cinco títulos que precisam mesmo de outro tamanho (as três capas de herói, o nome do produto
+e a capa de página) ganharam classe própria no mesmo bloco, também em `clamp()`, reproduzindo as duas pontas
+de hoje com erro de 0px e enchendo o meio, que era um salto seco em 640px. Nenhum `sm:` sobrou em título, e
+nenhum `!important` entrou na escada: com ele, o `style=` inline que o editor escreve perderia para a folha,
+e o lojista trocaria a letra de um título sem nada mudar na tela.
+
+**E o tamanho virou decisão do lojista**, por `--store-escala-titulos`, que MULTIPLICA o resultado de cada
+`clamp()` — a multiplicação fica fora dele para o piso e o teto subirem juntos. Multiplicando só o termo do
+meio, o celular e o desktop largo ficariam parados justamente nas duas pontas que ele olha. O
+`@property --store-escala-titulos` é obrigatório porque o valor entra num `calc()`: sem o registro, um valor
+inválido derruba a conta e o `font-size` cai em `inherit`, com a loja inteira despencando para o tamanho do
+corpo. **A faixa tem teto e piso no próprio CSS** (`clamp(0.8, …, 1.5)`, na variável `--unbox-escala-titulos`
+que multiplica cada degrau): o `@property` garante que o valor é um NÚMERO e não sabe dizer que 999 não é
+tamanho de título — medido, `999` rendia títulos de 10000px, e o preset que declara o token nos `axes`
+escreve o valor direto no arquivo, onde um `11` no lugar de `1.1` passaria inteiro.
+
+**Junto, a letra.** `--store-fonte-titulo` e `--store-fonte-texto` entram nas cadeias de `font-family` do
+`globals.css`, lidas também pelo `.font-display` (quase todo título carrega essa classe, e classe vence
+seletor de elemento) e por `--unbox-sec-fonte-titulo` / `--unbox-sec-peso-titulo`, que é como a letra de uma
+seção inteira alcança os títulos dela. A cadeia de `h1..h4` lê `var(--font-display)` e não
+`var(--font-heading)`: as duas nascem no next/font, mas `--font-heading` é declarada no `@theme inline`
+(`:root`), onde `--font-display` ainda não existe — ela vive na className do `<body>`. Medido no render,
+`--font-heading` computava vazio, a linha de família da escada era inerte, e os poucos títulos SEM a classe
+`.font-display` (Pix, erro, 404) saíam na letra do corpo.
+
+**O `create-unbox-store` confere as duas pontas juntas, e cobra a FORMA.** `checarLetraDaLoja` exige a escada
+no `app/globals.css`, o marcador `--unbox-letra-da-loja`, o valor da escala dentro de 0,8–1,5, e no
+`lib/editable/tokens.ts` exige `tipo: "fonte"` nos dois tokens de letra e `tipo: "escala"` com ao menos um
+degrau em `opcoes` no de tamanho. Só o nome não basta: token de escala sem o bloco `opcoes` faz o editor
+recusar TODA troca de tamanho, procurando o valor numa lista vazia — e o defeito seria o pior que este
+projeto conhece, o lojista mexendo, o painel dizendo que aplicou e a tela não mudando.
+
+**O marcador `--unbox-letra-da-loja` existe porque o número da versão da lib responde errado.** A foundation
+chega a uma loja já construída por cópia de arquivo; o `app/globals.css` dela não vai junto. Três lojas no ar
+receberam a foundation 14 assim, sem a escada — declaravam saber ler a letra e não sabiam. Agora quem
+responde é a folha da loja, e o editor lê a resposta do valor computado. Loja sem o marcador não mostra o
+bloco de letra no painel e tem a troca recusada com uma frase que diz de quem é o trabalho.
+
+**A regra do `template/CLAUDE.md` sobre título prometia um estrago que não acontece.** Ela dizia que
+`text-[26px]` num título faz a classe vencer a escada. Medido no render: no Tailwind v4 as utilitárias vivem
+em `@layer utilities` e a escada está fora de layer, e regra fora de layer vence regra em layer — a
+utilitária simplesmente não pega. O risco prático era o contrário do descrito: quem precisa de outro tamanho
+escreve `text-[26px]`, não vê nada mudar, e o passo seguinte natural é `!important`, que é justamente o que a
+escada não pode ter. A regra passou a nomear o que vence de verdade (classe própria do `globals.css` e
+`!important`) e o que MANTER na classe do título: `font-display`, que é o que leva a fonte de títulos até
+ele. Junto saiu um `font-semibold` que tinha sobrado num `<h3>` da casca de coleção.
+
+**A marcação errada foi junto:** o carrinho vazio e o pedido sem acesso davam página sem `h1` nenhum (o
+`EmptyState` ganhou nível, como o catálogo já fazia); `/produtos` tinha um `h1` de 20px; a página do picker
+começava no passo 2 e os dois passos irmãos estavam em níveis diferentes; e um combo dentro de uma seção
+tinha o tamanho do título dela. As três páginas de documento saíram de `.richtext` e vestiram `.texto-rico`,
+que tem escada relativa própria: `.richtext` leva `font-size: inherit` porque aquele HTML é a descrição do
+produto vinda da API, e um `<h2>` ali é ênfase de quem escreveu, não título de seção.
+**O que muda de APARÊNCIA numa loja gerada, e é para olhar antes de mesclar:** entre 640px e 1023px os
+títulos que tinham `sm:` agora andam pelo `clamp()` em vez de saltar. As duas pontas ficam idênticas (375px e
+1024px, erro de 0,01px), e o meio muda: medido numa loja gerada, a 768px a capa do herói de foto sai em
+44,90px onde hoje sai 52, e o nome do produto em 31,25px onde hoje sai 34. É o iPad em retrato. Se ficar
+magro demais, a segunda âncora do `clamp()` muda de 1024 para 768 e nada mais precisa mudar. E os títulos que
+não carregam `.font-display` (Pix, erro, 404) passam a sair na fonte de títulos, como todos os outros, em vez
+da fonte do corpo.
+
+O resto da versão, a rodada de limpeza, não muda comportamento nenhum:
 
 **Saiu dado de pessoa de dentro de dois scripts que rodam contra a loja de produção.**
 `scripts/test-live.ts` e `scripts/place-order-pix.ts` carregavam, em texto aberto, um CPF que fecha a conta do
