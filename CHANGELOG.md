@@ -1,5 +1,19 @@
 ## Changelog
 
+### v0.21.5 — o lojista escreve o CSS da loja
+
+A saída para o ajuste que os controles do editor não alcançam. A loja passa a emitir, por último, a
+folha que o lojista escreve: ela vem depois de tudo que a loja traz, então o que ele escreve vence por
+ordem de documento.
+
+Não há lista de propriedades permitidas nem escopo por seção, e isso é deliberado: o que o lojista
+escrever é responsabilidade dele, e a tela do editor diz isso com todas as letras.
+
+O que a loja ainda faz com o valor, e não é trava sobre o conteúdo: escapa a sequência que fecharia a
+tag `<style>`. Sem isso, um `</style>` no campo transformaria o resto em HTML, inclusive `<script>`.
+
+Loja já gerada: atualizar `lib/editable/`.
+
 ### v0.21.4 — Next 15.5.24
 
 O 15.5.19 acumulava dez avisos de segurança, sendo dois críticos: execução remota de código sem

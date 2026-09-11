@@ -1317,6 +1317,24 @@ export function handleReservado(tipo: TipoDePagina | "colecao", handle: string, 
  * MESMO container, e como a copy mora no container, a segunda herdava o texto da primeira e a primeira
  * sumia do ar — sem erro, e o desfazer apagava as duas.
  */
+/**
+ * TETO DO CSS DO LOJISTA. O mesmo do bloco de HTML, e pelo mesmo motivo: é texto que viaja no
+ * documento publicado, que por sua vez viaja no HTML de toda página. Não é régua sobre o conteúdo,
+ * é a régua de tamanho que todo campo de texto desta casa tem.
+ */
+export const TETO_DO_CSS = 20000;
+
+/**
+ * O CSS do lojista pronto para entrar num `<style>`. Só uma coisa é trocada, e ela não muda o efeito
+ * do CSS: a sequência que fecharia a tag. Ver o comentário de `ContentDocument.css`.
+ */
+export function cssDoLojistaEmSeguranca(css: string): string {
+  return css.replace(/<\/(style)/gi, "<\\/$1");
+}
+
+/** loja que ainda não sabe emitir a folha do lojista */
+export const FRASE_SEM_CSS = "Nesta loja ainda não dá para escrever CSS. Fale com a Unbox para liberar.";
+
 export const SEPARADOR_DE_ARTIGO = "--";
 
 export function idDePagina(tipo: TipoDePagina, handle: string, colecao?: string): string {
@@ -1508,6 +1526,21 @@ export interface ContentDocument {
   sections: Record<string, SectionState>;
   /** token CSS (ex.: "--store-primary") → cor. Só tokens da allowlist da loja. */
   tokens: Record<string, string>;
+  /**
+   * CSS DO LOJISTA (foundation 15): a folha que ele escreve na aba de configurações, emitida por
+   * ÚLTIMO na página, depois de tudo que a loja traz. É a saída para o ajuste que os controles não
+   * alcançam, e a decisão do dono da Unbox é deliberada: aqui não há lista de propriedades permitidas
+   * nem escopo por seção, porque o que ele escreve é responsabilidade dele.
+   *
+   * O QUE AINDA ASSIM NÃO É NEGOCIÁVEL: o valor entra dentro de um `<style>`, e a sequência
+   * `</style>` ali dentro fecharia a tag e o que viesse depois seria HTML, não CSS — inclusive
+   * `<script>`. Por isso ela é escapada na hora de emitir (`cssDoLojistaEmSeguranca`), e isso não é
+   * uma trava sobre o que ele pode escrever: é o que faz o campo ser CSS de verdade em vez de um
+   * buraco por onde entra qualquer coisa. Em CSS legítimo a forma escapada tem o mesmo efeito.
+   *
+   * Opcional e nunca vazio: documento sem `css` é o de sempre.
+   */
+  css?: string;
   /** Registro de honestidade: edições que o lojista declarou sem fonte (nota, prazo, depoimento). */
   declared?: Record<string, DeclaredEntry>;
   /**
@@ -1675,6 +1708,7 @@ export type RedirecionamentosAnteriores = Record<string, string | null>;
 type OpDoDocumento =
   | { op: "set"; path: string; value: EditableValue; /** interno (inverso de desfazer): declaração anterior a devolver */ declaredAnterior?: DeclaredEntry | null }
   | { op: "unset"; path: string; declaredAnterior?: DeclaredEntry | null }
+  | { op: "set_css"; css: string | null }
   | { op: "set_token"; token: string; value: string }
   | { op: "unset_token"; token: string }
   | { op: "set_order"; container: string; order: string[] }
@@ -1928,6 +1962,13 @@ export function applyOp(doc: ContentDocument, op: PatchOp): { doc: ContentDocume
       delete next.values[op.path];
       if (next.declared) delete next.declared[op.path];
       if (op.declaredAnterior) next.declared = { ...(next.declared ?? {}), [op.path]: op.declaredAnterior };
+      break;
+    }
+    case "set_css": {
+      const prev = doc.css;
+      inverse = { op: "set_css", css: prev ?? null };
+      if (op.css === null || op.css === "") delete next.css;
+      else next.css = op.css;
       break;
     }
     case "set_token": {
@@ -3079,6 +3120,16 @@ export function validateOp(op: PatchOp, manifest: Manifest, doc?: ContentDocumen
       const base = isStylePath(op.path) ? op.path.slice(0, -ESTILO.length) : op.path;
       if (foraDeSecao(byPath.get(base), base)) return RAIZ(op.path);
       return byPath.has(op.path) || (isStylePath(op.path) && (byPath.has(base) || manifest.sections.some((x) => `${x.container}.${x.id}` === base))) ? { ok: true } : { ok: false, reason: `caminho inexistente: ${op.path}` };
+    }
+    case "set_css": {
+      // a loja precisa saber emitir a folha: numa que só recebeu a lib nova, o valor entraria no
+      // documento e a tela ficaria igual, que é o defeito que esta casa não comete
+      if ((manifest.foundation ?? 1) < 15) return { ok: false, reason: FRASE_SEM_CSS };
+      if (op.css !== null && typeof op.css !== "string") return { ok: false, reason: "o CSS precisa ser texto" };
+      if (typeof op.css === "string" && op.css.length > TETO_DO_CSS) {
+        return { ok: false, reason: `O CSS passou do limite em ${op.css.length - TETO_DO_CSS} caracteres. Tire esse tanto para conseguir aplicar.` };
+      }
+      return SIM;
     }
     case "set_token": {
       const spec = manifest.tokens.find((t) => t.token === op.token);
