@@ -94,6 +94,10 @@ function assinarPosse(referenceId: string, token: string): string {
 }
 
 export async function setOrderToken(referenceId: string, token: string): Promise<void> {
+  // Sem segredo não há prova a emitir, e isto NÃO pode derrubar a compra: quem chama é o checkout,
+  // depois de o pedido ter sido criado e cobrado. Então sai em silêncio (o boot já avisou no log) e
+  // o comprador cai na tela que manda entrar na conta, em vez de ler um erro depois de pagar.
+  if (!serverEnv.sessionSecret) return;
   const valor = `${token}.${assinarPosse(referenceId, token)}`;
   (await cookies()).set(orderKey(referenceId), valor, { ...base, maxAge: 60 * 60 * 24 * 30 }); // 30 dias
 }
@@ -105,6 +109,7 @@ export async function getOrderToken(referenceId: string): Promise<string | null>
   const i = raw.lastIndexOf(".");
   if (i <= 0) return null;
   const token = raw.slice(0, i);
+  if (!serverEnv.sessionSecret) return null;
   const dado = Buffer.from(raw.slice(i + 1), "hex");
   const esperado = Buffer.from(assinarPosse(referenceId, token), "hex");
   if (dado.length !== esperado.length || !crypto.timingSafeEqual(dado, esperado)) return null;

@@ -114,6 +114,22 @@ function writeEnvLocal(targetDir, values) {
     return line;
   });
   fs.writeFileSync(path.join(targetDir, ".env.local"), out.join("\n"));
+
+  // O MESMO segredo vai para um arquivo VERSIONADO da loja (lib/segredo-da-loja.ts). O .env.local
+  // não sobe no deploy, e quem hospeda as lojas é a Unbox, não o dono da loja: sem isto, a loja
+  // sobe sem segredo e a tela pós-pagamento manda entrar na conta. Versionado, ele viaja com o
+  // código, é único por loja e não tem passo manual para esquecer. A variável de ambiente continua
+  // vencendo este valor, que é como se rotaciona sem mexer no código.
+  const segredoPath = path.join(targetDir, "lib", "segredo-da-loja.ts");
+  const segredoSrc = fs.readFileSync(segredoPath, "utf8");
+  const segredoNovo = segredoSrc.replace(
+    /export const SEGREDO_DA_LOJA = "";/,
+    `export const SEGREDO_DA_LOJA = "${all.SESSION_SECRET}";`,
+  );
+  if (segredoNovo === segredoSrc) {
+    throw new Error("lib/segredo-da-loja.ts mudou de forma: a âncora SEGREDO_DA_LOJA = \"\" não foi encontrada.");
+  }
+  fs.writeFileSync(segredoPath, segredoNovo);
 }
 
 /**

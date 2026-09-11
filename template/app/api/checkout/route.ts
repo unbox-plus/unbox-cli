@@ -23,22 +23,13 @@ export async function POST(req: Request) {
   const rl = rateLimit(`checkout:${ip}`, LIMITS.checkout.limit, LIMITS.checkout.windowMs);
   if (!rl.ok) return fail("Muitas tentativas. Aguarde um instante.", 429);
 
-  // ANTES DE COBRAR. Sem SESSION_SECRET a loja não assina a posse do pedido (lib/session.ts recusa,
-  // e recusar é o certo: assinatura com segredo vazio é constante e forjável). Só que a assinatura
-  // acontece DEPOIS do placeOrder, que é produção real: a recusa lá dentro cairia no catch como 502
-  // com o pedido já criado e cobrado na Unbox, e o cliente leria "não foi possível" e tentaria de
-  // novo. É a cobrança dupla que o aviso do catch existe para evitar. Então a checagem é aqui, na
-  // porta, com o carrinho intacto: 503 é a verdade (a loja está indisponível por configuração, não
-  // é erro de quem está comprando) e o log diz qual variável falta. O lib/env-check.ts também avisa,
-  // no boot, mas ele só escreve no log e nada barra o deploy.
-  if (!serverEnv.sessionSecret) {
-    console.error(JSON.stringify({ tag: "[api-erro]", status: 503, erro: "SESSION_SECRET_AUSENTE", rota: "checkout", quando: new Date().toISOString() }));
-    return fail(
-      "A loja está com uma configuração pendente e não consegue registrar o pedido agora. Nada foi cobrado. Tente de novo em alguns minutos.",
-      503,
-      { code: "SESSION_SECRET_AUSENTE" },
-    );
-  }
+  // SEM SEGREDO DE ASSINATURA, a loja continua vendendo. O cookie de posse é conveniência do
+  // momento pós-pagamento (o comprador é mandado para /pedido/<referência> e a tela abre por causa
+  // dele); a visão durável do pedido é a área logada, que não depende disto. Barrar o checkout por
+  // configuração seria trocar um problema pequeno — um clique a mais para quem comprou sem conta —
+  // por um grande: a loja parada. O que NÃO se faz é assinar com segredo vazio, que dá uma
+  // assinatura igual em toda loja e forjável por quem leu o pacote: nesse caso `setOrderToken` não
+  // grava nada (lib/session.ts) e a tela pós-pagamento manda entrar na conta.
 
   const ref = await getCartRef();
   if (!ref) return fail("Carrinho não encontrado.", 404);

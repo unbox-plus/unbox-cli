@@ -1,6 +1,7 @@
 // Configuração central — lê variáveis de ambiente (server-only) e expõe os identificadores
 // públicos da loja. NUNCA exporte segredos para o cliente daqui.
 import "server-only";
+import { SEGREDO_DA_LOJA } from "./segredo-da-loja";
 import crypto from "node:crypto";
 import { checkEnv } from "./env-check";
 
@@ -33,7 +34,8 @@ export const serverEnv = {
   // não fecharia entre elas. Em DESENVOLVIMENTO vale um valor sorteado no boot: o dev não
   // configura nada e os cookies valem enquanto o servidor estiver de pé.
   sessionSecret:
-    process.env.SESSION_SECRET ??
+    process.env.SESSION_SECRET ||
+    SEGREDO_DA_LOJA ||
     (process.env.NODE_ENV === "production" ? "" : crypto.randomBytes(32).toString("hex")),
   crmWebhookUrl: process.env.CRM_WEBHOOK_URL ?? "",
   revalidateSecret: process.env.REVALIDATE_SECRET ?? "",
