@@ -554,10 +554,94 @@ export function ehIdDeCriada(id: string): boolean {
   return id.startsWith(PREFIXO_CRIADA);
 }
 
-/** Cor/fundo de UM elemento, por cima do token (o "desacoplar do mapa de cores"). Fica em `<caminho>.estilo`. */
+// ── A LETRA DE UM ELEMENTO (foundation 14) ───────────────────────────────────────────────────────
+//
+// Vocabulário FECHADO de cada campo do `.estilo`. Lista fechada, e não texto livre, porque o valor
+// termina dentro do `style=` do elemento, na página do visitante: é a mesma defesa do `isColor`,
+// feita campo a campo.
+
+/** caixa alta/baixa da frase */
+export const CAIXAS_DA_LETRA = ["nenhuma", "maiuscula", "minuscula", "capitular"] as const;
+export type CaixaDaLetra = (typeof CAIXAS_DA_LETRA)[number];
+
+export const ALINHAMENTOS = ["esquerda", "centro", "direita"] as const;
+export type AlinhamentoDoTexto = (typeof ALINHAMENTOS)[number];
+
+/** espaço entre as letras, em três degraus com nome: número solto é régua sem fim, e o fim dela é título quebrado */
+export const ESPACAMENTOS = ["apertado", "normal", "solto"] as const;
+export type EspacamentoDaLetra = (typeof ESPACAMENTOS)[number];
+
+/** 100 a 900, de 100 em 100 (a régua do CSS). QUAIS deles o painel oferece é outra pergunta, e quem
+ *  responde é o manifesto (`Manifest.fontes`): só os pesos que a loja CARREGOU de verdade. */
+export const PESOS_DA_LETRA = [100, 200, 300, 400, 500, 600, 700, 800, 900] as const;
+
+/**
+ * O que o lojista deu SÓ a este elemento, por cima da cor da marca. Fica em `<caminho>.estilo`.
+ *
+ * Os dois primeiros campos são inglês e os outros são português, e é DE PROPÓSITO: `color` e
+ * `background` já estão gravados no documento das lojas no ar, e campo gravado não tem renomear —
+ * trocar o nome faria a cor que o lojista escolheu virar "campo inesperado" e sumir da tela dele.
+ * Campo novo nasce no idioma da casa.
+ */
 export interface StyleValue {
   color?: string;
   background?: string;
+  /** família da letra: só uma das que a loja CARREGOU (a lista vem do manifesto, ver `ManifestFonte`) */
+  fonte?: string;
+  /** peso da letra (100 a 900). O painel só oferece os que a loja carregou */
+  peso?: number;
+  caixa?: CaixaDaLetra;
+  alinhamento?: AlinhamentoDoTexto;
+  espacamento?: EspacamentoDaLetra;
+  italico?: boolean;
+  /** atalho de `peso`. Vindo os dois, quem vence é `peso` (ver `estiloEmCss`) */
+  negrito?: boolean;
+}
+
+/**
+ * A RÉGUA DE CADA CAMPO, num lugar só: é esta tabela que `validateOp` cobra de quem grava e
+ * `estiloEmCss` cobra de quem lê. Duas cópias da lista seriam duas listas no dia seguinte.
+ *
+ * NÃO EXISTE `tamanho` AQUI, e é decisão, não esquecimento: um tamanho dado a UM elemento não tem
+ * ponto de quebra. O número que o lojista escolhe olhando o computador congela também o celular, e
+ * um título de 40px num aparelho de 375px quebra em quatro linhas. Tamanho de título é escolha da
+ * LOJA INTEIRA — o token de escala, que multiplica a escada toda e mantém o piso do celular.
+ */
+const REGRA_DA_LETRA: Record<string, (v: unknown) => boolean> = {
+  color: (v) => typeof v === "string" && isColor(v),
+  background: (v) => typeof v === "string" && isColor(v),
+  fonte: (v) => typeof v === "string" && ehFamiliaDeLetra(v),
+  peso: (v) => typeof v === "number" && (PESOS_DA_LETRA as readonly number[]).includes(v),
+  caixa: (v) => typeof v === "string" && (CAIXAS_DA_LETRA as readonly string[]).includes(v),
+  alinhamento: (v) => typeof v === "string" && (ALINHAMENTOS as readonly string[]).includes(v),
+  espacamento: (v) => typeof v === "string" && (ESPACAMENTOS as readonly string[]).includes(v),
+  italico: (v) => typeof v === "boolean",
+  negrito: (v) => typeof v === "boolean",
+};
+
+/** os campos que o `.estilo` conhece (a ordem é a da tabela, e é ela que o painel segue) */
+export const CAMPOS_DO_ESTILO = Object.keys(REGRA_DA_LETRA);
+
+/**
+ * O QUE UMA SEÇÃO INTEIRA ACEITA, e a conta é mecânica, não gosto.
+ *
+ * O invólucro da seção é `display: contents`, então o que atravessa até os filhos é o que o CSS
+ * HERDA. `background` não herda — foi por isso que a casa inventou `--unbox-sec-bg` mais a regra do
+ * filho direto. E `negrito` fica de fora porque escreve a MESMA propriedade que `peso`: num nível
+ * que herda, dois donos da mesma propriedade não têm desempate possível.
+ */
+export const CAMPOS_DA_SECAO = ["background", "fonte", "peso", "caixa", "alinhamento", "espacamento", "italico"];
+
+/**
+ * NOME DE FAMÍLIA em formato fechado. O valor termina dentro de um `font-family:` — no `style=` do
+ * elemento e, no caso do token, dentro de um `<style>` inteiro. Então passa só letra, número,
+ * espaço, hífen, ponto e sublinhado (o next/font batiza as famílias de `__Inter_36bd41`). Sem aspas,
+ * sem vírgula (lista de famílias é decisão nossa, não do valor gravado), sem `;`, `}` nem `<`: era
+ * por aí que `Arial;}</style><script>` entrava.
+ */
+export function ehFamiliaDeLetra(v: string): boolean {
+  const t = v.trim();
+  return t.length > 0 && t.length <= 64 && /^[A-Za-z0-9 _.-]+$/.test(t);
 }
 
 /** registro de honestidade: quem declarou, quando, e (numa cópia) de qual caminho veio */
@@ -2433,13 +2517,72 @@ export interface ManifestSectionType {
   descricao?: string;
   kind?: SectionKind;
 }
+/**
+ * O QUE UM TOKEN GUARDA (foundation 14). Ausente = "cor", que é o que todo token sempre foi — e é
+ * por isso que loja antiga continua funcionando sem mexer numa linha do `tokens.ts` dela.
+ *  · cor    — `#18181B`, o que o editor sempre soube escrever
+ *  · fonte  — uma família que a loja CARREGOU (a lista vem de `Manifest.fontes`)
+ *  · escala — número puro que MULTIPLICA a escada de títulos inteira (1 é o desenho do construtor)
+ */
+export type TipoDeToken = "cor" | "fonte" | "escala";
+/** um degrau com nome, para o token que não é cor (`{ valor: "1.1", label: "Maior" }`) */
+export interface OpcaoDeToken {
+  valor: string;
+  label: string;
+}
+
 export interface ManifestToken {
   token: string;
   label: string;
+  /** ausente = cor (ver `TipoDeToken`) */
+  tipo?: TipoDeToken;
+  /** os degraus que o painel oferece, para o token de escala. Fora desta lista, `validateOp` recusa */
+  opcoes?: OpcaoDeToken[];
   /** valor computado no navegador (cor de fato em uso, com o rascunho aplicado) */
   current?: string;
   /** valor do código, sem o rascunho: é o que vale depois de um "reset" */
   original?: string;
+}
+
+/**
+ * UMA LETRA QUE A LOJA CARREGOU DE VERDADE (foundation 14), lida do navegador na prévia.
+ *
+ * É o que deixa o painel oferecer só o que existe: as fontes de uma loja são as que estão no projeto
+ * dela, e prometer uma que ninguém carregou faria o navegador cair num substituto — o lojista veria
+ * "aplicado" numa letra que não é a que ele escolheu.
+ */
+export interface ManifestFonte {
+  /** o nome que vai para o `font-family` (`__Inter_36bd41` no caso do next/font) */
+  familia: string;
+  /** o nome que o lojista lê ("Inter") */
+  rotulo: string;
+  /** os pesos carregados, de 100 a 900. Fonte variável chega como FAIXA e já sai daqui em degraus */
+  pesos: number[];
+}
+
+/**
+ * ESTE VALOR SERVE PARA ESTE TOKEN? Régua única, chamada nos DOIS lugares que decidem: `validateOp`
+ * (quem grava) e o filtro do `<style>` do provider (quem pinta na prévia). Duas réguas seria o
+ * lojista mexer no tamanho, o editor dizer que aplicou, e nada andar na tela.
+ *
+ * `fontes` é opcional porque os dois lugares sabem coisas diferentes: o servidor tem o manifesto e
+ * cobra a lista do que a loja carregou; a prévia, sem ela, cobra ao menos o formato fechado.
+ */
+export function tokenAceita(spec: { tipo?: TipoDeToken; opcoes?: OpcaoDeToken[] } | undefined, valor: string, fontes?: ManifestFonte[]): boolean {
+  if (!spec) return false;
+  const tipo = spec.tipo ?? "cor";
+  if (tipo === "cor") return isColor(valor);
+  if (tipo === "escala") return (spec.opcoes ?? []).some((o) => o.valor === valor);
+  if (!ehFamiliaDeLetra(valor)) return false;
+  return fontes === undefined ? true : fontes.some((f) => f.familia === valor.trim());
+}
+
+/** por que este valor não serve, na língua de quem grava (o painel traduz em `lib/mensagens`) */
+export function recusaDeToken(spec: { token: string; tipo?: TipoDeToken }, valor: string): string {
+  const tipo = spec.tipo ?? "cor";
+  if (tipo === "fonte") return `letra indisponível: ${valor}`;
+  if (tipo === "escala") return `tamanho de título inválido: ${valor}`;
+  return `cor inválida: ${valor}`;
 }
 /**
  * UM EDITÁVEL QUE A LOJA RECUSOU PORQUE ELE CAIU NA RAIZ DO DOCUMENTO (foundation 11+).
@@ -2490,6 +2633,12 @@ export interface Manifest {
    * toda operação de página com a frase do painel.
    */
   paginasDoLojista?: ManifestPaginasDoLojista;
+  /**
+   * A LETRA QUE ESTA LOJA CARREGOU (foundation 14). Ausente = loja anterior à 14 (ou prévia que ainda
+   * não respondeu): o painel não oferece troca de fonte, e `validateOp` cobra só o formato fechado,
+   * porque sem a lista não há como saber que a escolha existe no projeto da loja.
+   */
+  fontes?: ManifestFonte[];
 }
 export interface ManifestPaginasDoLojista {
   foundation: 13;
@@ -2748,7 +2897,17 @@ export function validateValueShape(v: unknown, tipo?: EditableType): { ok: true;
   const o = v as Record<string, unknown>;
   if ("modo" in o) return vitrineValida(o) ? { ok: true, value: o as unknown as EditableValue } : { ok: false, reason: "escolha de vitrine inválida (modo, categoria/produtos/busca, limite)" };
   const chaves = Object.keys(o);
-  const permitidas = "src" in o ? ["src", "alt"] : "href" in o ? ["href", "label"] : ["color", "background"];
+  // ESTILO é o único objeto cujos campos não são todos texto (`peso` é número, `italico` é sim/não),
+  // e por isso ele sai do laço geral: quem sabe a forma de cada campo é a régua da letra, não este
+  // "tem de ser string". Sem esta porta, `{peso: 700}` voltaria como "peso precisa ser texto".
+  if (!("src" in o) && !("href" in o)) {
+    for (const k of chaves) {
+      if (!CAMPOS_DO_ESTILO.includes(k)) return { ok: false, reason: `campo inesperado: ${k}` };
+      if (o[k] !== undefined && !REGRA_DA_LETRA[k](o[k])) return { ok: false, reason: `${k} inválido` };
+    }
+    return { ok: true, value: o as unknown as EditableValue };
+  }
+  const permitidas = "src" in o ? ["src", "alt"] : ["href", "label"];
   for (const k of chaves) {
     if (!permitidas.includes(k)) return { ok: false, reason: `campo inesperado: ${k}` };
     if (o[k] !== undefined && (typeof o[k] !== "string" || (o[k] as string).length > TEXTO_MAX)) return { ok: false, reason: `${k} precisa ser texto` };
@@ -2797,12 +2956,22 @@ export function validateOp(op: PatchOp, manifest: Manifest, doc?: ContentDocumen
         if (!be && !secao) return { ok: false, reason: `caminho inexistente: ${base}` };
         if (foraDeSecao(be, base)) return RAIZ(op.path);
         if (be && be.type !== "text" && be.type !== "link") return { ok: false, reason: `estilo só em texto e link (${base} é ${be.type})` };
-        if (secao && typeof op.value === "object" && op.value !== null && "color" in op.value) return { ok: false, reason: "em seção, o estilo é só o fundo (background)" };
-        if (typeof op.value !== "object" || op.value === null) return { ok: false, reason: "estilo precisa ser um objeto {color, background}" };
+        if (typeof op.value !== "object" || op.value === null) return { ok: false, reason: "estilo precisa ser um objeto" };
         const st = op.value as Record<string, unknown>;
+        // em SEÇÃO só entra o que HERDA até os filhos (ver `CAMPOS_DA_SECAO`): fundo tem mecânica
+        // própria, cor de texto e negrito ficam de fora
+        const aceitos = secao ? CAMPOS_DA_SECAO : CAMPOS_DO_ESTILO;
         for (const k of Object.keys(st)) {
-          if (k !== "color" && k !== "background") return { ok: false, reason: `estilo não aceita ${k}` };
-          if (typeof st[k] !== "string" || !isColor(st[k] as string)) return { ok: false, reason: `cor inválida em ${k}` };
+          if (!aceitos.includes(k)) return { ok: false, reason: secao && CAMPOS_DO_ESTILO.includes(k) ? `estilo não aceita ${k} em seção` : `estilo não aceita ${k}` };
+          if (!REGRA_DA_LETRA[k](st[k])) return { ok: false, reason: k === "color" || k === "background" ? `cor inválida em ${k}` : `${k} inválido em ${base}` };
+        }
+        // a letra que a loja NÃO carregou não vira `font-family` de nada: o navegador cairia num
+        // substituto e o lojista veria "aplicado" numa letra que não é a que ele escolheu
+        if (typeof st.fonte === "string" && manifest.fontes && !manifest.fontes.some((f) => f.familia === (st.fonte as string).trim())) {
+          return { ok: false, reason: `letra indisponível: ${st.fonte}` };
+        }
+        if (typeof st.peso === "number" && manifest.fontes && !manifest.fontes.some((f) => f.pesos.includes(st.peso as number))) {
+          return { ok: false, reason: `peso indisponível: ${st.peso}` };
         }
         return { ok: true };
       }
@@ -2849,10 +3018,12 @@ export function validateOp(op: PatchOp, manifest: Manifest, doc?: ContentDocumen
       if (foraDeSecao(byPath.get(base), base)) return RAIZ(op.path);
       return byPath.has(op.path) || (isStylePath(op.path) && (byPath.has(base) || manifest.sections.some((x) => `${x.container}.${x.id}` === base))) ? { ok: true } : { ok: false, reason: `caminho inexistente: ${op.path}` };
     }
-    case "set_token":
-      if (!tokens.has(op.token)) return { ok: false, reason: `token não editável: ${op.token}` };
-      if (!isColor(op.value)) return { ok: false, reason: `cor inválida: ${op.value}` };
-      return { ok: true };
+    case "set_token": {
+      const spec = manifest.tokens.find((t) => t.token === op.token);
+      if (!spec) return { ok: false, reason: `token não editável: ${op.token}` };
+      if (typeof op.value !== "string") return { ok: false, reason: recusaDeToken(spec, String(op.value)) };
+      return tokenAceita(spec, op.value, manifest.fontes) ? { ok: true } : { ok: false, reason: recusaDeToken(spec, op.value) };
+    }
     case "unset_token":
       return tokens.has(op.token) ? { ok: true } : { ok: false, reason: `token não editável: ${op.token}` };
     case "set_order": {
@@ -3198,15 +3369,106 @@ export function textsOfValue(v: EditableValue, tipo?: EditableType): string[] {
   return ["label", "alt"].map((k) => o[k]).filter((x): x is string => typeof x === "string" && x.length > 0);
 }
 
-/** Estilo de um elemento (só cores válidas passam; o resto é ignorado). */
-export function resolveStyle(doc: ContentDocument | null | undefined, path: string): { color?: string; background?: string } | undefined {
+/**
+ * O QUE O ELEMENTO RECEBE DE ESTILO, já em propriedades do CSS.
+ *
+ * A tradução (português do documento → nome do CSS) mora AQUI e só aqui: quem aplica são quatro
+ * lugares diferentes em primitives.tsx, e quatro traduções viram quatro dialetos.
+ */
+export interface EstiloResolvido {
+  color?: string;
+  background?: string;
+  fontFamily?: string;
+  fontWeight?: number;
+  textTransform?: "none" | "uppercase" | "lowercase" | "capitalize";
+  textAlign?: "left" | "center" | "right";
+  letterSpacing?: string;
+  fontStyle?: "italic" | "normal";
+}
+
+/**
+ * O estilo de uma SEÇÃO inteira, pronto para o invólucro `display: contents`.
+ *
+ * A família e o peso saem TAMBÉM como variável, e sem isso metade do pedido não chegaria: valor
+ * herdado só vale quando nenhuma declaração casa com o elemento, e a escada de títulos declara
+ * família e peso direto em `h1..h4`. A regra do elemento vence o herdado, sempre. Variável herda por
+ * conta própria e a escada a lê — mesmo truque do `--unbox-sec-bg`, e mais barato, porque não
+ * precisa de regra no filho direto.
+ */
+export interface EstiloDeSecao extends Omit<EstiloResolvido, "background"> {
+  "--unbox-sec-bg"?: string;
+  "--unbox-sec-fonte-titulo"?: string;
+  "--unbox-sec-peso-titulo"?: number;
+}
+
+const CAIXA_EM_CSS: Record<CaixaDaLetra, "none" | "uppercase" | "lowercase" | "capitalize"> = {
+  nenhuma: "none",
+  maiuscula: "uppercase",
+  minuscula: "lowercase",
+  capitular: "capitalize",
+};
+const ALINHAMENTO_EM_CSS: Record<AlinhamentoDoTexto, "left" | "center" | "right"> = {
+  esquerda: "left",
+  centro: "center",
+  direita: "right",
+};
+/** os três degraus em `em` (e não px) porque espaçamento de letra acompanha o tamanho do título */
+const ESPACAMENTO_EM_CSS: Record<EspacamentoDaLetra, string> = {
+  apertado: "-0.02em",
+  normal: "0em",
+  solto: "0.06em",
+};
+
+/**
+ * O objeto gravado → propriedades do CSS. Só passa o que a régua aceita; o resto é ignorado calado,
+ * porque aqui é a LOJA lendo o publicado (documento de uma versão mais nova, campo que já não
+ * existe), e trocar a página por uma tela de erro seria pior que ignorar um campo.
+ */
+export function estiloEmCss(st: Record<string, unknown>): EstiloResolvido | undefined {
+  const out: EstiloResolvido = {};
+  if (REGRA_DA_LETRA.color(st.color)) out.color = st.color as string;
+  if (REGRA_DA_LETRA.background(st.background)) out.background = st.background as string;
+  if (REGRA_DA_LETRA.fonte(st.fonte)) out.fontFamily = (st.fonte as string).trim();
+  // `negrito` é ATALHO de `peso`, e vindo os dois quem vence é `peso`, que é o número declarado.
+  // Duas chaves escrevendo font-weight sem desempate escrito é o empate que vira defeito de campo.
+  if (REGRA_DA_LETRA.peso(st.peso)) out.fontWeight = st.peso as number;
+  else if (REGRA_DA_LETRA.negrito(st.negrito)) out.fontWeight = st.negrito ? 700 : 400;
+  if (REGRA_DA_LETRA.caixa(st.caixa)) out.textTransform = CAIXA_EM_CSS[st.caixa as CaixaDaLetra];
+  if (REGRA_DA_LETRA.alinhamento(st.alinhamento)) out.textAlign = ALINHAMENTO_EM_CSS[st.alinhamento as AlinhamentoDoTexto];
+  if (REGRA_DA_LETRA.espacamento(st.espacamento)) out.letterSpacing = ESPACAMENTO_EM_CSS[st.espacamento as EspacamentoDaLetra];
+  if (REGRA_DA_LETRA.italico(st.italico)) out.fontStyle = st.italico ? "italic" : "normal";
+  return Object.keys(out).length ? out : undefined;
+}
+
+/** Estilo de um elemento (só o que a régua de cada campo aceita passa; o resto é ignorado). */
+export function resolveStyle(doc: ContentDocument | null | undefined, path: string): EstiloResolvido | undefined {
   const v = doc?.values[path + ESTILO];
   if (!v || typeof v !== "object") return undefined;
-  const st = v as Record<string, unknown>;
-  const out: { color?: string; background?: string } = {};
-  if (typeof st.color === "string" && isColor(st.color)) out.color = st.color;
-  if (typeof st.background === "string" && isColor(st.background)) out.background = st.background;
-  return out.color || out.background ? out : undefined;
+  return estiloEmCss(v as Record<string, unknown>);
+}
+
+/** Estilo de uma SEÇÃO inteira: só o que herda bem, com fundo, família e peso em variável. */
+export function resolveStyleDeSecao(doc: ContentDocument | null | undefined, path: string): EstiloDeSecao | undefined {
+  const v = doc?.values[path + ESTILO];
+  if (!v || typeof v !== "object") return undefined;
+  // filtra ANTES de traduzir: `negrito` escreve a mesma propriedade que `peso` e não entra em seção,
+  // e a régua de leitura tem de dizer o mesmo que a de escrita — senão um documento escrito à mão
+  // faria na tela o que o editor recusa pela porta da frente
+  const st = Object.fromEntries(Object.entries(v as Record<string, unknown>).filter(([k]) => CAMPOS_DA_SECAO.includes(k)));
+  const css = estiloEmCss(st);
+  if (!css) return undefined;
+  const { background, fontFamily, fontWeight, ...herdaveis } = css;
+  const out: EstiloDeSecao = { ...herdaveis };
+  if (background) out["--unbox-sec-bg"] = background;
+  if (fontFamily) {
+    out.fontFamily = fontFamily;
+    out["--unbox-sec-fonte-titulo"] = fontFamily;
+  }
+  if (fontWeight) {
+    out.fontWeight = fontWeight;
+    out["--unbox-sec-peso-titulo"] = fontWeight;
+  }
+  return Object.keys(out).length ? out : undefined;
 }
 
 /**

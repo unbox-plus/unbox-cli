@@ -147,6 +147,39 @@ export function applyHeroAssets(targetDir, presetName, tokens, neutrals) {
   }
 }
 
+/**
+ * A LETRA E O TAMANHO DOS TÍTULOS, conferidos aos pares.
+ *
+ * São DUAS pontas que só valem juntas, e por isso a conferência é uma só:
+ *   · `app/globals.css` tem a escada de h1 a h4, multiplicada por `--store-escala-titulos`,
+ *     e lê `--store-fonte-titulo` / `--store-fonte-texto` na família;
+ *   · `lib/editable/tokens.ts` declara os três ao editor, com `tipo` e (na escala) `opcoes`.
+ *
+ * Faltando qualquer uma, o defeito é sempre o mesmo e é o pior que este projeto conhece: o
+ * lojista mexe no tamanho ou na letra, o painel diz que aplicou, e a tela não muda. Sem token
+ * declarado, o editor recusa a operação e o chat responde "isso não faz parte do que esta loja
+ * deixa mudar" numa loja que deixa. Sem a escada no CSS, a operação passa e não pinta nada.
+ *
+ * Não SEMEIA a lista: ela já vem no template, que é o que a loja gerada copia. Escrevê-la aqui
+ * de novo seria manter a mesma lista em dois lugares, e no dia seguinte seriam duas listas. O
+ * que muda por loja é o VALOR, e esse já entra por `applyBrandTokens` — um preset que queira
+ * títulos maiores declara `"--store-escala-titulos": "1.1"` nos `axes` e nada mais é preciso.
+ */
+export function checarLetraDaLoja(targetDir) {
+  const css = path.join(targetDir, "app", "globals.css");
+  const tokens = path.join(targetDir, "lib", "editable", "tokens.ts");
+  const texto = fs.existsSync(css) ? fs.readFileSync(css, "utf8") : "";
+  if (!/--store-escala-titulos/.test(texto) || !/--store-fonte-titulo/.test(texto)) {
+    throw new Error("[create-unbox-store] a escada de títulos sumiu de app/globals.css (--store-escala-titulos / --store-fonte-titulo): a foundation pode ter mudado.");
+  }
+  const lista = fs.existsSync(tokens) ? fs.readFileSync(tokens, "utf8") : "";
+  for (const token of ["--store-fonte-titulo", "--store-fonte-texto", "--store-escala-titulos"]) {
+    if (!lista.includes(token)) {
+      throw new Error(`[create-unbox-store] ${token} não está em lib/editable/tokens.ts: a loja teria a escada no CSS e o editor sem como mexer nela.`);
+    }
+  }
+}
+
 /** Aplica o preset inteiro: tokens (cores+neutros+radius), fontes, receita e heros. */
 export function applyPreset(targetDir, presetName, brandTokens) {
   const preset = PRESETS[presetName];
@@ -158,6 +191,7 @@ export function applyPreset(targetDir, presetName, brandTokens) {
     "--radius": preset.radius, "--motion": motion,
   });
   applyFonts(targetDir, preset);
+  checarLetraDaLoja(targetDir);
   applyHomeRecipe(targetDir, preset);
   applyChromeRecipe(targetDir, preset);
   applyHeroAssets(targetDir, presetName, brandTokens, preset.neutrals);

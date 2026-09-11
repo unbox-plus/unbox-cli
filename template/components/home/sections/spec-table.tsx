@@ -66,7 +66,7 @@ export function SpecTableSection({ sectionProps = {} }: SectionComponentProps) {
     <div className="mt-[52px] bg-[var(--store-surface-2)]">
       <div className="mx-auto grid max-w-[var(--container-max,1240px)] items-center gap-8 px-4 py-12 sm:px-6 md:grid-cols-[1fr_1.1fr_0.9fr]">
         <div>
-          <Editable.Text as="h2" path="titulo" fallback={title} label="Título" className="font-display text-[26px] font-extrabold leading-[1.2]" />
+          <Editable.Text as="h2" path="titulo" fallback={title} label="Título" className="font-display" />
           {text && <Editable.Text as="p" path="texto" fallback={text} label="Texto" multiline className="mt-2.5 text-[14.5px] leading-[1.55] text-[var(--store-muted)]" />}
           <Editable.Slot path="cta" type="text" fallback={ctaLabel} label="Botão que abre a ficha">
             {(v, attrs, ref, estilo) => (
@@ -98,7 +98,7 @@ export function SpecTableSection({ sectionProps = {} }: SectionComponentProps) {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setOpen(false)}>
           <div className="max-h-[85vh] w-full max-w-[560px] overflow-y-auto rounded-2xl bg-white p-6" onClick={(e) => e.stopPropagation()}>
             <div className="mb-4 flex items-center justify-between">
-              <h3 className="font-display text-[20px] font-extrabold">{modalTitle}</h3>
+              <h3 className="font-display">{modalTitle}</h3>
               <button type="button" onClick={() => setOpen(false)} aria-label="Fechar" className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--store-line-2)] hover:bg-[var(--store-surface)]"><X weight="bold" /></button>
             </div>
             <div className="rounded-xl border border-[var(--store-line-2)]">

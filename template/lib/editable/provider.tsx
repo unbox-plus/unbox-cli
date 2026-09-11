@@ -30,11 +30,18 @@ import {
   type ManifestSectionType,
   type ManifestSemContainer,
   emptyDocument,
-  isColor, juntarFatia, normalizarPagina, resolveValue, type SectionKind, SECTION_KIND_LABEL } from "./document";
+  type ManifestFonte,
+  type OpcaoDeToken,
+  type TipoDeToken,
+  ehFamiliaDeLetra, juntarFatia, normalizarPagina, PESOS_DA_LETRA, resolveValue, type SectionKind, SECTION_KIND_LABEL, tokenAceita } from "./document";
 
 export interface EditableTokenSpec {
   token: string;
   label: string;
+  /** ausente = cor, que é o que todo token sempre foi (ver `TipoDeToken` em document.ts) */
+  tipo?: TipoDeToken;
+  /** os degraus com nome do token de escala ("Menor", "Padrão", "Maior"…) */
+  opcoes?: OpcaoDeToken[];
 }
 
 interface Registration {
@@ -155,6 +162,52 @@ function detectEditing(): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * O QUE O NAVEGADOR CARREGOU DE LETRA NESTA PÁGINA (foundation 14).
+ *
+ * As fontes de uma loja são as que estão no projeto DELA. Em vez de o editor manter uma lista (100
+ * lojas, 100 listas), a prévia pergunta ao navegador — o mesmo movimento que o manifesto já faz com
+ * a cor, lendo o valor computado em vez de acreditar no código.
+ */
+function letrasCarregadas(): ManifestFonte[] {
+  if (typeof document === "undefined" || !document.fonts) return [];
+  const porFamilia = new Map<string, Set<number>>();
+  document.fonts.forEach((f) => {
+    const familia = (f.family || "").replace(/^["']|["']$/g, "").trim();
+    if (!familia || !ehFamiliaDeLetra(familia)) return;
+    // o next/font registra, ao lado de cada família, uma "… Fallback": é métrica de substituição
+    // (serve para o texto não pular quando a letra de verdade chega), não é escolha de ninguém, e
+    // oferecê-la ao lojista seria oferecer a letra do sistema com nome de marca
+    if (/fallback/i.test(familia)) return;
+    const pesos = porFamilia.get(familia) ?? new Set<number>();
+    for (const p of pesosDoDescritor(f.weight)) pesos.add(p);
+    porFamilia.set(familia, pesos);
+  });
+  return [...porFamilia.entries()]
+    .map(([familia, pesos]) => ({ familia, rotulo: rotuloDaLetra(familia), pesos: [...pesos].sort((a, b) => a - b) }))
+    .sort((a, b) => a.rotulo.localeCompare(b.rotulo, "pt-BR"));
+}
+
+/**
+ * O peso de uma FontFace é "600" numa fonte estática e "100 900" numa VARIÁVEL — uma FAIXA (medido
+ * no Geist Mono de uma loja construída). Sem transformar faixa em degraus, o painel ofereceria um
+ * seletor com uma opção só, escrita "100 900".
+ */
+function pesosDoDescritor(w: string): number[] {
+  const nums = ((w || "400").match(/\d{2,3}/g) ?? []).map(Number).filter((n) => n >= 100 && n <= 900);
+  if (nums.length === 0) return [400];
+  if (nums.length === 1) return [Math.round(nums[0] / 100) * 100];
+  const menor = Math.min(...nums);
+  const maior = Math.max(...nums);
+  return PESOS_DA_LETRA.filter((p) => p >= menor && p <= maior);
+}
+
+/** "__Playfair_Display_36bd41" → "Playfair Display": o nome que o next/font gera não é nome de ler. */
+function rotuloDaLetra(familia: string): string {
+  const limpo = familia.replace(/^_+/, "").replace(/_[0-9a-z]{4,}$/i, "").replace(/_/g, " ").trim();
+  return limpo || familia;
 }
 
 /** fundo por seção: o invólucro é `display: contents`; a variável herda e o filho direto pinta (e um gradiente do código sai da frente) */
@@ -582,8 +635,14 @@ export function EditableProvider({
     //      (a prop): o número diz que a lib sabe; a prop diz que ESTA loja tem as rotas. Sem os dois,
     //      `validateOp` recusa toda operação de página, porque o registro entraria no documento e a loja
     //      responderia 404 para sempre.
+    // 14 = A LETRA. A escada de títulos mora no CSS da loja e é multiplicada por um token de escala; o
+    //      `.estilo` de um elemento passou a aceitar letra (família, peso, caixa, alinhamento,
+    //      espaçamento, itálico, negrito) e a seção passou a aceitar o que HERDA; e o manifesto diz
+    //      quais letras a loja carregou (`fontes`). Abaixo de 14 a loja não lê nada disso: o painel
+    //      não oferece a troca, porque o valor entraria no documento e a tela ficaria igual.
     const fora: ManifestSemContainer[] = [...semContainer.current.values()].map((r) => ({ ...r, pagina }));
-    return { shop, capturedAt: new Date().toISOString(), url: pagina, foundation: 13, entries, sections: secs, tipos, semContainer: fora, tokens: toks, ...(apps ? { apps } : {}), ...(paginasDoLojista ? { paginasDoLojista } : {}) };
+    const fontes = letrasCarregadas();
+    return { shop, capturedAt: new Date().toISOString(), url: pagina, foundation: 14, entries, sections: secs, tipos, semContainer: fora, tokens: toks, ...(fontes.length ? { fontes } : {}), ...(apps ? { apps } : {}), ...(paginasDoLojista ? { paginasDoLojista } : {}) };
   }, [shop, tokens, apps, paginasDoLojista]);
 
   // manifesto: publica depois que os registros assentam (debounce)
@@ -872,11 +931,13 @@ export function EditableProvider({
   );
 
   // tokens editados → :root. Só os da allowlist da loja.
-  const allowed = React.useMemo(() => new Set(tokens.map((t) => t.token)), [tokens]);
-  // segunda trava, no cliente: só token da allowlist E só valor em formato de cor —
-  // este texto entra num <style> cru, então o formato fechado é a defesa.
+  const porToken = React.useMemo(() => new Map(tokens.map((t) => [t.token, t])), [tokens]);
+  // segunda trava, no cliente: só token da allowlist E só valor que a régua DAQUELE token aceita —
+  // este texto entra num <style> cru, então o formato fechado é a defesa. A régua é a MESMA que o
+  // servidor usa para gravar (`tokenAceita`, em document.ts), e de propósito: se aqui coubesse
+  // menos, o lojista trocaria a letra, o editor diria que aplicou, e nada andaria na prévia.
   const tokenCss = Object.entries(doc.tokens ?? {})
-    .filter(([k, v]) => allowed.has(k) && /^--[a-z0-9-]+$/.test(k) && typeof v === "string" && isColor(v))
+    .filter(([k, v]) => porToken.has(k) && /^--[a-z0-9-]+$/.test(k) && typeof v === "string" && tokenAceita(porToken.get(k), v))
     .map(([k, v]) => `${k}:${v.trim()}`)
     .join(";");
 

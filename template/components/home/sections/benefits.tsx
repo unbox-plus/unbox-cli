@@ -64,7 +64,7 @@ export function BenefitsSection({ sectionProps = {} }: SectionComponentProps) {
   return (
     <div className="mx-auto max-w-[var(--container-max,1240px)] px-4 pt-[var(--section-gap,52px)] sm:px-6">
       <div className="mx-auto max-w-[620px] text-center">
-        <Editable.Text as="h2" path="titulo" fallback={title} label="Título" className="font-display text-[28px] font-extrabold leading-[1.15]" />
+        <Editable.Text as="h2" path="titulo" fallback={title} label="Título" className="font-display" />
         <Editable.Text as="p" path="subtitulo" fallback={subtitle} label="Subtítulo" className="mt-2 text-[15px] text-[var(--store-muted)]" />
       </div>
       <div className="mt-9 grid items-center gap-8 md:grid-cols-[1fr_minmax(240px,340px)_1fr]">

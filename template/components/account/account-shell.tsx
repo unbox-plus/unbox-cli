@@ -37,7 +37,7 @@ export function AccountShell({ title, children }: { title: string; children: Rea
           </aside>
 
           <section>
-            <h1 className="font-display mb-5 text-[27px] font-extrabold leading-[1.12]">{title}</h1>
+            <h1 className="font-display mb-5">{title}</h1>
             {children}
           </section>
         </div>

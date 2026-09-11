@@ -44,7 +44,7 @@ export default async function BuscaPage({ searchParams }: { searchParams: Promis
           <span className="font-semibold text-[var(--store-ink)]">Busca</span>
         </div>
 
-        <h1 className="font-display mt-4 text-[28px] font-extrabold leading-[1.12]">Buscar produtos</h1>
+        <h1 className="font-display mt-4">Buscar produtos</h1>
         <SearchBox defaultValue={q} className="mt-4 max-w-xl" />
 
         <div className="mt-7">

@@ -25,11 +25,22 @@ com um comentário de "quando usar / quando não usar"; os de seção não, por 
 | Quero | Arquivo |
 |---|---|
 | Cores da marca, tipografia, raio, ritmo vertical, largura de container | `app/globals.css` (tokens `--store-*` no topo; o resto do arquivo deriva daí) |
+| Tamanho, peso ou entrelinha de QUALQUER título | `app/globals.css`, bloco "A ESCADA DOS TÍTULOS" — e só ele (veja abaixo) |
 | Trocar o logo | `public/brand/logo.svg` (+ `logo-white.svg`, `logo-chrome.svg` para fundo escuro) |
 | Intensidade de animação/parallax | token `--motion` em `app/globals.css` (`0` desliga tudo) |
 | Qual header e qual rodapé a loja usa | `components/chrome/chrome-recipe.ts` (só troca os nomes; as variantes já existem) |
 | Barra de aviso do topo | `components/chrome/announce-bar.tsx` |
 | Menu mobile | `components/chrome/header-bar-mobile.tsx` |
+
+**Título não leva tamanho na classe.** `h1` a `h4` já têm tamanho, peso, família e entrelinha na
+escada de `app/globals.css`, e é de lá que o lojista mexe em todos de uma vez pelo editor. Escrever
+`text-[26px]`, `font-extrabold` ou `leading-[1.1]` num título faz três estragos de uma vez: a classe
+vence a escada, o seletor de tamanho do editor deixa de mover aquele título, e a troca de fonte da
+seção passa por cima dele sem tocá-lo. Se o título precisa MESMO de outro tamanho (é o caso do herói
+e do nome do produto), a saída é uma classe nova no mesmo bloco da escada, em `clamp()` e multiplicada
+por `--store-escala-titulos` — nunca um ponto de quebra (`sm:`), que é um salto seco numa largura só.
+Escolha o degrau pelo que o título É: `h1` título de página, `h2` título de seção, `h3` subtítulo
+dentro de uma seção, `h4` rótulo de bloco.
 
 **Não edite** `site-header.tsx` / `site-footer.tsx` para trocar aparência. Eles são a casca fixa:
 fazem o fetch, derivam o nome da loja e montam o `<header>`/`<footer>` raiz. O miolo variável

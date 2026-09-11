@@ -20,6 +20,7 @@ export default async function PedidoPage({ params }: { params: Promise<{ referen
       <div className="store-layout full-bleed bg-white text-[var(--store-ink)]">
         <div className="mx-auto max-w-[560px] px-4 py-12 sm:px-6">
           <EmptyState
+            tituloComo="h1"
             title="Não foi possível exibir este pedido"
             description="Entre na sua conta para ver este pedido."
           >
@@ -40,7 +41,7 @@ export default async function PedidoPage({ params }: { params: Promise<{ referen
             <CheckCircle weight="fill" className="text-[30px]" />
           </span>
           <div>
-            <h1 className="font-display text-[26px] font-extrabold leading-[1.1]">Pedido recebido</h1>
+            <h1 className="font-display">Pedido recebido</h1>
             <p className="mt-0.5 text-[14px] text-[var(--store-muted)]">
               {order.paid ? "Pagamento confirmado." : "Acompanhe o status do pagamento abaixo."}
             </p>

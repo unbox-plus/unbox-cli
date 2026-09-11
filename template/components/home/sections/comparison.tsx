@@ -45,7 +45,7 @@ export function ComparisonSection({ sectionProps = {} }: SectionComponentProps) 
   if (rows.length === 0) return null; // comparativo é afirmação sobre o produto: só com dado da marca
   return (
     <div className="mx-auto max-w-[880px] px-4 pt-[var(--section-gap,52px)] sm:px-6">
-      <Editable.Text as="h2" path="titulo" fallback={title} label="Título" className="font-display text-center text-[28px] font-extrabold leading-[1.15]" />
+      <Editable.Text as="h2" path="titulo" fallback={title} label="Título" className="font-display text-center" />
       <div className="mt-7 overflow-hidden rounded-2xl border border-[var(--store-line-2)] bg-white">
         <div className="grid grid-cols-[1.6fr_1fr_1fr] border-b border-[var(--store-line)] bg-[var(--store-surface)] text-center">
           <div />

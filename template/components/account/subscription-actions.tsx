@@ -78,7 +78,7 @@ export function SubscriptionActions({
 
   return (
     <div className="mt-6">
-      <h2 className="font-display mb-3 text-[16px] font-bold text-[var(--store-ink)]">Gerenciar assinatura</h2>
+      <h4 className="font-display mb-3 text-[var(--store-ink)]">Gerenciar assinatura</h4>
       <div className="flex flex-wrap gap-2">
         {actions.canPause && (
           <button type="button" className={CHIP} disabled={!!busy} onClick={() => run("pause", {}, paused ? "Assinatura retomada." : "Assinatura pausada.")}>

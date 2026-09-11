@@ -73,7 +73,7 @@ export function CascaDeColecao({
               fallback={titulo}
               label="Título"
               // `break-words` pelo motivo escrito em casca-de-pagina.tsx: o título é do lojista
-              className="font-display mt-4 block break-words text-[clamp(28px,4.6vw,44px)] font-bold leading-[1.15] text-[var(--store-ink)]"
+              className="font-display titulo-capa mt-4 block break-words text-[var(--store-ink)]"
             />
             {temDescricao || ctx.editing ? (
               <Editable.Text
@@ -166,7 +166,7 @@ function CardDoArtigo({ artigo, colecao }: { artigo: ArtigoDaLista; colecao: str
         ) : null}
         {/* `break-words` pelo motivo escrito em casca-de-pagina.tsx: o título é do lojista, e num
             card de grade uma palavra longa empurra a coluna inteira */}
-        <h2 className="font-display break-words text-[19px] font-semibold leading-[1.25] text-[var(--store-ink)] group-hover:underline">{titulo}</h2>
+        <h3 className="font-display break-words font-semibold text-[var(--store-ink)] group-hover:underline">{titulo}</h3>
         {quando || artigo.registro.autor ? (
           <p className="flex flex-wrap items-center gap-2 text-[13px] text-[var(--store-muted)]">
             {quando ? <time dateTime={quando.iso}>{quando.porExtenso}</time> : null}

@@ -175,7 +175,7 @@ export function BuyBox({
     <div>
       <Editable.Text as="div" path="chapeu" fallback="PRODUTO" label="Chapéu acima do nome do produto" className="text-xs font-extrabold tracking-[1.5px] text-[var(--store-primary,#18181B)]" />
       {/* nome do produto: dado do catálogo */}
-      <h1 data-editor-ignore className="font-display mt-2 mb-2.5 text-[27px] font-extrabold leading-[1.12] text-[var(--store-ink)] sm:text-[34px]">
+      <h1 data-editor-ignore className="font-display titulo-produto mt-2 mb-2.5 text-[var(--store-ink)]">
         {title}
       </h1>
 

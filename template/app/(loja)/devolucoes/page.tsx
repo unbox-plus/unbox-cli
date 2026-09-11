@@ -6,16 +6,16 @@ export const metadata: Metadata = { title: "Trocas e devoluções", alternates: 
 
 export default function DevolucoesPage() {
   return (
-    <article className="mx-auto max-w-2xl">
-      <h1 className="text-2xl font-bold">Trocas e devoluções</h1>
+    <article className="texto-rico mx-auto max-w-2xl">
+      <h1>Trocas e devoluções</h1>
 
-      <h2 className="mt-6 text-lg font-semibold">Direito de arrependimento (CDC, art. 49)</h2>
+      <h2>Direito de arrependimento (CDC, art. 49)</h2>
       <p className="mt-2 text-sm text-muted-foreground">
         Você pode desistir da compra em até <strong>7 dias corridos</strong> a partir do recebimento do
         produto. Nesse caso, devolvemos o valor pago, incluindo o frete.
       </p>
 
-      <h2 className="mt-6 text-lg font-semibold">Como solicitar</h2>
+      <h2>Como solicitar</h2>
       <p className="mt-2 text-sm text-muted-foreground">
         Entre na sua conta, localize o pedido em <Link href="/conta/pedidos" className="text-primary underline">Meus pedidos</Link> e
         solicite o cancelamento/devolução, ou fale com nosso atendimento informando o código do pedido.

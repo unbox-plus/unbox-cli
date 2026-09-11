@@ -92,7 +92,7 @@ export function CombosCarouselSection({ data }: SectionComponentProps) {
       <div className="mb-[18px] flex items-end justify-between gap-3">
         <div>
           {/* o título de partida é o que a página derivou do catálogo ("Destaques", "Ofertas em destaque") */}
-          <Editable.Text as="h2" path="titulo" fallback={data.combosTitle} label="Título" className="font-display text-[26px] font-extrabold" />
+          <Editable.Text as="h2" path="titulo" fallback={data.combosTitle} label="Título" className="font-display" />
           <Editable.Text as="p" path="subtitulo" fallback="Produtos em destaque para você." label="Subtítulo" className="mt-1 text-sm text-[var(--store-muted)]" />
         </div>
         <div className="hidden gap-2.5 sm:flex">

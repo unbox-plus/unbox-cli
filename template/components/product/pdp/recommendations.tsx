@@ -52,7 +52,7 @@ export function BuyTogether({ items }: { items: CatalogItem[] }) {
 
   return (
     <div className="rounded-xl border border-[var(--store-line)] bg-white p-[26px]">
-      <h2 className="font-display mb-5 text-[22px] font-extrabold text-[var(--store-primary,#18181B)]">Compre junto</h2>
+      <h3 className="font-display mb-5 text-[var(--store-primary,#18181B)]">Compre junto</h3>
       <div className="flex flex-wrap items-start gap-2 max-sm:justify-center max-sm:gap-3.5">
         {products.map((p, i) => (
           <div key={p.slug} className="contents">
@@ -88,7 +88,7 @@ export function FrequentlyBought({ items }: { items: CatalogItem[] }) {
 
   return (
     <div className="rounded-xl border border-[var(--store-line)] bg-white p-[26px]">
-      <h2 className="font-display mb-5 text-[22px] font-extrabold text-[var(--store-ink)]">Frequentemente comprados juntos</h2>
+      <h3 className="font-display mb-5 text-[var(--store-ink)]">Frequentemente comprados juntos</h3>
       <div className="flex items-start gap-[18px]">
         {products.map((p) => (
           <div key={p.slug} className="flex flex-1 flex-col items-center gap-1.5">
@@ -116,7 +116,7 @@ export function SuggestedKits({ items }: { items: CatalogItem[] }) {
     <>
       <div className="mb-[18px] flex items-end justify-between">
         <div>
-          <h2 className="font-display text-2xl font-extrabold">Leve também</h2>
+          <h3 className="font-display">Leve também</h3>
           <p className="mt-1 text-sm text-[var(--store-muted)]">Você também pode gostar.</p>
         </div>
         <Link href="/produtos" className="flex items-center gap-1.5 text-sm font-bold text-[var(--store-primary,#18181B)] no-underline max-sm:hidden">

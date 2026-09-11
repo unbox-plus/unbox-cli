@@ -136,7 +136,13 @@ export function ProductPicker({
             </div>
           </div>
 
-          <h1 className="font-display mt-6 text-[19px] font-extrabold">2. Selecione os produtos</h1>
+          {/* O h1 é invisível de propósito, como o de /checkout e /oferta: esta tela é o passo 2 de
+              três (a barra de progresso acima conta 1 quantidade · 2 escolha · 3 pagamento), e o
+              passo 1 vive em outra página. Sem ele a página não tinha h1 nenhum e começava em
+              "2." — e os dois passos, que são irmãos da mesma lista, estavam em níveis
+              diferentes com o mesmo tamanho na tela. */}
+          <h1 className="sr-only">Monte seu pedido</h1>
+          <h3 className="font-display mt-6">2. Selecione os produtos</h3>
           <p className="mt-0.5 text-[13.5px] text-[var(--store-muted)]">
             {remaining > 0 ? `Escolha mais ${remaining} ${remaining === 1 ? "item" : "itens"} pra completar seu pedido.` : "Tudo escolhido! Revise abaixo e siga pro pagamento."}
           </p>
@@ -172,7 +178,7 @@ export function ProductPicker({
           {/* frequência de envio — só com política de assinatura REAL na loja */}
           {subscription && (
             <>
-              <h2 className="font-display mt-7 text-[19px] font-extrabold">3. Selecione a frequência de envio</h2>
+              <h3 className="font-display mt-7">3. Selecione a frequência de envio</h3>
               <div className="mt-3 flex flex-col gap-3">
                 <button type="button" onClick={() => setMode("assinatura")} className={`rounded-2xl border-2 px-5 py-4 text-left ${mode === "assinatura" ? "border-[var(--store-chrome-bg,#18181B)] bg-white" : "border-[var(--store-line-2)] bg-white"}`}>
                   <span className="flex items-center justify-between">

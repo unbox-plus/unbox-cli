@@ -124,7 +124,7 @@ export function CascaDePagina({
               // TAMANHO dele, não o tamanho de uma palavra. Colar um link no campo de título dá uma
               // palavra de 62 caracteres, e medido a 375 px ela empurrava a página inteira
               // (scrollWidth 575 × clientWidth 375). Vale para o card e para a casca de coleção.
-              className="font-display mt-4 block break-words text-[clamp(28px,4.6vw,44px)] font-bold leading-[1.15] text-[var(--store-ink)]"
+              className="font-display titulo-capa mt-4 block break-words text-[var(--store-ink)]"
             />
 
             {modo === "artigo" && (quando || registro.autor || tags.length) ? (

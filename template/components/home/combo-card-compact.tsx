@@ -38,7 +38,7 @@ export function ComboCardCompact({ combo, className = "" }: { combo: ResolvedCom
       </div>
 
       <div className="flex flex-1 flex-col p-3.5">
-        <h3 className="font-display text-[16px] font-extrabold leading-[1.12] text-[var(--store-ink)]">{combo.name}</h3>
+        <h4 className="font-display text-[var(--store-ink)]">{combo.name}</h4>
         <p className="mt-0.5 text-[12px] text-[var(--store-muted)]">{combo.itemCount} itens</p>
 
         {combo.save > 0 && (

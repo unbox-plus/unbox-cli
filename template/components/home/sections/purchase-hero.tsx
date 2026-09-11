@@ -74,7 +74,7 @@ export function PurchaseHeroSection({ data, sectionProps = {} }: SectionComponen
             <Stars n={rating} className="text-[16px] text-[var(--store-cta-dark)]" />
             {tagline && <Editable.Text path="chapeu" fallback={tagline} label="Chapéu acima do nome do produto" className="text-[12.5px] font-extrabold uppercase tracking-[0.8px] text-[var(--store-primary,#18181B)]" />}
           </div>
-          <h2 className="font-display mt-2.5 text-[27px] font-extrabold leading-[1.15] sm:text-[31px]" data-editor-ignore="">{product.title}</h2>
+          <h2 className="font-display mt-2.5" data-editor-ignore="">{product.title}</h2>
           {description && <Editable.Text as="p" path="texto" fallback={description} label="Texto do bloco de compra" multiline className="mt-2.5 text-[15px] leading-[1.55] text-[var(--store-muted)]" />}
 
           <div className="mt-5 store-card rounded-2xl p-5">

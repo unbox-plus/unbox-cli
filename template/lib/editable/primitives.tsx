@@ -16,7 +16,7 @@
 import * as React from "react";
 import Image, { type ImageProps } from "next/image";
 import Link from "next/link";
-import { caminhoTemContainer, type EditableType, type EditableValue, type ImageValue, type LinkValue, linksExternosEmNovaAba, type PreviaDaVitrine, produtosDaVitrine, recusaDeHtml, recusaDeTextoRico, type SectionKind, SUFIXO_HTML, SUFIXO_RICO, joinPath, resolveStyle, resolveValue, vitrineValida, type VitrineValue } from "./document";
+import { caminhoTemContainer, type EditableType, type EditableValue, type ImageValue, type LinkValue, linksExternosEmNovaAba, type PreviaDaVitrine, produtosDaVitrine, recusaDeHtml, recusaDeTextoRico, type SectionKind, SUFIXO_HTML, SUFIXO_RICO, type EstiloResolvido, joinPath, resolveStyle, resolveStyleDeSecao, resolveValue, vitrineValida, type VitrineValue } from "./document";
 import { EditableContextProvider, EditableFatia, useEditableContext } from "./provider";
 
 /**
@@ -65,7 +65,10 @@ function useRegistration<T extends EditableValue>(path: string, type: EditableTy
     editing && !semContainer
       ? ({ "data-editor-path": full, "data-editor-type": type, "data-editor-label": label } as Record<string, string | undefined>)
       : {};
-  // cor/fundo SÓ deste elemento, por cima do token ("desacoplar do mapa de cores")
+  // cor E LETRA só deste elemento, por cima do token ("desacoplar do mapa de cores"). Já chega
+  // traduzido em propriedades do CSS (`estiloEmCss`, em document.ts): a tradução mora num lugar só
+  // porque são quatro primitivos aplicando o mesmo objeto. Como é estilo INLINE, ele vence a regra
+  // de `h1..h4` da escada sem precisar de variável nenhuma.
   const style = semContainer ? undefined : resolveStyle(ctx.doc, full);
   // valor CRU do documento, sem o fallback e sem a defesa do `resolveValue`. Só o bloco de HTML usa:
   // é com ele que o primitivo consegue DIZER "o que você colou foi recusado" em vez de mostrar o
@@ -174,8 +177,8 @@ function Slot<T extends EditableValue>({
   type: EditableType;
   fallback: T;
   label?: string;
-  /** o 4º argumento é a cor/fundo que o lojista deu SÓ a este elemento — aplique em `style` */
-  children: (value: T, attrs: Record<string, string | undefined>, ref: React.RefCallback<Element>, style?: { color?: string; background?: string }) => React.ReactNode;
+  /** o 4º argumento é a cor e a letra que o lojista deu SÓ a este elemento — aplique em `style` */
+  children: (value: T, attrs: Record<string, string | undefined>, ref: React.RefCallback<Element>, style?: EstiloResolvido) => React.ReactNode;
 }) {
   const { value, ref, attrs, style } = useRegistration(path, type, fallback, label);
   const setRef = React.useCallback<React.RefCallback<Element>>(
@@ -700,15 +703,18 @@ function Section({
     );
   }, [cont, id]);
   const value = React.useMemo(() => ({ ...ctx, container: cont, section: cont ? id : undefined, scope: cont ? [cont, id] : [] }), [ctx, cont, id]);
-  // fundo da seção inteira (`<container>.<id>.estilo`): o invólucro é `display: contents`, então
-  // a cor vai numa variável herdada e a regra global pinta o filho direto (ver EditableProvider)
-  const fundo = cont ? resolveStyle(ctx.doc, `${cont}.${id}`)?.background : undefined;
+  // estilo da seção inteira (`<container>.<id>.estilo`): o invólucro é `display: contents`, então
+  // só entra o que HERDA até os filhos. O fundo não herda e por isso vai numa variável, com a regra
+  // global pintando o filho direto (ver EditableProvider); a família e o peso vão numa variável
+  // TAMBÉM, porque a escada os declara em `h1..h4` e regra no elemento vence valor herdado.
+  const daSecao = cont ? resolveStyleDeSecao(ctx.doc, `${cont}.${id}`) : undefined;
+  const fundo = daSecao?.["--unbox-sec-bg"];
   if (hidden && !editing) return null;
   return (
     <EditableContextProvider value={value}>
       <div
         ref={ref}
-        style={fundo ? ({ display: "contents", "--unbox-sec-bg": fundo } as React.CSSProperties) : { display: "contents" }}
+        style={daSecao ? ({ display: "contents", ...daSecao } as React.CSSProperties) : { display: "contents" }}
         data-unbox-sec-bg={fundo ? "1" : undefined}
         {...(editing && cont
           ? { "data-editor-section": id, "data-editor-container": cont, "data-editor-label": label, "data-editor-kind": kind, "data-editor-item": item ? "1" : undefined, "data-editor-fixed": fixed ? "1" : undefined, "data-editor-clone": clone ? "1" : undefined, "data-editor-criada": criada ? "1" : undefined, "data-editor-tipo": tipo, "data-editor-section-hidden": hidden ? "1" : undefined }
