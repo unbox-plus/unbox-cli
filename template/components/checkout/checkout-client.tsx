@@ -644,7 +644,7 @@ export function CheckoutClient({
         <CheckoutHeader shopName={shopName} />
         <div className="mx-auto flex max-w-[680px] flex-col items-center px-6 py-24 text-center">
           <span className="h-14 w-14 animate-spin rounded-full border-[4px] border-[var(--store-line-2)] border-t-[var(--store-primary,#18181B)]" />
-          <h1 className="font-display mt-6 text-[22px] font-extrabold">{hasRecurring ? "Confirmando sua assinatura…" : "Processando seu pagamento…"}</h1>
+          <h1 className="font-display mt-6">{hasRecurring ? "Confirmando sua assinatura…" : "Processando seu pagamento…"}</h1>
           <p className="mt-2 text-[15px] text-[var(--store-muted)]">Estamos autorizando seu cartão. Não feche nem atualize esta página.</p>
         </div>
       </div>
@@ -660,7 +660,7 @@ export function CheckoutClient({
         <CheckoutHeader shopName={shopName} />
         <div className="mx-auto flex max-w-[680px] flex-col items-center px-6 py-24 text-center">
           <Spinner className="animate-spin text-[34px] text-[var(--store-primary,#18181B)]" />
-          <h1 className="font-display mt-4 text-[20px] font-extrabold">{linkBuilding ? "Montando seu carrinho…" : "Carregando…"}</h1>
+          <h1 className="font-display mt-4">{linkBuilding ? "Montando seu carrinho…" : "Carregando…"}</h1>
           {linkBuilding && <p className="mt-1.5 text-[14px] text-[var(--store-muted)]">Só um instante enquanto preparamos seu pedido.</p>}
         </div>
       </div>
@@ -676,7 +676,7 @@ export function CheckoutClient({
           <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-white text-[var(--store-faint)]">
             <Package className="text-4xl" />
           </span>
-          <h1 className="font-display mt-5 text-[22px] font-extrabold">Seu carrinho está vazio</h1>
+          <h1 className="font-display mt-5">Seu carrinho está vazio</h1>
           <p className="mt-2 text-[15px] text-[var(--store-muted)]">Adicione produtos antes de finalizar a compra.</p>
           <Link href="/produtos" className="font-display mt-6 inline-flex h-[52px] items-center justify-center gap-2 rounded-xl bg-[var(--store-primary,#18181B)] px-7 text-[15px] font-bold text-white no-underline">
             Ver produtos <ArrowRight weight="bold" />
@@ -873,7 +873,7 @@ export function CheckoutClient({
               <Card>
                 <div className="mb-[18px] flex items-center gap-2.5">
                   <MapPin weight="bold" className="text-[21px] text-[var(--store-primary,#18181B)]" />
-                  <h2 className="font-display m-0 text-[18px] font-extrabold">Endereço de entrega</h2>
+                  <h4 className="font-display m-0">Endereço de entrega</h4>
                 </div>
                 <div className="flex flex-col gap-3.5">
                   {!identityComplete && (
@@ -1016,7 +1016,7 @@ export function CheckoutClient({
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--store-cta,#D97706)] px-2.5 py-[5px] text-[11px] font-extrabold tracking-[0.5px] text-[var(--store-cta-fg,#1C1207)]">
                   <Lightning weight="fill" />OFERTA EXCLUSIVA DESTE PEDIDO
                 </span>
-                <h2 className="font-display mb-1 mt-3 text-[22px] font-extrabold">Leve mais por bem menos</h2>
+                <h3 className="font-display mb-1 mt-3">Leve mais por bem menos</h3>
                 <p className="mb-[15px] text-sm text-[var(--store-primary-soft)]">Desconto exclusivo só nesta etapa, antes de pagar. <b className="text-[var(--store-cta,#D97706)]">Depois disso o preço volta ao normal.</b></p>
                 <div className="flex flex-wrap items-center gap-3.5">
                   <div className="inline-flex items-center gap-3 rounded-xl bg-[var(--store-sale)] px-[18px] py-[11px]">
@@ -1104,7 +1104,7 @@ export function CheckoutClient({
                     {pixStatus?.paid ? (
                       <div className="rounded-2xl border border-[var(--store-primary-soft)] bg-[var(--store-primary-soft,#F1F1F3)] p-6 text-center">
                         <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-white"><CheckCircle weight="fill" className="text-4xl text-[var(--store-primary,#18181B)]" /></span>
-                        <h3 className="font-display mt-3 text-[18px] font-extrabold">Pagamento confirmado!</h3>
+                        <h4 className="font-display mt-3">Pagamento confirmado!</h4>
                         <p className="mt-1 text-sm text-[var(--store-ink-2)]">Recebemos seu Pix de <b>{pixResult?.total}</b>. Já estamos preparando seu pedido.</p>
                         <Link href={`/pedido/${pixResult?.ref}`} className="font-display mt-4 inline-flex rounded-xl bg-[var(--store-primary,#18181B)] px-5 py-2.5 text-sm font-bold text-white no-underline">Ver pedido</Link>
                       </div>
@@ -1294,7 +1294,7 @@ function CardHead({ n, title }: { n: string; title: string }) {
   return (
     <div className="mb-[18px] flex items-center gap-2.5">
       <span className="font-display flex h-[30px] w-[30px] items-center justify-center rounded-full bg-[var(--store-primary-soft,#F1F1F3)] text-sm font-extrabold text-[var(--store-primary,#18181B)]">{n}</span>
-      <h2 className="font-display m-0 text-[18px] font-extrabold">{title}</h2>
+      <h4 className="font-display m-0">{title}</h4>
     </div>
   );
 }

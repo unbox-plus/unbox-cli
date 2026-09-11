@@ -13,8 +13,8 @@ const DDD_VALIDOS = new Set([
 
 /** Normaliza o telefone: só dígitos e SEM o zero à esquerda do DDD. Muita gente escreve
  *  "011 3333-4444"; com o zero vira 12 dígitos e o DDD chega como "01", que a Unbox recusa.
- *  Tirar o zero é entender o que a pessoa quis dizer: "011 99360-3233" vira 11993603233 e
- *  "019 8765-4321" vira DDD 19. */
+ *  Tirar o zero é entender o que a pessoa quis dizer: "011 99999-8888" vira 11999998888 e
+ *  "019 3333-4444" vira DDD 19. */
 const telefone = (s: string) => digits(s).replace(/^0+/, "");
 
 export const addressSchema = z.object({

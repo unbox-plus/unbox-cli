@@ -11,7 +11,7 @@
 // da rota /api/capi, que não pode mandar conversão para o Pixel do cadastro só
 // porque a leitura do que o lojista publicou falhou (Astra, segunda rodada, 1).
 import { cache } from "react";
-import { documentoUsavel, isHtmlPath, leituraDoPublicado, presencaNoAmbiente as presencaPura, recusaDeHtml, type Ambiente, type ContentDocument, type LeituraDoPublicado, type ManifestApps } from "./document";
+import { documentoUsavel, isHtmlPath, isRichPath, leituraDoPublicado, presencaNoAmbiente as presencaPura, recusaDeHtml, recusaDeTextoRico, type Ambiente, type ContentDocument, type LeituraDoPublicado, type ManifestApps } from "./document";
 import { EDITOR_URL, STORE_SLUG } from "./config";
 
 /**
@@ -23,11 +23,42 @@ import { EDITOR_URL, STORE_SLUG } from "./config";
  * única do layout) consulta para decidir o que dispara (documento vence ambiente, um script por
  * provedor). `capiDaLeitura(await lerPublicado(), process.env)` é o que a rota /api/capi da loja obedece: o
  * Pixel em vigor e se o token o atende, ou "leitura-falhou" quando não se conseguiu ler o publicado (aí a
- * rota não envia: não se sabe qual Pixel o lojista publicou). `process.env` é lido inteiro no servidor de
- * propósito: as variáveis são conhecidas pelo nome em `VARIAVEIS_DE_RASTREIO`, e o layout não precisa
- * listá-las uma a uma.
+ * rota não envia: não se sabe qual Pixel o lojista publicou). As variáveis são conhecidas pelo nome em
+ * `VARIAVEIS_DE_RASTREIO`, então o layout não precisa listá-las uma a uma: ele passa
+ * `ambienteDeRastreio(process.env)`, que é o ambiente com só elas dentro.
  */
 export { rastreioEmVigor, capiEmVigor, capiDaLeitura, type RastreioEmVigor, type ManifestApps, type EstadoDoCapi, type EstadoDaRotaCapi, type LeituraDoPublicado } from "./document";
+
+/**
+ * SÓ AS VARIÁVEIS DE RASTREIO do ambiente, para o layout passar isto a `<Rastreio>` no lugar de
+ * `process.env` inteiro. Em desenvolvimento o React serializa no HTML as props de componente de
+ * servidor, e com o ambiente inteiro numa prop toda página levava junto os segredos do processo.
+ */
+export { ambienteDeRastreio } from "./document";
+
+/**
+ * PÁGINAS DO LOJISTA E COLEÇÕES (foundation 13). As funções são puras e moram em document.ts (testadas no runner
+ * do editor); saem também por aqui porque é daqui que as rotas da loja leem o publicado, e a leitura de uma
+ * página vem sempre com elas: `paginaDaRota(doc, caminho, prefixo)` acha o registro que responde por um caminho;
+ * `visivelAgora(registro)` diz se ela está no ar (visível, e a data de publicação já passou); `artigosDaColecao`
+ * é a listagem, na ordem do sitemap e do JSON-LD; `redirecionamentoDe(doc, caminho)` é o que a rota consulta
+ * ANTES de renderizar, para responder 308; `tituloDaPagina` é o título em `values`, senão o endereço
+ * capitalizado (a loja nunca renderiza `<h1>` vazio); `rotaDePagina`/`rotaDeColecao`/`colecaoDaRota` montam e
+ * leem as URLs; `RESERVADOS_FIXOS` é a base de `reservadosDaLoja()` e `ARTIGOS_POR_PAGINA` o tamanho da
+ * listagem. Sem lógica nova: reexports, para a loja importar de um lugar só, como no rastreio.
+ */
+export { paginaDaRota, colecaoDaRota, artigosDaColecao, redirecionamentoDe, visivelAgora, tituloDaPagina, rotaDePagina, rotaDeColecao, RESERVADOS_FIXOS, ARTIGOS_POR_PAGINA, PREFIXO_DE_PAGINAS_PADRAO, PREFIXO_DA_PREVIA, type PaginaDoLojista, type ColecaoDePaginas, type ManifestPaginasDoLojista, type TipoDePagina, type Visibilidade, type SeoDaPagina } from "./document";
+
+/**
+ * O QUE VAI AO NAVEGADOR (os dois cortes de `document.ts`, puros; saem por aqui porque é daqui que a
+ * loja lê o publicado). O documento viaja serializado no HTML de toda página, e as páginas do lojista
+ * o fariam crescer sem teto: o layout raiz entrega `documentoSemPaginas(conteudo)` ao provider, e a
+ * rota que renderiza uma página do lojista acrescenta `fatiaDoDocumento(doc, alvos)` com
+ * `<EditableFatia>`. Rota nova que renderize container do lojista sem a fatia mostra o literal do
+ * código no lugar do texto do lojista, sem erro nenhum na tela — e é isso que o gate de cobertura
+ * editável passou a cobrar, pelo par (layout que corta, casca que junta).
+ */
+export { documentoSemPaginas, fatiaDoDocumento } from "./document";
 
 /**
  * O DOCUMENTO PUBLICADO DESTE PEDIDO, para quem precisa dele sem o receber por parâmetro. `cache` do React
@@ -52,7 +83,10 @@ export function presencaNoAmbiente(ambiente: Ambiente, opcoes?: { doc?: ContentD
 }
 
 /**
- * BLOCO DE HTML, CAMADA 2 DE 3 — a conferência da LOJA, na porta de entrada do documento publicado.
+ * BLOCO DE HTML E TEXTO FORMATADO, CAMADA 2 DE 3 — a conferência da LOJA, na porta de entrada do documento
+ * publicado. Vale para os dois tipos que carregam marcação, cada um pela régua dele: o bloco de HTML
+ * (`.html`, lista de recusa) e o texto formatado (`.rico`, lista fechada, foundation 13). O texto que se segue
+ * fala do bloco de HTML; o texto formatado passa pela MESMA porta pelos mesmos três motivos.
  *
  * As outras duas: o EDITOR ao gravar (limpa e RELATA ao lojista o que tirou — é a única que tem alguém
  * na tela para avisar) e o PRIMITIVO no cliente (a única que existe na PRÉVIA, onde o rascunho chega
@@ -86,25 +120,28 @@ export function presencaNoAmbiente(ambiente: Ambiente, opcoes?: { doc?: ContentD
  * na tela. Repeti-la aqui, muda, faria a página publicada divergir em silêncio da prévia que o lojista
  * aprovou. Aqui vale a RECUSA, que é a decisão do dono: o bloco inteiro entra ou não entra.
  */
-function htmlRecusadoDoDocumento(doc: ContentDocument): [string, string][] {
-  const recusados: [string, string][] = [];
+/** o que a régua de cada tipo recusa: `[caminho, motivo, o nome do tipo para o log]` */
+function blocosRecusadosDoDocumento(doc: ContentDocument): [string, string, string][] {
+  const recusados: [string, string, string][] = [];
   for (const [path, v] of Object.entries(doc.values)) {
-    if (!isHtmlPath(path)) continue;
-    // valor que nem sequer é texto já é lixo neste caminho: `recusaDeHtml` só sabe ler string
-    const motivo = typeof v === "string" ? recusaDeHtml(v) : "o valor gravado não é texto";
-    if (motivo) recusados.push([path, motivo]);
+    // é o SUFIXO do caminho que diz a régua (a loja lê o publicado sem manifesto): `.html` ou `.rico`
+    const html = isHtmlPath(path);
+    if (!html && !isRichPath(path)) continue;
+    // valor que nem sequer é texto já é lixo neste caminho: as réguas só sabem ler string
+    const motivo = typeof v === "string" ? (html ? recusaDeHtml(v) : recusaDeTextoRico(v)) : "o valor gravado não é texto";
+    if (motivo) recusados.push([path, motivo, html ? "bloco de HTML" : "texto formatado"]);
   }
   return recusados;
 }
 
-function semHtmlRecusado(doc: ContentDocument): ContentDocument {
-  const recusados = htmlRecusadoDoDocumento(doc);
+function semBlocosRecusados(doc: ContentDocument): ContentDocument {
+  const recusados = blocosRecusadosDoDocumento(doc);
   if (recusados.length === 0) return doc; // o caso normal: nada é copiado à toa
   const values = { ...doc.values };
-  for (const [path, motivo] of recusados) {
+  for (const [path, motivo, tipo] of recusados) {
     delete values[path];
-    // apagar o caminho = a loja cai no `fallback` do código (bloco de HTML nasce vazio, então some).
-    console.warn(`[editable] bloco de HTML recusado na leitura do publicado (${path}): ${motivo}`);
+    // apagar o caminho = a loja cai no `fallback` do código (os dois nascem vazios, então somem).
+    console.warn(`[editable] ${tipo} recusado na leitura do publicado (${path}): ${motivo}`);
   }
   return { ...doc, values };
 }
@@ -141,8 +178,8 @@ async function lerDoEditor(): Promise<LeituraDoPublicado> {
     console.warn(`[editable] ${leitura.motivo}; usando conteúdo do código`);
     return leitura;
   }
-  // o documento só sai daqui depois da conferência dos blocos de HTML (ver `semHtmlRecusado`)
-  return { doc: leitura.doc && semHtmlRecusado(leitura.doc), falhou: false };
+  // o documento só sai daqui depois da conferência dos blocos de HTML e dos textos formatados (ver `semBlocosRecusados`)
+  return { doc: leitura.doc && semBlocosRecusados(leitura.doc), falhou: false };
 }
 
 /**
@@ -157,7 +194,7 @@ async function lerDoEditor(): Promise<LeituraDoPublicado> {
  *
  * Então esta função vai ver: lê o conteúdo publicado SEM CACHE e devolve o `updatedAt` do documento
  * que passou por todas as portas que a loja usa para renderizar (`documentoUsavel`, a conferência do
- * slug e a dos blocos de HTML). O editor compara com o que acabou de publicar. Se bater, "no ar" é
+ * slug e a dos blocos de HTML e textos formatados). O editor compara com o que acabou de publicar. Se bater, "no ar" é
  * afirmação verificada; se não bater, ele diz o que sabe (atualização pedida).
  *
  * Não substitui `getPublishedContent` nem aquece o cache dele: é uma leitura à parte, curta, feita
@@ -180,9 +217,10 @@ export async function conteudoPublicadoAgora(): Promise<ConteudoAgora> {
     const doc = (await res.json()) as ContentDocument;
     if (!documentoUsavel(doc)) return { ok: false, motivo: "o conteúdo publicado veio malformado" };
     if (doc.shop !== STORE_SLUG) return { ok: false, motivo: `o conteúdo publicado é de outra loja (${String(doc.shop)})` };
-    // blocos recusados NÃO derrubam o recibo: o resto do documento está no ar, e é isso que o editor
-    // afirma. O número sobe junto para o editor poder avisar o lojista do pedaço que ficou de fora.
-    return { ok: true, updatedAt: typeof doc.updatedAt === "string" ? doc.updatedAt : undefined, blocosRecusados: htmlRecusadoDoDocumento(doc).length };
+    // blocos recusados (de HTML ou de texto formatado) NÃO derrubam o recibo: o resto do documento está no
+    // ar, e é isso que o editor afirma. O número sobe junto para o editor poder avisar o lojista do pedaço
+    // que ficou de fora.
+    return { ok: true, updatedAt: typeof doc.updatedAt === "string" ? doc.updatedAt : undefined, blocosRecusados: blocosRecusadosDoDocumento(doc).length };
   } catch (err) {
     return { ok: false, motivo: err instanceof Error ? err.message : String(err) };
   }

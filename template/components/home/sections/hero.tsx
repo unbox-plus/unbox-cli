@@ -106,7 +106,7 @@ export function HeroSection({ variant = "imagem-full", sectionProps = {} }: Sect
         <div className="absolute inset-x-0 bottom-0 mx-auto max-w-[var(--container-max,1240px)] px-6 pb-12 sm:pb-16">
           {/* `as="h1"` mantém o MESMO elemento de antes; `multiline` deixa o lojista escolher onde a
               headline quebra sem mexer no CSS */}
-          <Editable.Text as="h1" path="titulo" fallback={title} label="Título" multiline className="font-display max-w-[680px] text-[34px] font-extrabold leading-[1.08] text-white sm:text-[52px]" />
+          <Editable.Text as="h1" path="titulo" fallback={title} label="Título" multiline className="font-display titulo-heroi-foto max-w-[680px] text-white" />
           <Editable.Text as="p" path="subtitulo" fallback={subtitle} label="Frase de apoio" className="mt-3 max-w-[520px] text-[15px] leading-[1.5] text-white/85 sm:text-[16px]" />
           <HeroCta label={ctaLabel} href={ctaHref} className="mt-7" />
         </div>
@@ -118,7 +118,7 @@ export function HeroSection({ variant = "imagem-full", sectionProps = {} }: Sect
     return (
       <div className="mx-auto max-w-[var(--container-max,1240px)] px-4 pt-[22px] sm:px-6">
         <div className="rounded-2xl bg-[var(--store-chrome-bg,#18181B)] px-7 py-14 text-center sm:py-20">
-          <Editable.Text as="h1" path="titulo" fallback={title} label="Título" multiline className="font-display mx-auto max-w-[720px] text-[32px] font-extrabold leading-[1.12] text-[var(--store-chrome-text,#ffffff)] sm:text-[44px]" />
+          <Editable.Text as="h1" path="titulo" fallback={title} label="Título" multiline className="font-display titulo-heroi-texto mx-auto max-w-[720px] text-[var(--store-chrome-text,#ffffff)]" />
           <Editable.Text as="p" path="subtitulo" fallback={subtitle} label="Frase de apoio" className="mx-auto mt-4 max-w-[520px] text-[15px] leading-[1.5] text-[var(--store-chrome-muted)]" />
           <HeroCta label={ctaLabel} href={ctaHref} className="mt-8" />
         </div>
@@ -131,7 +131,7 @@ export function HeroSection({ variant = "imagem-full", sectionProps = {} }: Sect
       <div className="mx-auto max-w-[var(--container-max,1240px)] px-4 pt-[22px] sm:px-6">
         <div className="grid overflow-hidden store-card rounded-2xl md:grid-cols-[0.9fr_1.1fr]">
           <div className="flex flex-col items-start justify-center gap-4 px-7 py-10 sm:px-10">
-            <Editable.Text as="h1" path="titulo" fallback={title} label="Título" multiline className="font-display text-[28px] font-extrabold leading-[1.15] sm:text-[36px]" />
+            <Editable.Text as="h1" path="titulo" fallback={title} label="Título" multiline className="font-display titulo-heroi-lado" />
             <Editable.Text as="p" path="subtitulo" fallback={subtitle} label="Frase de apoio" className="max-w-[420px] text-[15px] leading-[1.55] text-[var(--store-muted)]" />
             <HeroCta label={ctaLabel} href={ctaHref} className="mt-2" />
           </div>

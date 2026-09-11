@@ -27,12 +27,37 @@
 // do site inteiro) têm de ser exatamente os declarados. Container que aparece sem estar declarado, container
 // declarado que não aparece, ou rota que a loja lista sem declarar nada: REPROVADO, dizendo a rota e o container.
 //
+// PÁGINAS DO LOJISTA (foundation 13). As páginas que o dono da loja cria pelo editor (`/paginas/<endereço>`,
+// `/<coleção>`, `/<coleção>/<artigo>`) são renderizadas por MOLDES (a casca) em rotas que a loja marca com
+// `doLojista: true`, e os containers delas nascem do documento, com prefixo reservado (`pagina-<x>`,
+// `artigo-<c>-<x>`, `colecao-<c>`). Três coisas mudam no gate por causa disso: (1) a declaração dessas rotas
+// é por CURINGA (`containers: ["pagina-*"]`), e um curinga casa todo observado com aquele prefixo; (2) um molde
+// sem página publicada (`caminho: null` numa rota `doLojista`) é "molde não medido: nenhuma página publicada",
+// e NÃO é NÃO RODOU: a loja declarou o molde e não há o que abrir, o que é diferente de um catálogo que não
+// respondeu. Quando há uma página publicada, a casca é medida por ela, como qualquer rota dinâmica; (3) uma
+// rota do CÓDIGO (sem `doLojista`) cujo manifesto mostra container com prefixo reservado é REPROVADA: o
+// código está usando um prefixo reservado às páginas do lojista, e a loja leria essa seção como página dele.
+// Os prefixos vêm do document.ts da própria loja (`PREFIXOS_DO_LOJISTA`), como o vocabulário de `kind`.
+//
+// O PAR DO CORTE DO DOCUMENTO. O layout raiz entrega ao provider o documento SEM as páginas do lojista
+// (`documentoSemPaginas`), e quem renderiza uma dessas páginas devolve a fatia dela (`<EditableFatia>`). As
+// duas metades são um par, e a meia-adoção é CALADA: 200, sem erro, sem log, com o `<head>` ainda cheio do
+// texto do lojista e o corpo caído no literal do código. Nenhuma outra medida deste gate a pega. Então, quando
+// o layout corta, o gate confere no CÓDIGO-FONTE que toda rota de molde do lojista (`ROTAS_DO_LOJISTA` em
+// lib/rotas-editaveis.ts, mais o que a loja declarou com `doLojista`) chega a um `<EditableFatia>` seguindo os
+// imports da própria loja a partir do `page.tsx`. Sem isso: REPROVADO. Loja cujo layout ainda manda o documento
+// inteiro não tem par a cumprir, e isso é conferido, não pulado.
+//
 // Saída: 0 = toda página >= --minimo (default 0.8), fora as que a loja declarou só cabeçalho e rodapé
-// por regra, nenhuma seção sem kind/label, nenhum editável fora de container e a declaração de containers
-// batendo em toda página · 1 = REPROVADO (alguma página comum abaixo do mínimo, seção sem tipo/rótulo,
-// editável fora de container, ou declaração de containers divergente; o relatório diz QUAL página) · 2 = NÃO
-// RODOU (servidor fora, lista de páginas indisponível, rota declarada sem exemplo para abrir, página sem
-// provider, manifesto que nunca chegou). Doutrina da casa: gate que varre o vazio e diz "limpo" aprova sem ter olhado.
+// por regra, nenhuma seção sem kind/label, nenhum editável fora de container, a declaração de containers
+// batendo em toda página, nenhum container do código com prefixo reservado ao lojista e o par do corte do
+// documento fechando em toda rota do lojista · 1 = REPROVADO
+// (alguma página comum abaixo do mínimo, seção sem tipo/rótulo, editável fora de container, declaração de
+// containers divergente, prefixo reservado em rota do código, ou rota do lojista sem a fatia do documento;
+// o relatório diz QUAL página) · 2 = NÃO RODOU (servidor fora, lista de páginas indisponível, rota declarada
+// sem exemplo para abrir, página sem provider, manifesto que nunca chegou, ou o par do corte não conferido
+// porque a raiz da loja não foi achada). Molde do lojista sem página publicada NÃO conta para o 2: é impresso
+// como não medido. Doutrina da casa: gate que varre o vazio e diz "limpo" aprova sem ter olhado.
 //
 // Uso: node scripts/check-editable.mjs --url http://localhost:3000 [--minimo 0.8] [--json saida.json]
 //      node scripts/check-editable.mjs --url http://localhost:3000/sobre
@@ -41,8 +66,10 @@
 //      node scripts/check-editable.mjs --url http://localhost:3000 --paginas /,/sobre,/produtos
 //        (`--paginas` é para a loja que ainda não tem /api/unbox/paginas; é uma lista digitada à
 //         mão, e o relatório diz isso.)
+//      node scripts/check-editable.mjs --url http://localhost:3000/blog/um-artigo
+//        (uma página do lojista: a declaração da rota dela é achada pelo padrão, `/[colecao]/[handle]`.)
 import { createRequire } from "node:module";
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 const args = Object.fromEntries(process.argv.slice(2).map((a, i, arr) => (a.startsWith("--") ? [a.slice(2), arr[i + 1] ?? "1"] : [])).filter((p) => p.length));
@@ -73,18 +100,42 @@ if (!pw) {
 // Quem sabe quais páginas a loja tem é a loja (app/api/unbox/paginas/route.ts, contrato no README
 // §9). Rota dinâmica entra UMA vez, pelo exemplo concreto que ela devolve — medir 24 produtos é
 // medir a mesma receita 24 vezes. Rota declarada SEM exemplo (catálogo vazio, sem credenciais, ou
-// fora do ar) não tem como ser medida, e isso é NÃO RODOU: ela não conta como aprovada.
+// fora do ar) não tem como ser medida, e isso é NÃO RODOU: ela não conta como aprovada. A exceção é o
+// molde das páginas do lojista (`doLojista: true`) sem página publicada: não há o que abrir, e não é falha.
 // E a loja também diz quais páginas são SÓ CABEÇALHO E RODAPÉ POR REGRA (`soChrome: true`; README §8).
 const CAMINHO = /^\/(?![/\\])[^\\\s]*$/;
-/** a entrada como a loja a declara; `soChrome` só conta quando é o `true` literal (é a loja que decide, e só ela);
- *  `containers` só existe quando a loja mandou uma lista (ausente = a loja não declarou, e isso reprova) */
+/** a entrada como a loja a declara; `soChrome` e `doLojista` só contam quando são o `true` literal (é a loja que
+ *  decide, e só ela); `containers` só existe quando a loja mandou uma lista (ausente = a loja não declarou, e isso reprova) */
 const declaradaPelaLoja = (p) => ({
   rota: p.rota,
   caminho: p.caminho,
   label: p.label,
   soChrome: p.soChrome === true,
+  // a rota é um MOLDE das páginas que o lojista cria (foundation 13): os containers dela são do documento
+  doLojista: p.doLojista === true,
   ...(Array.isArray(p.containers) ? { containers: p.containers.filter((c) => typeof c === "string") } : {}),
 });
+
+/**
+ * Um caminho concreto cai nesta rota? `/produto/[productSlug]` casa `/produto/x`; `/[colecao]/[handle]` casa
+ * `/blog/x`; `[...resto]` e `[[...resto]]` casam o que sobrar. É o que deixa a rodada de UMA página
+ * (`--url .../blog/x`) achar a declaração da rota dela mesmo quando o exemplo que a loja devolveu é outro,
+ * ou nenhum (molde sem página publicada). Igualdade exata continua vindo antes, em quem chama.
+ */
+function casaRota(rota, caminho) {
+  const r = rota.split("/").filter(Boolean);
+  const c = caminho.split("/").filter(Boolean);
+  for (let i = 0; i < r.length; i++) {
+    const seg = r[i];
+    if (/^\[\[?\.\.\./.test(seg)) return true; // o resto é livre
+    if (i >= c.length) return false;
+    if (/^\[.+\]$/.test(seg)) continue; // um segmento qualquer
+    if (seg !== c[i]) return false;
+  }
+  return r.length === c.length;
+}
+/** quantos segmentos LITERAIS a rota tem: entre `/[colecao]` e `/produto/[slug]`, a mais específica ganha */
+const literais = (rota) => rota.split("/").filter((x) => x && !x.startsWith("[")).length;
 
 async function listaDaLoja() {
   let res;
@@ -110,7 +161,7 @@ async function descobrirPaginas() {
     if (ruins.length) return { erro: `--paginas só aceita caminhos absolutos desta loja (começando com "/"): ${ruins.join(", ")}` };
     // lista digitada: a loja não foi ouvida, então nenhuma página conta como só cabeçalho e rodapé por regra,
     // e a declaração de containers não tem como ser conferida
-    return { paginas: lista.map((p) => ({ rota: p, caminho: p, label: p, soChrome: false, semDeclaracaoPorque: "a loja não foi consultada (--paginas)" })), fonte: "--paginas (lista digitada à mão; a loja não foi consultada, e nenhuma página conta como só cabeçalho e rodapé por regra)", semExemplo: [] };
+    return { paginas: lista.map((p) => ({ rota: p, caminho: p, label: p, soChrome: false, doLojista: false, semDeclaracaoPorque: "a loja não foi consultada (--paginas)" })), fonte: "--paginas (lista digitada à mão; a loja não foi consultada, e nenhuma página conta como só cabeçalho e rodapé por regra)", semExemplo: [], moldesNaoMedidos: [] };
   }
   if (ALVO.pathname !== "/") {
     const p = ALVO.pathname;
@@ -118,24 +169,32 @@ async function descobrirPaginas() {
     // isso, /termos sozinha reprovaria aqui e passaria na rodada completa, e o gate diria duas coisas. Se a
     // loja não responder a lista, a página é medida como comum, e o relatório diz que a loja não foi ouvida.
     const declarada = await listaDaLoja();
-    const marcada = declarada.lista?.find((x) => x.caminho === p || x.rota === p);
+    const porPadrao = declarada.lista ? [...declarada.lista].filter((x) => casaRota(x.rota, p)).sort((a, b) => literais(b.rota) - literais(a.rota))[0] : undefined;
+    const marcada = declarada.lista?.find((x) => x.caminho === p || x.rota === p) ?? porPadrao;
     const fonte = declarada.lista
       ? "o caminho do --url (uma página só; sem caminho, mede todas as que a loja declara)"
       : "o caminho do --url (uma página só; a loja não respondeu a lista, então esta página conta como comum)";
     // a declaração de containers só é conferível quando a loja respondeu E lista esta página
     const semDeclaracaoPorque = !declarada.lista ? "a loja não respondeu a lista" : !marcada ? "a loja não lista esta página em /api/unbox/paginas" : undefined;
     return {
-      paginas: [{ rota: marcada?.rota ?? p, caminho: p, label: marcada?.label ?? p, soChrome: Boolean(marcada?.soChrome), ...(marcada?.containers ? { containers: marcada.containers } : {}), ...(semDeclaracaoPorque ? { semDeclaracaoPorque } : {}) }],
+      paginas: [{ rota: marcada?.rota ?? p, caminho: p, label: marcada?.label ?? p, soChrome: Boolean(marcada?.soChrome), doLojista: Boolean(marcada?.doLojista), ...(marcada?.containers ? { containers: marcada.containers } : {}), ...(semDeclaracaoPorque ? { semDeclaracaoPorque } : {}) }],
       fonte,
       semExemplo: [],
+      moldesNaoMedidos: [],
     };
   }
   const declarada = await listaDaLoja();
   if (declarada.erro) return declarada;
-  const comExemplo = declarada.lista.filter((p) => typeof p.caminho === "string" && CAMINHO.test(p.caminho));
-  const semExemplo = declarada.lista.filter((p) => !(typeof p.caminho === "string" && CAMINHO.test(p.caminho))).map((p) => p.rota);
+  const temCaminho = (p) => typeof p.caminho === "string" && CAMINHO.test(p.caminho);
+  const comExemplo = declarada.lista.filter(temCaminho);
+  // MOLDE DO LOJISTA SEM PÁGINA PUBLICADA (foundation 13): a rota existe, a casca existe, e não há página
+  // visível no publicado para abri-la. Não é o catálogo que não respondeu: é uma loja em que o dono ainda não
+  // criou página nenhuma (ou não publicou). Fica impresso como "molde não medido", fora do NÃO RODOU. A casca
+  // é medida no dia em que houver uma página publicada, por ela, como qualquer rota dinâmica.
+  const moldesNaoMedidos = declarada.lista.filter((p) => !temCaminho(p) && p.doLojista).map((p) => p.rota);
+  const semExemplo = declarada.lista.filter((p) => !temCaminho(p) && !p.doLojista).map((p) => p.rota);
   if (!comExemplo.length) return { erro: `${ORIGEM}/api/unbox/paginas não trouxe nenhuma página com caminho para abrir.` };
-  return { paginas: comExemplo, fonte: "a própria loja (/api/unbox/paginas)", semExemplo };
+  return { paginas: comExemplo, fonte: "a própria loja (/api/unbox/paginas)", semExemplo, moldesNaoMedidos };
 }
 
 const achado = await descobrirPaginas();
@@ -264,6 +323,11 @@ if (semExemplo.length) {
   console.log(`\nROTAS DECLARADAS SEM EXEMPLO PARA ABRIR (${semExemplo.length}), NÃO foram medidas: ${semExemplo.join(", ")}`);
   console.log("  (a loja não devolveu um caminho concreto para elas: catálogo vazio, sem credenciais da Unbox neste ambiente, ou fora do ar)");
 }
+const moldesNaoMedidos = achado.moldesNaoMedidos ?? [];
+if (moldesNaoMedidos.length) {
+  console.log(`\nMOLDES DAS PÁGINAS DO LOJISTA SEM PÁGINA PUBLICADA (${moldesNaoMedidos.length}), não medidos: ${moldesNaoMedidos.join(", ")}`);
+  console.log("  (a loja declarou a rota como molde do lojista e não devolveu caminho: não há página visível no publicado para abrir. A casca é medida quando houver uma; isto não conta como NÃO RODOU)");
+}
 const porRegra = achado.paginas.filter((p) => p.soChrome);
 if (porRegra.length) {
   console.log(`\nSÓ CABEÇALHO E RODAPÉ, POR REGRA (§8), declaradas pela loja (${porRegra.length}): ${porRegra.map((p) => p.caminho).join(", ")}`);
@@ -278,18 +342,26 @@ if (porRegra.length) {
 // era o que havia (e reprovava seção legítima assim que o vocabulário crescia). A lista interna é só a
 // reserva para quando o arquivo não está onde a foundation o põe, e o relatório diz de onde veio.
 const KINDS_RESERVA = ["cabecalho", "faixa-de-anuncio", "banner", "texto-rolante", "vitrine-de-produtos", "produto-em-destaque", "beneficios", "como-funciona", "depoimentos", "perguntas-frequentes", "galeria", "video", "sobre-a-marca", "comparacao", "newsletter", "contato", "lojas-fisicas", "botao-flutuante", "rodape", "outro"];
-function vocabularioDeKinds() {
+// os PREFIXOS dos containers do lojista (foundation 13) saem do mesmo arquivo, pelo mesmo motivo: a lista é UMA
+const PREFIXOS_RESERVA = ["pagina-", "artigo-", "colecao-"];
+function vocabularioDoDocumento() {
   const candidatos = [new URL("../lib/editable/document.ts", import.meta.url), path.join(process.cwd(), "lib", "editable", "document.ts")];
+  const lista = (fonte, nome) => {
+    const m = fonte.match(new RegExp(`export const ${nome}\\s*=\\s*\\[([\\s\\S]*?)\\]\\s*as const`));
+    return m ? [...m[1].matchAll(/"([^"]+)"/g)].map((x) => x[1]) : [];
+  };
   for (const c of candidatos) {
     try {
-      const m = readFileSync(c, "utf8").match(/export const SECTION_KINDS\s*=\s*\[([\s\S]*?)\]\s*as const/);
-      const kinds = m ? [...m[1].matchAll(/"([^"]+)"/g)].map((x) => x[1]) : [];
-      if (kinds.length) return { kinds, fonte: "lib/editable/document.ts" };
+      const fonte = readFileSync(c, "utf8");
+      const kinds = lista(fonte, "SECTION_KINDS");
+      // document.ts anterior à 13 não declara prefixo nenhum: aí vale a reserva, e o relatório diz de onde veio
+      const prefixos = lista(fonte, "PREFIXOS_DO_LOJISTA");
+      if (kinds.length) return { kinds, prefixos: prefixos.length ? prefixos : PREFIXOS_RESERVA, fonte: "lib/editable/document.ts", fontePrefixos: prefixos.length ? "lib/editable/document.ts" : "lista interna do gate (document.ts sem PREFIXOS_DO_LOJISTA)" };
     } catch {}
   }
-  return { kinds: KINDS_RESERVA, fonte: "lista interna do gate (lib/editable/document.ts não encontrado)" };
+  return { kinds: KINDS_RESERVA, prefixos: PREFIXOS_RESERVA, fonte: "lista interna do gate (lib/editable/document.ts não encontrado)", fontePrefixos: "lista interna do gate (lib/editable/document.ts não encontrado)" };
 }
-const { kinds: SECTION_KINDS, fonte: FONTE_DOS_KINDS } = vocabularioDeKinds();
+const { kinds: SECTION_KINDS, prefixos: PREFIXOS_DO_LOJISTA, fonte: FONTE_DOS_KINDS, fontePrefixos: FONTE_DOS_PREFIXOS } = vocabularioDoDocumento();
 const semTipo = new Map();
 for (const r of resultados) {
   for (const s of r.manifest?.sections ?? []) {
@@ -322,8 +394,16 @@ for (const r of resultados) {
 // ter aberto a página. O gate confere a declaração contra o que o manifesto mostrou: os containers de primeiro
 // nível das seções e dos caminhos ("home.faq" é o `home`), fora o `chrome`, que é do site inteiro e não se lista.
 // Diverge = REPROVADO, dizendo a rota e o container: é o que impede a tabela de envelhecer em silêncio.
+// A ROTA DO LOJISTA declara por CURINGA (`pagina-*`): os containers dela nascem do documento, um por página que
+// o dono criar, e a tabela não tem como listá-los. O curinga casa todo observado com aquele prefixo, e SÓ NELA:
+// numa rota do código, `containers: ["*"]` esvaziaria a conferência inteira, que é justamente o que impede a
+// tabela de envelhecer em silêncio. Fora da rota do lojista, o curinga é ignorado (não casa com nada) e a
+// declaração é conferida nome a nome, como sempre.
 const CONTAINER_DO_SITE = "chrome";
 const raizDoContainer = (c) => String(c).split(".")[0];
+const casaContainer = (declarado, observado, comCuringa) => (declarado.endsWith("*") ? comCuringa && observado.startsWith(declarado.slice(0, -1)) : declarado === observado);
+/** o prefixo reservado ao lojista que este container usa, ou undefined */
+const prefixoReservadoDe = (c) => PREFIXOS_DO_LOJISTA.find((p) => c.startsWith(p));
 function containersObservados(manifest) {
   const vistos = new Set();
   for (const s of manifest?.sections ?? []) if (s.container) vistos.add(raizDoContainer(s.container));
@@ -337,16 +417,135 @@ function conferirDeclaracao(r) {
   const observados = containersObservados(r.manifest);
   if (!r.containers) return { observados, semDeclaracao: true };
   const declarados = [...new Set(r.containers.map(raizDoContainer).filter((c) => c !== CONTAINER_DO_SITE))].sort();
+  const comCuringa = Boolean(r.doLojista);
   return {
     declarados,
     observados,
-    faltouDeclarar: observados.filter((c) => !declarados.includes(c)),
-    declaradoSemAparecer: declarados.filter((c) => !observados.includes(c)),
+    faltouDeclarar: observados.filter((o) => !declarados.some((d) => casaContainer(d, o, comCuringa))),
+    declaradoSemAparecer: declarados.filter((d) => !observados.some((o) => casaContainer(d, o, comCuringa))),
   };
 }
 for (const r of resultados) if (!r.naoRodou) r.declaracao = conferirDeclaracao(r);
 const semDeclaracao = resultados.filter((r) => r.declaracao?.semDeclaracao);
+
+// PREFIXO RESERVADO EM ROTA DO CÓDIGO (foundation 13): `pagina-`, `artigo-` e `colecao-` são dos containers que o
+// lojista cria, e a loja trata qualquer container com esse prefixo como página dele (carimbo de data, sitemap,
+// exclusão junto com a página). Um container do CÓDIGO com esse prefixo seria lido assim, e a página do código
+// passaria a depender de um registro que não existe. Só é julgado onde a loja foi ouvida e listou a página: sem a
+// declaração, não dá para saber se a rota é do lojista, e reprovar no escuro é reprovar sem ter olhado.
+const prefixoIndevido = resultados
+  .filter((r) => !r.naoRodou && !r.doLojista && r.declaracao && !r.declaracao.naoConferido)
+  .map((r) => ({ caminho: r.caminho, rota: r.rota, containers: containersObservados(r.manifest).filter(prefixoReservadoDe) }))
+  .filter((x) => x.containers.length);
 const divergentes = resultados.filter((r) => r.declaracao && !r.declaracao.naoConferido && !r.declaracao.semDeclaracao && (r.declaracao.faltouDeclarar.length || r.declaracao.declaradoSemAparecer.length));
+
+// ── O PAR DO CORTE DO DOCUMENTO (layout que corta × casca que junta) ─────────────────────────────
+//
+// O layout raiz entrega ao provider o documento SEM as páginas do lojista (`documentoSemPaginas`),
+// porque ele viaja no HTML de toda página e o texto de cem artigos não tem o que fazer numa página de
+// produto. Quem renderiza uma página do lojista tem de DEVOLVER a fatia dela (`<EditableFatia>`).
+//
+// As duas metades são obrigatoriamente um par, e a meia-adoção é CALADA: a rota responde 200, não
+// registra erro, o `<head>` continua com o texto do lojista (metadados e dado estruturado saem do
+// servidor, que lê o publicado inteiro) e o corpo cai no literal do código. Não há um sintoma que a
+// cobertura, o manifesto ou o console peguem. O risco é o da propagação: a foundation é COPIADA para
+// loja existente, e o layout e as cascas são editados à mão, loja por loja.
+//
+// Esta conferência é de CÓDIGO-FONTE, não do HTML servido: o que se cobra é o par existir, e ele
+// existe (ou não) antes de a loja subir. Só é cobrada quando o layout corta; loja que ainda manda o
+// documento inteiro não tem par a cumprir. A prévia do editor não entra na lista porque ela renderiza
+// as MESMAS cascas das rotas de produção: tirar a fatia de uma casca reprova pelas rotas que a usam.
+const EXTENSOES = [".tsx", ".ts", ".jsx", ".js"];
+function raizDaLoja() {
+  const candidatos = [process.cwd(), path.dirname(path.dirname(new URL(import.meta.url).pathname))];
+  return candidatos.find((c) => existsSync(path.join(c, "app", "layout.tsx"))) ?? null;
+}
+/** todo page.tsx sob app/, com a rota que ele responde (o grupo de rotas, `(loja)`, não entra na URL) */
+function paginasDoApp(raiz) {
+  const achadas = new Map();
+  const andar = (dir, partes) => {
+    let entradas = [];
+    try { entradas = readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    for (const e of entradas) {
+      if (e.isDirectory()) andar(path.join(dir, e.name), e.name.startsWith("(") && e.name.endsWith(")") ? partes : [...partes, e.name]);
+      else if (/^page\.(tsx|ts|jsx|js)$/.test(e.name)) achadas.set(`/${partes.join("/")}`, path.join(dir, e.name));
+    }
+  };
+  andar(path.join(raiz, "app"), []);
+  return achadas;
+}
+/** o arquivo que este import aponta, se for da própria loja (`@/…`, `./…`, `../…`); senão `null` */
+function arquivoDoImport(alvo, deArquivo, raiz) {
+  if (!alvo.startsWith("@/") && !alvo.startsWith("./") && !alvo.startsWith("../")) return null;
+  const base = alvo.startsWith("@/") ? path.join(raiz, alvo.slice(2)) : path.resolve(path.dirname(deArquivo), alvo);
+  for (const cand of [base, ...EXTENSOES.map((x) => base + x), ...EXTENSOES.map((x) => path.join(base, "index" + x))]) {
+    try { if (statSync(cand).isFile()) return cand; } catch {}
+  }
+  return null;
+}
+/**
+ * O texto sem comentário. A foundation DOCUMENTA a fatia em comentário (`<EditableFatia>` dentro de
+ * uma frase), e sem esta peneira o gate lia a documentação como uso e aprovava a loja que tirou a
+ * fatia da casca. A peneira vale só para a busca; os imports saem do texto cru.
+ */
+const semComentarios = (fonte) => fonte.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:\w])\/\/[^\n]*/g, "$1");
+/** a fatia aparece na cadeia de imports desta rota? Devolve o arquivo onde ela está, ou null */
+function ondeEstaAFatia(entrada, raiz) {
+  const vistos = new Set();
+  const fila = [entrada];
+  while (fila.length && vistos.size < 500) {
+    const arq = fila.shift();
+    if (!arq || vistos.has(arq)) continue;
+    vistos.add(arq);
+    // a foundation é onde a fatia MORA, e morar não é usar: um `<EditableFatia>` citado ali é
+    // documentação, e a casca que a rota renderiza está fora desta pasta
+    if (arq.includes(`${path.sep}lib${path.sep}editable${path.sep}`)) continue;
+    let fonte = "";
+    try { fonte = readFileSync(arq, "utf8"); } catch { continue; }
+    if (/<\s*(EditableFatia|Editable\.Fatia)[\s>]/.test(semComentarios(fonte))) return path.relative(raiz, arq);
+    for (const m of fonte.matchAll(/from\s+["']([^"']+)["']/g)) {
+      const prox = arquivoDoImport(m[1], arq, raiz);
+      if (prox) fila.push(prox);
+    }
+  }
+  return null;
+}
+const RAIZ_DA_LOJA = raizDaLoja();
+const parDoCorte = { conferido: false, motivo: "", semFatia: [], semArquivo: [], comFatia: [] };
+if (!RAIZ_DA_LOJA) {
+  parDoCorte.motivo = "não achei a raiz da loja (app/layout.tsx) a partir de process.cwd() nem do lugar do script: rode o gate da pasta da loja";
+} else {
+  const layout = readFileSync(path.join(RAIZ_DA_LOJA, "app", "layout.tsx"), "utf8");
+  if (!/documentoSemPaginas/.test(layout)) {
+    parDoCorte.motivo = "o app/layout.tsx desta loja manda o documento inteiro ao provider (não chama documentoSemPaginas): não há par a cobrar";
+    parDoCorte.conferido = true;
+  } else {
+    // as rotas do molde saem da própria loja (lib/rotas-editaveis.ts) e do que ela declarou em
+    // /api/unbox/paginas: a tabela é a fonte, e o que a loja disse na hora acrescenta
+    let daTabela = [];
+    try {
+      const fonte = readFileSync(path.join(RAIZ_DA_LOJA, "lib", "rotas-editaveis.ts"), "utf8");
+      const m = fonte.match(/export const ROTAS_DO_LOJISTA[^=]*=\s*\[([\s\S]*?)\]/);
+      if (m) daTabela = [...m[1].matchAll(/"([^"]+)"/g)].map((x) => x[1]);
+    } catch {}
+    const declaradas = (achado.paginas ?? []).filter((p) => p.doLojista).map((p) => p.rota);
+    const rotas = [...new Set([...daTabela, ...declaradas, ...moldesNaoMedidos])].sort();
+    const paginas = paginasDoApp(RAIZ_DA_LOJA);
+    if (!rotas.length) {
+      parDoCorte.motivo = "o layout corta o documento e esta loja não declara nenhuma rota de página do lojista (ROTAS_DO_LOJISTA vazia): não há casca a conferir";
+      parDoCorte.conferido = true;
+    } else {
+      for (const rota of rotas) {
+        const arq = paginas.get(rota);
+        if (!arq) { parDoCorte.semArquivo.push(rota); continue; }
+        const onde = ondeEstaAFatia(arq, RAIZ_DA_LOJA);
+        if (onde) parDoCorte.comFatia.push({ rota, onde });
+        else parDoCorte.semFatia.push({ rota, arquivo: path.relative(RAIZ_DA_LOJA, arq) });
+      }
+      parDoCorte.conferido = true;
+    }
+  }
+}
 
 const naoRodaram = resultados.filter((r) => r.naoRodou);
 const medidas = resultados.filter((r) => !r.naoRodou);
@@ -355,6 +554,7 @@ const medidasPorRegra = medidas.filter((r) => r.soChrome);
 const descobertas = medidas.filter((r) => !r.soChrome && r.cobertura < MINIMO);
 
 console.log("\nCOBERTURA POR PÁGINA:");
+for (const rota of moldesNaoMedidos) console.log(`  molde      ${rota.padEnd(28)} molde não medido: nenhuma página publicada`);
 for (const r of resultados) {
   if (r.naoRodou) {
     console.log(`  NÃO RODOU  ${r.caminho.padEnd(28)} ${r.naoRodou}`);
@@ -385,6 +585,25 @@ if (semTipo.size) {
   for (const [chave, s] of semTipo) console.log(`  ${chave} · kind=${s.kind ?? "(vazio)"} · label=${s.label ?? "(vazio)"} · visto em ${s.onde}`);
 }
 
+if (prefixoIndevido.length) {
+  console.log(`\nPREFIXO RESERVADO ÀS PÁGINAS DO LOJISTA EM ROTA DO CÓDIGO (${prefixoIndevido.length}): o código está usando um prefixo reservado às páginas do lojista:`);
+  for (const x of prefixoIndevido) console.log(`  ${x.caminho} (rota ${x.rota}) · ${x.containers.join(", ")}`);
+  console.log(`  Os prefixos ${PREFIXOS_DO_LOJISTA.join(", ")} (lidos de ${FONTE_DOS_PREFIXOS}) são dos containers que o lojista cria pelo editor; a loja trata qualquer container assim como página dele. Renomeie o container no código (ou marque a rota com doLojista, se ela for a casca das páginas do lojista).`);
+}
+
+console.log("\nO PAR DO CORTE DO DOCUMENTO (o layout tira as páginas do lojista; a casca devolve a fatia):");
+if (!parDoCorte.conferido || parDoCorte.motivo) {
+  console.log(`  não conferido · ${parDoCorte.motivo}`);
+} else {
+  for (const x of parDoCorte.comFatia) console.log(`  ok             ${x.rota.padEnd(24)} fatia em ${x.onde}`);
+  for (const x of parDoCorte.semFatia) console.log(`  SEM A FATIA    ${x.rota.padEnd(24)} ${x.arquivo} e nada que ela importa renderiza <EditableFatia>`);
+  for (const rota of parDoCorte.semArquivo) console.log(`  não conferido  ${rota.padEnd(24)} a loja declara a rota e não achei o page.tsx dela em app/`);
+  if (parDoCorte.semFatia.length) {
+    console.log("  Sem a fatia, a página vai ao ar com o literal do código no lugar do texto do lojista: título, resumo, imagem e corpo somem do corpo da página, sem erro, sem log e sem 500. E o <head> continua com o texto dele, porque metadados e dado estruturado saem do servidor, que lê o publicado inteiro.");
+    console.log("  Envolva o que a rota renderiza em <EditableFatia fatia={fatiaDoDocumento(doc, alvos)}> (no template isso mora nas metades de servidor: components/paginas/pagina-do-lojista.tsx e colecao-do-lojista.tsx), ou devolva o documento inteiro ao provider no app/layout.tsx.");
+  }
+}
+
 if (medidas.length) {
   const lista = (xs) => (xs.length ? xs.join(", ") : "(nenhum)");
   console.log("\nCONTAINERS POR PÁGINA (o que a loja declara em CONTAINERS_POR_ROTA × o que o manifesto mostrou, fora o chrome):");
@@ -411,6 +630,9 @@ if (args.json) {
     fonteDaLista: achado.fonte,
     minimo: MINIMO,
     rotasSemExemplo: semExemplo,
+    moldesNaoMedidos,
+    prefixoReservadoEmRotaDoCodigo: prefixoIndevido,
+    parDoCorteDoDocumento: parDoCorte,
     paginas: resultados.map((r) => ({
       rota: r.rota,
       caminho: r.caminho,
@@ -421,6 +643,7 @@ if (args.json) {
       foraDeContainer: r.manifest?.semContainer ?? [],
       naoRodou: r.naoRodou ?? null,
       ...(r.soChrome ? { soChrome: true } : {}),
+      ...(r.doLojista ? { doLojista: true } : {}),
       ...(r.declaracao ? { containers: r.declaracao } : {}),
     })),
     secoesSemTipo: [...semTipo.keys()],
@@ -443,11 +666,17 @@ if (divergentes.length) {
   }).join(", ")}`);
 }
 if (semDeclaracao.length) reprovacoes.push(`rota(s) listada(s) pela loja sem declaração de containers: ${semDeclaracao.map((r) => r.rota).join(", ")}`);
+if (prefixoIndevido.length) reprovacoes.push(`container do código com prefixo reservado às páginas do lojista em ${prefixoIndevido.map((x) => `${x.rota} (${x.containers.join(", ")})`).join(", ")}`);
+if (parDoCorte.semFatia.length) reprovacoes.push(`rota(s) do lojista sem a fatia do documento: ${parDoCorte.semFatia.map((x) => `${x.rota} (${x.arquivo})`).join(", ")}: a página vai ao ar com o literal do código no lugar do texto do lojista`);
 
-if (naoRodaram.length || semExemplo.length) {
+// o par não conferido é NÃO RODOU pelo mesmo motivo dos outros: gate que varre o vazio e diz "limpo"
+// aprova sem ter olhado. Layout que não corta é conferido e não tem par a cumprir, que é outra coisa.
+const naoConferiuOPar = !parDoCorte.conferido || (parDoCorte.semArquivo.length > 0 && parDoCorte.comFatia.length === 0 && parDoCorte.semFatia.length === 0);
+if (naoRodaram.length || semExemplo.length || naoConferiuOPar) {
   const partes = [];
   if (naoRodaram.length) partes.push(`${naoRodaram.length} de ${resultados.length} página(s) NÃO foram medidas: ${naoRodaram.map((r) => r.caminho).join(", ")}`);
   if (semExemplo.length) partes.push(`${semExemplo.length} rota(s) declarada(s) sem exemplo para abrir: ${semExemplo.join(", ")}`);
+  if (naoConferiuOPar) partes.push(`o par do corte do documento não foi conferido: ${parDoCorte.motivo || "nenhuma rota do lojista pôde ser resolvida em app/"}`);
   if (reprovacoes.length) partes.push(`e, do que foi medido, já reprovou: ${reprovacoes.join(" · ")}`);
   console.error(`\n[check-editable] ${partes.join(" · ")}. NÃO RODOU.`);
   process.exit(2);
@@ -463,5 +692,8 @@ const resumo = medidasPorRegra.length
   : `todas >= ${(MINIMO * 100).toFixed(0)}%`;
 const conferidas = medidas.filter((r) => r.declaracao && !r.declaracao.naoConferido).length;
 const declaracao = conferidas ? `, declaração de containers batendo em ${conferidas} página(s)` : ", declaração de containers não conferida (a loja não foi ouvida)";
-console.log(`\n[check-editable] aprovado: ${medidas.length} página(s), ${resumo}, nenhuma seção sem tipo, nenhum editável fora de container${declaracao}`);
+// o molde não medido vai na frase de aprovação: aprovado sem tê-lo olhado é o que a frase tem de dizer
+const moldes = moldesNaoMedidos.length ? `; ${moldesNaoMedidos.length} molde(s) do lojista sem página publicada, não medido(s)` : "";
+const par = parDoCorte.motivo ? `, par do corte não conferido (${parDoCorte.motivo})` : parDoCorte.comFatia.length ? `, o par do corte do documento fechando em ${parDoCorte.comFatia.length} rota(s) do lojista` : "";
+console.log(`\n[check-editable] aprovado: ${medidas.length} página(s), ${resumo}, nenhuma seção sem tipo, nenhum editável fora de container${declaracao}${par}${moldes}`);
 process.exit(0);

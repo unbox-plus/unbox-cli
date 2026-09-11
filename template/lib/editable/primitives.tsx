@@ -16,8 +16,8 @@
 import * as React from "react";
 import Image, { type ImageProps } from "next/image";
 import Link from "next/link";
-import { caminhoTemContainer, type EditableType, type EditableValue, type ImageValue, type LinkValue, type PreviaDaVitrine, produtosDaVitrine, recusaDeHtml, type SectionKind, SUFIXO_HTML, joinPath, resolveStyle, resolveValue, vitrineValida, type VitrineValue } from "./document";
-import { EditableContextProvider, useEditableContext } from "./provider";
+import { caminhoTemContainer, type EditableType, type EditableValue, type ImageValue, type LinkValue, linksExternosEmNovaAba, type PreviaDaVitrine, produtosDaVitrine, recusaDeHtml, recusaDeTextoRico, type SectionKind, SUFIXO_HTML, SUFIXO_RICO, type EstiloResolvido, joinPath, resolveStyle, resolveStyleDeSecao, resolveValue, vitrineValida, type VitrineValue } from "./document";
+import { EditableContextProvider, EditableFatia, useEditableContext } from "./provider";
 
 /**
  * RECADO PARA QUEM CONSTRUIU A LOJA, só em desenvolvimento e uma vez por defeito. Não é recado para o
@@ -65,7 +65,10 @@ function useRegistration<T extends EditableValue>(path: string, type: EditableTy
     editing && !semContainer
       ? ({ "data-editor-path": full, "data-editor-type": type, "data-editor-label": label } as Record<string, string | undefined>)
       : {};
-  // cor/fundo SÓ deste elemento, por cima do token ("desacoplar do mapa de cores")
+  // cor E LETRA só deste elemento, por cima do token ("desacoplar do mapa de cores"). Já chega
+  // traduzido em propriedades do CSS (`estiloEmCss`, em document.ts): a tradução mora num lugar só
+  // porque são quatro primitivos aplicando o mesmo objeto. Como é estilo INLINE, ele vence a regra
+  // de `h1..h4` da escada sem precisar de variável nenhuma.
   const style = semContainer ? undefined : resolveStyle(ctx.doc, full);
   // valor CRU do documento, sem o fallback e sem a defesa do `resolveValue`. Só o bloco de HTML usa:
   // é com ele que o primitivo consegue DIZER "o que você colou foi recusado" em vez de mostrar o
@@ -174,8 +177,8 @@ function Slot<T extends EditableValue>({
   type: EditableType;
   fallback: T;
   label?: string;
-  /** o 4º argumento é a cor/fundo que o lojista deu SÓ a este elemento — aplique em `style` */
-  children: (value: T, attrs: Record<string, string | undefined>, ref: React.RefCallback<Element>, style?: { color?: string; background?: string }) => React.ReactNode;
+  /** o 4º argumento é a cor e a letra que o lojista deu SÓ a este elemento — aplique em `style` */
+  children: (value: T, attrs: Record<string, string | undefined>, ref: React.RefCallback<Element>, style?: EstiloResolvido) => React.ReactNode;
 }) {
   const { value, ref, attrs, style } = useRegistration(path, type, fallback, label);
   const setRef = React.useCallback<React.RefCallback<Element>>(
@@ -560,6 +563,82 @@ function Html({ path, fallback = "", label, style: styleProp, ...rest }: HtmlPro
   return <div ref={ref as React.Ref<HTMLDivElement>} {...caixa} dangerouslySetInnerHTML={{ __html: seguro }} />;
 }
 
+type RichTextProps = {
+  path: string;
+  /** o texto que o CÓDIGO traz. Quase sempre vazio: o corpo de um artigo nasce para o lojista escrever. */
+  fallback?: string;
+  label?: string;
+} & Omit<React.HTMLAttributes<HTMLDivElement>, "children" | "dangerouslySetInnerHTML">;
+
+/**
+ * TEXTO FORMATADO (foundation 13): o corpo de um artigo ou de uma página do lojista. Parágrafo, negrito,
+ * itálico, sublinhado, riscado, link, lista, subtítulo, citação e linha; nada além disso.
+ *
+ * Existe AO LADO do bloco de HTML, e não em cima dele, porque os dois resolvem problemas opostos:
+ *   · o bloco de HTML é para COLAR o que veio de fora (um selo, uma tabela do fornecedor) e por isso é
+ *     lista de RECUSA (tudo entra, menos o que faz mal) com o chat proibido de escrever nele;
+ *   · o texto formatado é para ESCREVER, pelo editor de texto do painel ou pelo markdown do chat, e por
+ *     isso é lista FECHADA (`TAGS_DO_TEXTO_RICO`, só `href` em `a`): tudo que não está nela é, por
+ *     definição, coisa que o editor não produziu. É o que deixa o chat escrever um artigo inteiro sem
+ *     abrir a porta que o bloco de HTML fecha.
+ * `Editable.Text multiline` não serve: ele só quebra linha, e um artigo precisa de subtítulo e link.
+ *
+ * O caminho ganha o sufixo `.rico` AQUI (`path="corpo"` → `artigo-blog-x.novo-texto-1.corpo.rico`): é ele que
+ * diz ao servidor da loja que o valor é marcação a passar pela lista fechada, e não um texto a escapar. A
+ * loja lê o publicado sem manifesto nenhum.
+ *
+ * Como no bloco de HTML, esta é a terceira camada da régua e a ÚNICA que existe na PRÉVIA (o rascunho chega
+ * por postMessage, sem servidor): aqui é RECUSAR, não limpar. Texto recusado não é injetado; em modo
+ * edição o bloco diz o motivo, em vez de mostrar outra coisa calado. Quem limpa e relata é o editor, antes
+ * de gravar.
+ *
+ * Os links de FORA saem com `target="_blank"` e `rel="noopener noreferrer"` NA RENDERIZAÇÃO
+ * (`linksExternosEmNovaAba`, transformação de string sobre texto já aprovado): o documento guarda só o
+ * `href`, e a lista fechada continua valendo para o que está guardado.
+ *
+ * O invólucro é `<div class="texto-rico">`: o CSS de prosa (espaçamento de parágrafo, lista, citação) é do
+ * template da loja, por essa classe. Em produção, texto vazio não rende NADA, nem invólucro: um `<div>` de
+ * 0px ainda come o `gap` do container e abre uma faixa branca no meio da página. Em edição, o vazio vira
+ * o convite para escrever.
+ */
+function RichText({ path, fallback = "", label, className, ...rest }: RichTextProps) {
+  // sufixo idempotente, como no bloco de HTML: `path="corpo.rico"` não vira `.rico.rico`
+  const caminho = path.endsWith(SUFIXO_RICO) ? path : path + SUFIXO_RICO;
+  const { value, ref, attrs, editing, guardado } = useRegistration(caminho, "richtext", fallback, label);
+  const html = typeof value === "string" ? value : "";
+  // recusa no CLIENTE: vale para o rascunho da prévia e para o `fallback` do próprio código
+  const recusaNoRender = html ? recusaDeTextoRico(html) : null;
+  // o que o lojista GRAVOU já tinha sido recusado em `resolveValue` (que devolveu o fallback)? Sem esta
+  // linha, o bloco mostraria o texto do código e ninguém saberia por quê
+  const recusaGuardada = typeof guardado === "string" && guardado !== html ? recusaDeTextoRico(guardado) : null;
+  const motivo = recusaGuardada ?? recusaNoRender;
+  // os links de fora só entram na string depois de aprovada: a transformação pressupõe a lista fechada
+  const seguro = recusaNoRender ? "" : linksExternosEmNovaAba(html);
+  const vazio = !seguro.trim();
+  if (vazio && !editing) return null;
+  const caixa = { ...attrs, ...rest, className: className ? `texto-rico ${className}` : "texto-rico" };
+  const aviso = editing && motivo ? <span style={AVISO_HTML}>Este texto não foi aplicado: {motivo}</span> : null;
+  if (vazio) {
+    return (
+      <div ref={ref as React.Ref<HTMLDivElement>} {...caixa}>
+        {aviso ?? <span style={MARCADOR_HTML}>Clique para escrever</span>}
+      </div>
+    );
+  }
+  // recusa + texto do código ao mesmo tempo: o aviso vem ANTES, e o texto entra num filho `display: contents`
+  // (sem caixa própria) para o layout não mudar por causa do aviso
+  if (aviso) {
+    return (
+      <div ref={ref as React.Ref<HTMLDivElement>} {...caixa}>
+        {aviso}
+        <div style={{ display: "contents" }} dangerouslySetInnerHTML={{ __html: seguro }} />
+      </div>
+    );
+  }
+  // `dangerouslySetInnerHTML` e `children` não convivem no mesmo elemento: por isso os três retornos
+  return <div ref={ref as React.Ref<HTMLDivElement>} {...caixa} dangerouslySetInnerHTML={{ __html: seguro }} />;
+}
+
 /**
  * Seção: dá identidade estável (id) e escopo de caminho (`<container>.<id>.…`).
  * Em produção, seção oculta não renderiza. O wrapper é `display:contents` — não
@@ -624,15 +703,18 @@ function Section({
     );
   }, [cont, id]);
   const value = React.useMemo(() => ({ ...ctx, container: cont, section: cont ? id : undefined, scope: cont ? [cont, id] : [] }), [ctx, cont, id]);
-  // fundo da seção inteira (`<container>.<id>.estilo`): o invólucro é `display: contents`, então
-  // a cor vai numa variável herdada e a regra global pinta o filho direto (ver EditableProvider)
-  const fundo = cont ? resolveStyle(ctx.doc, `${cont}.${id}`)?.background : undefined;
+  // estilo da seção inteira (`<container>.<id>.estilo`): o invólucro é `display: contents`, então
+  // só entra o que HERDA até os filhos. O fundo não herda e por isso vai numa variável, com a regra
+  // global pintando o filho direto (ver EditableProvider); a família e o peso vão numa variável
+  // TAMBÉM, porque a escada os declara em `h1..h4` e regra no elemento vence valor herdado.
+  const daSecao = cont ? resolveStyleDeSecao(ctx.doc, `${cont}.${id}`) : undefined;
+  const fundo = daSecao?.["--unbox-sec-bg"];
   if (hidden && !editing) return null;
   return (
     <EditableContextProvider value={value}>
       <div
         ref={ref}
-        style={fundo ? ({ display: "contents", "--unbox-sec-bg": fundo } as React.CSSProperties) : { display: "contents" }}
+        style={daSecao ? ({ display: "contents", ...daSecao } as React.CSSProperties) : { display: "contents" }}
         data-unbox-sec-bg={fundo ? "1" : undefined}
         {...(editing && cont
           ? { "data-editor-section": id, "data-editor-container": cont, "data-editor-label": label, "data-editor-kind": kind, "data-editor-item": item ? "1" : undefined, "data-editor-fixed": fixed ? "1" : undefined, "data-editor-clone": clone ? "1" : undefined, "data-editor-criada": criada ? "1" : undefined, "data-editor-tipo": tipo, "data-editor-section-hidden": hidden ? "1" : undefined }
@@ -799,9 +881,11 @@ function Sections(props: SectionsProps) {
 // Exportações NOMEADAS para server components: o objeto `Editable` é de um módulo
 // "use client", e um server component que importa um OBJETO de client module recebe
 // undefined (só componentes atravessam a fronteira). Nomeados atravessam.
-export { Section as EditableSection, Text as EditableText, EditableImage, EditableImg, EditableLink, Slot as EditableSlot, Icon as EditableIcon, Vitrine as EditableVitrine, Video as EditableVideo, Html as EditableHtml, Sections as EditableSections };
+export { Section as EditableSection, Text as EditableText, EditableImage, EditableImg, EditableLink, Slot as EditableSlot, Icon as EditableIcon, Vitrine as EditableVitrine, Video as EditableVideo, Html as EditableHtml, RichText as EditableRichText, Sections as EditableSections };
 
 export const Editable = {
+  // a fatia do documento de uma página do lojista (mora no provider; aqui só entra no namespace)
+  Fatia: EditableFatia,
   Text,
   Image: EditableImage,
   Img: EditableImg,
@@ -811,6 +895,7 @@ export const Editable = {
   Vitrine,
   Video,
   Html,
+  RichText,
   Section,
   Sections,
 };

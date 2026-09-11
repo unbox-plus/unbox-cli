@@ -169,11 +169,11 @@ export function PdpView({ produto, compra, detalhes, avaliacoes, faq, catalogo }
                 <EditableSection item id="faq" label="Perguntas frequentes">
                   <div className="rounded-xl border border-[var(--store-line)] bg-white p-[28px]">
                     <EditableText
-                      as="h2"
+                      as="h3"
                       path="titulo"
                       fallback="Perguntas frequentes"
                       label="Título das perguntas frequentes"
-                      className="font-display mb-[22px] text-[21px] font-extrabold italic leading-tight text-[var(--store-primary,#18181B)]"
+                      className="font-display mb-[22px] italic text-[var(--store-primary,#18181B)]"
                     />
                     <FaqList items={faq} />
                   </div>
@@ -200,7 +200,7 @@ export function PdpView({ produto, compra, detalhes, avaliacoes, faq, catalogo }
                       path="titulo"
                       fallback="Explore mais do catálogo"
                       label="Título do catálogo"
-                      className="font-display mt-1.5 text-[26px] font-extrabold"
+                      className="font-display mt-1.5"
                     />
                   </div>
                   <CatalogCta />

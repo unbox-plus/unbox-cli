@@ -11,8 +11,11 @@ export const meta = {
 
 // ─── Configuração ─────────────────────────────────────────────────────────────
 const TARGET = args?.projectDir ?? '/tmp/unbox-storefront'
-const SDK_PATH = args?.sdkPath ?? '/Users/brunoapereira/Documents/Claude/unbox-store-kit-v0.3/unbox-sdk'
-const DOCS_PATH = '/Users/brunoapereira/Documents/Claude/unbox-store-kit-v0.3/unbox-agent-store-front v.0.2'
+// Os dois caminhos apontavam para a pasta pessoal de quem escreveu este script, e viajavam
+// para dentro do projeto de todo cliente. Agora vêm por argumento ou por variável de
+// ambiente: quem for reaproveitar este padrão aponta para a SUA cópia do SDK e das docs.
+const SDK_PATH = args?.sdkPath ?? process.env.UNBOX_SDK_PATH ?? '<caminho local do unbox-sdk>'
+const DOCS_PATH = args?.docsPath ?? process.env.UNBOX_DOCS_PATH ?? '<caminho local das docs do storefront>'
 
 // ─── Contexto compartilhado (injetado em todos os agentes) ───────────────────
 const SHARED = `

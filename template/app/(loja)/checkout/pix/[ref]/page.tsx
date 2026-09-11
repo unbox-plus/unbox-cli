@@ -71,7 +71,7 @@ export default function PixPage() {
     return (
       <div className="mx-auto max-w-md py-10 text-center">
         <CheckCircle2 className="mx-auto size-14 text-primary" />
-        <h1 className="mt-4 text-2xl font-bold">Pagamento confirmado!</h1>
+        <h1 className="mt-4">Pagamento confirmado!</h1>
         <p className="mt-2 text-muted-foreground">Recebemos seu Pix. Já estamos preparando seu pedido.</p>
         <div className="mt-6 flex justify-center gap-2">
           <Button nativeButton={false} render={<Link href={`/pedido/${ref}`} />}>Ver pedido</Button>
@@ -83,7 +83,7 @@ export default function PixPage() {
 
   return (
     <div className="mx-auto max-w-md py-6">
-      <h1 className="text-2xl font-bold">Pague com Pix</h1>
+      <h1>Pague com Pix</h1>
       <p className="mt-1 text-sm text-muted-foreground">Pedido #{ref}</p>
 
       {expired ? (

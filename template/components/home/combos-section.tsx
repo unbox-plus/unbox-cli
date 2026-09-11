@@ -62,7 +62,7 @@ export function CombosSection({ combos }: { combos: ResolvedCombo[] }) {
       <div className="mb-[18px] flex items-end justify-between gap-3">
         <div>
           <Editable.Text as="div" path="chapeu" fallback="KITS DA LOJA" label="Chapéu acima do título" className="text-xs font-extrabold tracking-[1.5px] text-[var(--store-primary,#18181B)]" />
-          <Editable.Text as="h2" path="titulo" fallback="Monte seu kit com nossos combos" label="Título" className="font-display mt-1.5 text-[26px] font-extrabold" />
+          <Editable.Text as="h2" path="titulo" fallback="Monte seu kit com nossos combos" label="Título" className="font-display mt-1.5" />
           <Editable.Text as="p" path="subtitulo" fallback="Tudo combinado, com desconto e pronto pro carrinho." label="Subtítulo" className="mt-1 text-sm text-[var(--store-muted)]" />
         </div>
         {combos.length > 1 && (
@@ -114,7 +114,7 @@ function ComboCard({ combo, busy, onAdd }: { combo: ResolvedCombo; busy: boolean
 
         {/* coluna 2: detalhes + CTA */}
         <div className="flex flex-col justify-center border-b border-[var(--store-line)] p-6 sm:p-7 lg:border-b-0 lg:border-r">
-          <h3 className="font-display text-[26px] font-extrabold leading-[1.08] text-[var(--store-ink)]">{combo.name}</h3>
+          <h3 className="font-display text-[var(--store-ink)]">{combo.name}</h3>
           <p className="mt-2 max-w-[360px] text-[15px] leading-[1.5] text-[var(--store-ink-2)]">{combo.description}</p>
 
           <div className="my-5 grid grid-cols-3 gap-2 border-y border-[var(--store-line)] py-4">

@@ -10,9 +10,15 @@ if (!process.argv.includes("--confirm")) {
   process.exit(1);
 }
 
+// Endereço de teste: dado de fixture, nunca de pessoa. O CPF de fábrica é uma sequência
+// repetida, que NÃO fecha a conta de dígito verificador, justamente para não ter como
+// coincidir com o documento de alguém. Se a loja recusar o pedido por causa dele, ponha o SEU
+// em .env.local (UNBOX_TEST_CPF): arquivo que vai para o registro público não carrega documento
+// de ninguém. O endereço é o de uma praça pública, e não de uma casa, porque o cálculo de frete
+// precisa de um CEP que exista de verdade.
 const ADDR = {
-  fullName: "Cliente Teste", taxPayerId: "08383142951", postal: "04551-080",
-  address1: "Rua São Tomé", number: "73", neighborhood: "Vila Olímpia",
+  fullName: "Cliente Teste", taxPayerId: process.env.UNBOX_TEST_CPF ?? "00000000000",
+  postal: "01001-000", address1: "Praça da Sé", number: "100", neighborhood: "Sé",
   city: "São Paulo", region: "SP", phone: "11999990000",
 };
 

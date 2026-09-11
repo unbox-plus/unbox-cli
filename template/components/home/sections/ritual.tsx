@@ -57,7 +57,7 @@ export function RitualSection({ sectionProps = {} }: SectionComponentProps) {
         </div>
         <div>
           <Editable.Text path="selo" fallback={badge} label="Selo acima do título" className="rounded-full bg-[var(--store-primary-soft,#F1F1F3)] px-4 py-1.5 text-[12.5px] font-bold uppercase tracking-[0.6px] text-[var(--store-primary,#18181B)]" />
-          <Editable.Text as="h2" path="titulo" fallback={title} label="Título" className="font-display mt-4 text-[28px] font-extrabold leading-[1.15]" />
+          <Editable.Text as="h2" path="titulo" fallback={title} label="Título" className="font-display mt-4" />
           <ul className="mt-6 flex flex-col gap-4">
             <EditableScope path="passos">
               <Editable.Sections nested>

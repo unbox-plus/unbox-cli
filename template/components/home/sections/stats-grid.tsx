@@ -27,7 +27,7 @@ export function StatsGridSection({ sectionProps = {} }: SectionComponentProps) {
   const stats = (sectionProps.stats as Stat[] | undefined) ?? DEFAULT_STATS;
   return (
     <div className="mx-auto max-w-[var(--container-max,1240px)] px-4 pt-[var(--section-gap,52px)] sm:px-6">
-      <Editable.Text as="h2" path="titulo" fallback={title} label="Título" className="font-display mx-auto max-w-[560px] text-center text-[28px] font-extrabold leading-[1.15]" />
+      <Editable.Text as="h2" path="titulo" fallback={title} label="Título" className="font-display mx-auto max-w-[560px] text-center" />
       <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
         {/* o invólucro do item é display:contents: quem continua sendo a célula do grid é o card */}
         <EditableScope path="destaques">

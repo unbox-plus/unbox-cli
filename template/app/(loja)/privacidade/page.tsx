@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 
 export default function PrivacidadePage() {
   return (
-    <article className="richtext mx-auto max-w-2xl py-8 px-4">
+    <article className="texto-rico mx-auto max-w-2xl py-8 px-4">
       <h1>Política de Privacidade</h1>
       <p className="text-sm text-muted-foreground">Última atualização: preencher data</p>
 

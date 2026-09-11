@@ -1,7 +1,7 @@
-# create-unbox-store — código-fonte (v0.20.1)
+# create-unbox-store — código-fonte (v0.21.3)
 
-Este zip é o **repositório de trabalho**, não o artefato de uso. Quem só quer gerar loja usa o
-`CLI - Unbox v0.20.1.zip`, que traz o `create-unbox-store.tgz`.
+Este repositório é o **repositório de trabalho**, não o artefato de uso. Quem só quer gerar loja
+roda o pacote publicado: `npx --package=@unbox-plus/cli create-unbox-store`.
 
 ```bash
 npm install          # só `prompts`; o resto é do template
@@ -23,13 +23,27 @@ npm pack             # gera o tarball (o prepack roda o gate de neutralidade ant
 | arquivo | o que faz |
 |---|---|
 | `check-template-neutro.mjs` | gate do `prepack`: bloqueia o empacotamento se a foundation tiver vocabulário de um ramo específico ou nome de cliente, comentário incluído. Também reprova travessão no texto que o wizard imprime |
-| `notion-doc.mjs` | gera a página do Notion a partir do `README.md` e do `package.json` |
+| `notion-doc.mjs` | gera a página do Notion a partir do `CHANGELOG.md` e do `package.json` |
 | `tokenize-neutrals.mjs`, `tokenize-radius.mjs` | varreduras usadas nas migrações de paleta e de raio |
 | `workflow-storefront.legado.js` | legado da era anterior ao CLI, mantido só como referência |
 
-Até a v0.20.0 o `files` do `package.json` listava apenas `bin`, `src` e `template`, então `tools/`
-não viajava no tarball — embora o `prepack` do próprio pacote chamasse `tools/check-template-neutro.mjs`.
-Corrigido na v0.20.1: o tarball agora leva `tools/` e é consistente consigo mesmo.
+Da v0.20.1 à v0.20.5 o `files` do `package.json` listava `tools`, então tudo desta pasta viajou no
+tarball público, inclusive o gate com a lista de clientes e os caminhos da máquina de quem escreveu
+o `workflow-storefront.legado.js`. Revertido na v0.21.3: o `files` voltou a `bin`, `src` e `template`.
+Não há inconsistência com o `prepack`, que chama `tools/check-template-neutro.mjs`: o `prepack` roda
+aqui, no repositório de trabalho, onde `tools/` existe. Quem instala do registro nunca roda `prepack`.
+
+## A prévia de página do lojista, e a chave do editor
+
+A rota `/previa-do-editor` da loja gerada só abre uma página que ainda não existe na loja se a
+assinatura que vem do editor conferir, e para conferir ela precisa que o editor assine sempre com a
+MESMA chave: `EDITOR_PRIVATE_KEY_JWK`, no ambiente do **editor**, não no da loja. Sem a variável o
+editor sorteia um par novo a cada arranque, a assinatura deixa de conferir e toda prévia de página
+do lojista responde 404, com uma linha no log da loja dizendo isso.
+
+Isto mora aqui, e não no `README.md`, porque aquele README é público (vai ao npm e ao GitHub) e é
+documento de quem GERA loja: quem instala o `@unbox-plus/cli` não configura o ambiente do editor da
+Unbox. Lá ficou só o efeito que essa pessoa consegue ver.
 
 ## Gates que rodam dentro da loja gerada
 

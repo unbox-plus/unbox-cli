@@ -1,6 +1,6 @@
 {
   "name": "@unbox-plus/cli",
-  "version": "0.20.5",
+  "version": "0.21.3",
   "author": {
     "name": "Unbox Development Team",
     "email": "devs@unbox.com.br",
@@ -20,8 +20,7 @@
   "files": [
     "bin",
     "src",
-    "template",
-    "tools"
+    "template"
   ],
   "engines": {
     "node": ">=20.11"

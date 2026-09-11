@@ -297,11 +297,11 @@ export function CatalogClient({
                   <div>
                     {/* o título só é copy quando é o da lista completa; com filtro ele é o nome da categoria (catálogo) ou o rótulo do filtro */}
                     {cats.size === 1 ? (
-                      <TituloTag className="font-display text-xl font-extrabold" data-editor-ignore="">{[...cats][0]}</TituloTag>
+                      <TituloTag className="font-display" data-editor-ignore="">{[...cats][0]}</TituloTag>
                     ) : deals ? (
-                      <TituloTag className="font-display text-xl font-extrabold" data-editor-ignore="">Ofertas</TituloTag>
+                      <TituloTag className="font-display" data-editor-ignore="">Ofertas</TituloTag>
                     ) : (
-                      <Editable.Text path="titulo" fallback="Todos os produtos" label="Título da lista completa" as={TituloTag} className="font-display text-xl font-extrabold" />
+                      <Editable.Text path="titulo" fallback="Todos os produtos" label="Título da lista completa" as={TituloTag} className="font-display" />
                     )}
                     {/* contador vem de dados */}
                     <p data-editor-ignore className="text-[13px] text-[var(--store-muted)]">{sorted.length} produtos encontrados</p>
@@ -376,7 +376,7 @@ export function CatalogClient({
             {bundles.length > 0 && (
               <div className="mt-12 rounded-xl border border-[var(--store-line)] bg-[var(--store-bg)] p-6 sm:p-7">
                 <div className="mb-5">
-                  <Editable.Text path="titulo" fallback="Kits & Combos com desconto" label="Título dos kits" as="h2" className="font-display text-[22px] font-extrabold" />
+                  <Editable.Text path="titulo" fallback="Kits & Combos com desconto" label="Título dos kits" as="h3" className="font-display" />
                   <Editable.Text path="subtitulo" fallback="Mais itens, mais economia: já com desconto." label="Subtítulo dos kits" as="p" className="mt-1 text-sm text-[var(--store-muted)]" />
                 </div>
                 <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-3 lg:grid-cols-4">

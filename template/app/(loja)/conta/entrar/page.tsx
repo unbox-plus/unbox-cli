@@ -57,7 +57,7 @@ export default function EntrarPage() {
       <div className="w-full max-w-[440px]">
         <div className="rounded-xl border border-[var(--store-line)] bg-white p-7 shadow-[0_12px_40px_rgba(24,24,27,.08)] sm:p-9">
           <div className="text-xs font-extrabold tracking-[1.5px] text-[var(--store-primary,#18181B)]">MINHA CONTA</div>
-          <h1 className="font-display mt-2 text-[28px] font-extrabold leading-[1.12]">Entrar</h1>
+          <h1 className="font-display mt-2">Entrar</h1>
           <p className="mt-1.5 text-[14.5px] leading-[1.5] text-[var(--store-muted)]">
             Acesse com seu e-mail: sem senha, por código de verificação.
           </p>

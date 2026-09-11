@@ -35,7 +35,7 @@ export function ReviewsCarouselSection({ sectionProps = {} }: SectionComponentPr
     <div className="mx-auto max-w-[var(--container-max,1240px)] px-4 pt-[var(--section-gap,52px)] sm:px-6">
       <div className="rounded-2xl border-2 border-[var(--store-primary,#18181B)]/25 bg-[var(--store-surface)] p-6 sm:p-9">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <Editable.Text as="h2" path="titulo" fallback={title} label="Título" className="font-display text-[24px] font-extrabold" />
+          <Editable.Text as="h2" path="titulo" fallback={title} label="Título" className="font-display" />
           <Stars n={media} className="text-[16px] text-[var(--store-cta-dark)]" />
         </div>
         <div data-editor-ignore="">

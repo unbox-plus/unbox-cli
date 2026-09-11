@@ -94,7 +94,7 @@ export function ReviewsCard({ ratingCount, average, reviews }: {
   const list = reviews.slice(0, 6).map((r) => ({ initial: (r.author.trim()[0] || "?").toUpperCase(), name: r.author, quip: r.comment, stars: r.stars, verified: r.verified }));
   return (
     <div className="rounded-xl border border-[var(--store-line)] bg-white p-7 p-[28px]">
-      <EditableText as="h2" path="titulo" fallback="Quem comprou, recomenda" label="Título das avaliações" className="font-display mb-[18px] text-[21px] font-extrabold italic leading-tight text-[var(--store-primary,#18181B)]" />
+      <EditableText as="h3" path="titulo" fallback="Quem comprou, recomenda" label="Título das avaliações" className="font-display mb-[18px] italic text-[var(--store-primary,#18181B)]" />
       <div className="flex items-center gap-3.5" data-editor-ignore>
         <span className="font-display text-[44px] font-extrabold leading-none text-[var(--store-ink)]">{avg}</span>
         <span className="flex text-2xl text-[var(--store-cta-dark)]" aria-label={`${avg} de 5`}>{[1, 2, 3, 4, 5].map((i) => <Star key={i} weight={average >= i - 0.25 ? "fill" : "regular"} />)}</span>
@@ -148,7 +148,7 @@ export function QualidadeCard() {
   if (QUALIDADE.length === 0) return null;
   return (
     <div className="rounded-xl border border-[var(--store-line)] bg-white p-7 p-[28px]">
-      <EditableText as="h2" path="titulo" fallback="Qualidade que você sente" label="Título do bloco de qualidade" className="font-display mb-[22px] text-[21px] font-extrabold italic leading-tight text-[var(--store-primary,#18181B)]" />
+      <EditableText as="h3" path="titulo" fallback="Qualidade que você sente" label="Título do bloco de qualidade" className="font-display mb-[22px] italic text-[var(--store-primary,#18181B)]" />
       <div className="flex flex-col gap-5">
         <EditableSections nested>
           {QUALIDADE.map((q, i) => (

@@ -20,7 +20,7 @@ export function SavingsSection({ data }: SectionComponentProps) {
       <div className="store-card rounded-xl p-7">
         <div className="grid items-center gap-6 lg:grid-cols-[1.1fr_auto_auto_auto]">
           <div>
-            <Editable.Text as="h2" path="titulo" fallback="Economia que faz diferença" label="Título" className="font-display text-[22px] font-extrabold" />
+            <Editable.Text as="h2" path="titulo" fallback="Economia que faz diferença" label="Título" className="font-display" />
             <Editable.Text as="p" path="texto" fallback="Compare e veja como compensa levar o nosso combo." label="Texto" className="mt-1.5 max-w-[280px] text-sm text-[var(--store-muted)]" />
           </div>
           <div className="text-center">
