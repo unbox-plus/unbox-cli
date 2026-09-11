@@ -33,7 +33,7 @@ import {
   type ManifestFonte,
   type OpcaoDeToken,
   type TipoDeToken,
-  ehFamiliaDeLetra, juntarFatia, normalizarPagina, PESOS_DA_LETRA, resolveValue, type SectionKind, SECTION_KIND_LABEL, tokenAceita, valorDeTokenEmCss } from "./document";
+  ehFamiliaDeLetra, juntarFatia, normalizarPagina, PESOS_DA_LETRA, resolveValue, type SectionKind, SECTION_KIND_LABEL, tokenAceita, valorDeTokenEmCss, cssDoLojistaEmSeguranca} from "./document";
 
 export interface EditableTokenSpec {
   token: string;
@@ -672,7 +672,7 @@ export function EditableProvider({
     // na tela. Então quem responde é a folha DELA, por um marcador que só o bloco da escada declara,
     // e a resposta é lida do valor computado — como já se faz com a cor.
     const letraDaLoja = cs ? cs.getPropertyValue("--unbox-letra-da-loja").trim() === "1" : false;
-    return { shop, capturedAt: new Date().toISOString(), url: pagina, foundation: 14, entries, sections: secs, tipos, semContainer: fora, tokens: toks, ...(fontes.length ? { fontes } : {}), ...(letraDaLoja ? { letraDaLoja } : {}), ...(apps ? { apps } : {}), ...(paginasDoLojista ? { paginasDoLojista } : {}) };
+    return { shop, capturedAt: new Date().toISOString(), url: pagina, foundation: 15, entries, sections: secs, tipos, semContainer: fora, tokens: toks, ...(fontes.length ? { fontes } : {}), ...(letraDaLoja ? { letraDaLoja } : {}), ...(apps ? { apps } : {}), ...(paginasDoLojista ? { paginasDoLojista } : {}) };
   }, [shop, tokens, apps, paginasDoLojista]);
 
   // manifesto: publica depois que os registros assentam (debounce)
@@ -980,6 +980,11 @@ export function EditableProvider({
     <EditableContext.Provider value={value}>
       {tokenCss ? <style data-editor-tokens="">{`:root{${tokenCss}}`}</style> : null}
       <style data-editor-base="">{SECTION_CSS}</style>
+      {/* A FOLHA DO LOJISTA, e ela é a última de propósito: o que ele escreve tem de vencer o que a
+          loja traz, e em CSS de mesma especificidade quem vem depois ganha. Vai em `dangerouslySetInnerHTML`
+          porque é CSS e não texto, com a única troca que `cssDoLojistaEmSeguranca` faz — a sequência que
+          fecharia a tag. Sem ela, `</style>` no campo transformaria o resto em HTML. */}
+      {doc.css ? <style data-css-do-lojista="" dangerouslySetInnerHTML={{ __html: cssDoLojistaEmSeguranca(doc.css) }} /> : null}
       {editing ? <style data-editor-css="" dangerouslySetInnerHTML={{ __html: EDITING_CSS }} /> : null}
       {editing && selectMode ? <Overlay ref={overlayRef} /> : null}
       {children}
