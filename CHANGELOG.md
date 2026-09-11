@@ -1,5 +1,13 @@
 ## Changelog
 
+### v0.21.4 — Next 15.5.24
+
+O 15.5.19 acumulava dez avisos de segurança, sendo dois críticos: execução remota de código sem
+autenticação pela API de otimização de imagem, e a mesma coisa em host Windows. A subida é de patch
+dentro do mesmo minor, e leva junto `@next/env` e `eslint-config-next`, que andam com ele.
+
+Loja já gerada: subir as três para `15.5.24` e refazer o deploy. Nada mais muda.
+
 ### v0.21.3 — a escada dos títulos, o segredo que deixou de ter valor de fábrica, o que saiu do pacote e o gate que passou a medir o arquivo inteiro
 
 Duas coisas grandes e uma rodada de limpeza. A grande do lado da LOJA é a escada dos títulos, que tira o
