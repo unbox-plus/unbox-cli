@@ -176,6 +176,6 @@ A loja diz quem é e onde vive (0.20.4): `/api/unbox/paginas` responde `loja: { 
 
 O lojista cria páginas, artigos e coleções (0.21.0). A loja nasce com quatro rotas que servem o que o lojista escreve no editor: `/paginas/<endereco>` (página avulsa), `/<colecao>/<endereco>` (artigo), `/<colecao>` (listagem) e `/<colecao>/pagina/N` (as seguintes), mais `/previa-do-editor`, por onde o editor abre uma página antes de ela existir na loja. A coleção que nasce com a loja é o `blog`, declarada em `lib/paginas-do-lojista.ts`; trocar o rótulo e o endereço dela é uma linha. O corpo da página é montado com as mesmas seções da home, mais uma seção de **Texto** com parágrafo, negrito, link, lista, subtítulo e citação. SEO: título, descrição, endereço canônico, Open Graph, dados estruturados (artigo, página, listagem e migalhas) e sitemap com a data de alteração verdadeira, tudo derivado do documento.
 
-**A prévia dessas páginas exige que o editor assine com uma chave estável** (`EDITOR_PRIVATE_KEY_JWK` no ambiente do editor). Sem ela o editor gera um par novo a cada arranque, a assinatura não confere e toda prévia de página do lojista responde 404; o log da loja diz isso em uma linha.
+A prévia dessas páginas depende do editor: a loja só abre a prévia com uma assinatura que confere. Editor mal configurado do lado dele, toda prévia de página do lojista responde 404, e o log da loja diz isso em uma linha. A loja publicada não é afetada.
 
 A seção "Editor: o que não pode quebrar" do `CLAUDE.md` do template lista cada ponto com o que acontece se for tocado.

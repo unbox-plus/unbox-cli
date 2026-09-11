@@ -37,10 +37,11 @@ export function checkEnv() {
     problemas.push("NEXT_PUBLIC_SITE_URL: ausente ou localhost em PRODUÇÃO — canonical, sitemap, robots, Open Graph, JSON-LD e o link de recuperação de carrinho saem apontando para localhost");
   }
   // Isto é AVISO, e não é a defesa: a defesa está em lib/session.ts, que RECUSA assinar e
-  // conferir a posse sem segredo. O aviso continua existindo para o problema aparecer no
-  // primeiro boot, e não só quando alguém fechar o primeiro pedido.
+  // conferir a posse sem segredo, e na primeira guarda de app/api/checkout/route.ts, que recusa
+  // o pedido ANTES de cobrar. O aviso continua existindo para o problema aparecer no primeiro
+  // boot, e não só quando alguém tentar fechar o primeiro pedido.
   if (process.env.NODE_ENV === "production" && !process.env.SESSION_SECRET) {
-    problemas.push("SESSION_SECRET: ausente em PRODUÇÃO. A loja vai RECUSAR emitir e conferir a posse dos pedidos (cookie unbox_order_*), então o checkout falha ao gravar o pedido; gere um valor aleatório longo e refaça o deploy");
+    problemas.push("SESSION_SECRET: ausente em PRODUÇÃO. A loja não assina nem confere a posse dos pedidos (cookie unbox_order_*), e o checkout RECUSA fechar pedido com 503 enquanto a variável faltar; cadastre um valor aleatório longo no ambiente do deploy e refaça o deploy");
   }
   if (problemas.length) {
     console.warn("\n⚠ [env] valores que parecem COMENTÁRIO copiado como valor (o .env tinha `CHAVE=  # texto`?):");

@@ -5,7 +5,9 @@
 //  - exige frete já selecionado
 //  - em erro: NÃO retenta cegamente (poderia gerar cobrança dupla)
 //  - sucesso: grava token de posse (cookie) e INVALIDA o carrinho
+//  - RECUSA ANTES DE COBRAR quando falta SESSION_SECRET (ver a primeira guarda do handler)
 import { withStoreClient } from "@/lib/unbox/store";
+import { serverEnv } from "@/lib/config";
 import { getCartRef, setOrderToken, clearCartRef, getRecurFreq } from "@/lib/session";
 import { acquireCheckoutLock, releaseCheckoutLock } from "@/lib/checkout-lock";
 import { rateLimit, clientIp, LIMITS } from "@/lib/ratelimit";
@@ -20,6 +22,23 @@ export async function POST(req: Request) {
   const ip = clientIp(req);
   const rl = rateLimit(`checkout:${ip}`, LIMITS.checkout.limit, LIMITS.checkout.windowMs);
   if (!rl.ok) return fail("Muitas tentativas. Aguarde um instante.", 429);
+
+  // ANTES DE COBRAR. Sem SESSION_SECRET a loja não assina a posse do pedido (lib/session.ts recusa,
+  // e recusar é o certo: assinatura com segredo vazio é constante e forjável). Só que a assinatura
+  // acontece DEPOIS do placeOrder, que é produção real: a recusa lá dentro cairia no catch como 502
+  // com o pedido já criado e cobrado na Unbox, e o cliente leria "não foi possível" e tentaria de
+  // novo. É a cobrança dupla que o aviso do catch existe para evitar. Então a checagem é aqui, na
+  // porta, com o carrinho intacto: 503 é a verdade (a loja está indisponível por configuração, não
+  // é erro de quem está comprando) e o log diz qual variável falta. O lib/env-check.ts também avisa,
+  // no boot, mas ele só escreve no log e nada barra o deploy.
+  if (!serverEnv.sessionSecret) {
+    console.error(JSON.stringify({ tag: "[api-erro]", status: 503, erro: "SESSION_SECRET_AUSENTE", rota: "checkout", quando: new Date().toISOString() }));
+    return fail(
+      "A loja está com uma configuração pendente e não consegue registrar o pedido agora. Nada foi cobrado. Tente de novo em alguns minutos.",
+      503,
+      { code: "SESSION_SECRET_AUSENTE" },
+    );
+  }
 
   const ref = await getCartRef();
   if (!ref) return fail("Carrinho não encontrado.", 404);

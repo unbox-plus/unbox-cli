@@ -20,10 +20,25 @@
 // "✓ Foundation neutra" com oito nomes de cliente dentro do pacote, porque o que vaza não
 // mora só no template: mora no README, no `tools/`, num `.py` e no nome dos arquivos.
 //
-// Agora o escopo é EXATAMENTE o que o `npm pack` levaria, perguntado ao próprio npm. Não é
-// uma imitação da regra do `files`: é a lista de verdade, com README, arquivos ocultos,
-// scripts e o que mais entrar. `--ignore-scripts` é obrigatório na chamada, senão o
-// `prepack` chamaria este gate de novo, em recursão.
+// O escopo tem DUAS partes, e a segunda existe porque a primeira encolheu.
+//
+// A primeira é EXATAMENTE o que o `npm pack` levaria, perguntado ao próprio npm. Não é uma
+// imitação da regra do `files`: é a lista de verdade, com README, arquivos ocultos, scripts e o
+// que mais entrar. `--ignore-scripts` é obrigatório na chamada, senão o `prepack` chamaria este
+// gate de novo, em recursão.
+//
+// A segunda é uma lista FIXA de arquivos do repositório que são públicos sem estar no tarball:
+// o `CHANGELOG.md`, o `LEIA-ME-FONTE.md` e o `tools/` inteiro. Todo mundo ali está no GitHub,
+// que é público, e a v0.21.3 tirou `tools` do `files`: sem esta segunda lista, tirar a pasta do
+// tarball teria custado a cobertura dela. Medido: com o mesmo resíduo plantado nos dois lados, o
+// gate reprovava em `template/lib/config.ts` e aprovava em `tools/LEIA-ME.md` e no `CHANGELOG.md`,
+// que é de onde saíram, nesta mesma versão, cinco nomes de cliente, um caminho de máquina e o id
+// de uma página interna. Amarrar o escopo ao `files` amarra o que o gate enxerga a uma decisão de
+// empacotamento, e essas duas coisas não têm por que andar juntas.
+//
+// A régua de VOCABULÁRIO DE RAMO continua valendo só dentro de `template/`: o changelog NARRA o
+// defeito ("a loja dizia polvilhe") e proibir a palavra ali apagaria a explicação. As outras
+// réguas valem em tudo.
 //
 // O CAMINHO de cada arquivo também é conteúdo: `public/brand/loja-do-fulano.png` vaza o
 // nome do cliente sem uma linha de texto dentro.
@@ -63,6 +78,19 @@
 // isso, porque a forma é a de qualquer número. Então o gate CALCULA: documento entra pelo
 // dígito verificador (se fecha a conta, é documento de alguém, não é enfeite), e telefone
 // entra pela repetição (fixture de verdade repete o algarismo; número de gente espalha).
+//
+// A primeira versão dessas duas réguas dependia da forma CANÔNICA, e a forma é fácil de escapar:
+// o mesmo documento escrito com espaço em vez de ponto, ou embutido numa corrida maior de
+// algarismos, passava inteiro; e o telefone só era procurado com o `9` de celular colado nos
+// quatro algarismos seguintes, então o `9` separado por espaço escapava e fixo de pessoa nunca
+// entrou. Os dois casos estão consertados logo abaixo, cada um com o comentário do porquê. (As
+// réguas novas pegaram, de saída, os próprios comentários que as explicavam, porque estes estavam
+// escritos com o documento e o telefone de verdade. Ficaram as explicações, sem os números.)
+//
+// O que estas réguas NÃO cobrem, e é bom estar escrito: e-mail pessoal e endereço residencial. Um
+// e-mail de pessoa não tem forma que o separe do e-mail de contato de uma loja, e um endereço de
+// rua não tem conta que feche. Está dito assim também no `tools/LEIA-ME.md`, que descrevia as
+// réguas sem essa ressalva.
 // ═══════════════════════════════════════════════════════════════════════════════════════
 import fs from "node:fs";
 import path from "node:path";
@@ -170,8 +198,25 @@ const SEGREDOS = [
 // dois scripts que rodam contra a loja de produção, com nome, endereço completo e telefone ao
 // lado. A forma de um documento é a de qualquer número: o que separa o documento de alguém de
 // "00000000000" não é o formato, é a ARITMÉTICA. Então o gate calcula o dígito verificador.
-const CPF_FORMA = /\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/g;
-const CNPJ_FORMA = /\b\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}\b/g;
+//
+// A FORMA, porém, também era escape fácil: a primeira versão destas duas regex só aceitava ponto e
+// hífen como separador e exigia `\b` nas pontas, então o MESMO documento passava escrito com espaço
+// no lugar do ponto, ou embutido numa corrida maior de algarismos (um zero na frente e outro atrás
+// bastavam). Os dois escapes foram medidos, e este comentário não os escreve por extenso porque o
+// número que os demonstrava era o documento de verdade que viajou no pacote. Agora a varredura é
+// por CORRIDA de algarismos, em duas formas, e o dígito verificador decide em cada uma:
+//
+//   (a) corrida COLADA (11 ou mais algarismos seguidos, sem nada no meio): não existe pontuação
+//       para dizer onde o documento começa, então o gate testa TODA subsequência de 11 e de 14.
+//   (b) corrida PONTUADA (algarismos separados por ponto, hífen, barra ou espaço): a pontuação já
+//       delimita o valor, então vale o valor INTEIRO, com 11 ou 14 algarismos.
+//
+// A distinção não é preciosismo, é medição: `lib/editable/rastreio.tsx` guarda o caminho do ícone
+// de WhatsApp, que é uma corrida pontuada de 402 algarismos, e varrer subsequência dentro dela
+// acusa cinco documentos que não existem. Corrida pontuada comprida é desenho; documento é o valor
+// inteiro. Com a régua como está: zero falso positivo no repositório.
+const CORRIDA_COLADA = /\d{11,}/g;
+const CORRIDA_PONTUADA = /\d(?:[.\-\/ ]?\d)*/g;
 function digitoCpf(base) {
   const soma = [...base].reduce((a, d, i) => a + Number(d) * (base.length + 1 - i), 0);
   const r = (soma * 10) % 11;
@@ -192,14 +237,52 @@ function cnpjFechaAConta(d) {
   const a = digitoCnpj(d.slice(0, 12));
   return `${a}${digitoCnpj(d.slice(0, 12) + a)}` === d.slice(12);
 }
+/** Documento de alguém nesta linha? Devolve o motivo, ou null. Uma linha vale por uma acusação. */
+function documentoNa(linha) {
+  const CPF = "CPF de alguém (o dígito verificador fecha)";
+  const CNPJ = "CNPJ de alguém (o dígito verificador fecha)";
+  CORRIDA_COLADA.lastIndex = 0;
+  for (const m of linha.matchAll(CORRIDA_COLADA)) {
+    const d = m[0];
+    for (let i = 0; i + 11 <= d.length; i++) if (cpfFechaAConta(d.slice(i, i + 11))) return CPF;
+    for (let i = 0; i + 14 <= d.length; i++) if (cnpjFechaAConta(d.slice(i, i + 14))) return CNPJ;
+  }
+  CORRIDA_PONTUADA.lastIndex = 0;
+  for (const m of linha.matchAll(CORRIDA_PONTUADA)) {
+    const d = m[0].replace(/\D/g, "");
+    if (cpfFechaAConta(d)) return CPF;
+    if (cnpjFechaAConta(d)) return CNPJ;
+  }
+  return null;
+}
 
 // Celular brasileiro. Aqui não há conta para fazer: todo número é igualmente bem formado. O que
 // separa fixture de telefone de gente é a REPETIÇÃO. O pacote inteiro usa 99999-9999, 99999-8888
 // e 99990-000 como exemplo; os dois números que vieram de relatório de caso real eram os únicos
 // com dígito espalhado. A régua é essa: no máximo 3 dígitos distintos nos 8 finais, senão é
 // número de alguém e não se publica.
-const FONE_FORMA = /(?:\(\s*0?\d{2}\s*\)|\b0?\d{2})[\s.-]?9\d{4}[\s.-]?\d{4}\b|\b9\d{4}[\s.-]?\d{4}\b/g;
+//
+// Três formas, e as duas últimas são conserto. A primeira versão procurava o `9` de celular COLADO
+// nos quatro algarismos seguintes, e só, então bastava escrever o `9` separado por espaço, como
+// quem copia do formato internacional, para passar inteiro; e telefone FIXO de pessoa nunca foi
+// procurado. No fixo a pontuação é OBRIGATÓRIA, e isso tem motivo medido: sem o `9` de âncora, dez
+// algarismos seguidos têm a cara de qualquer inteiro, e um `z-index` alto do CSS do template vira
+// telefone. Telefone escrito por gente tem espaço, ponto, hífen ou parêntese.
+const FONE_FORMA = [
+  /(?:\(\s*0?\d{2}\s*\)|\b0?\d{2})[\s.-]?9[\s.-]?\d{4}[\s.-]?\d{4}\b/g,   // celular com DDD
+  /\b9[\s.-]?\d{4}[\s.-]?\d{4}\b/g,                                          // celular sem DDD
+  /(?:\(\s*0?\d{2}\s*\)[\s.-]?|\b0?\d{2}[\s.-])[2-5]\d{3}[\s.-]?\d{4}\b/g,  // fixo com DDD, pontuado
+];
 const FONE_DISTINTOS_MAX = 3;
+/** Fixture ou número de gente? A marca de fixture é a REPETIÇÃO, e é UMA só de propósito.
+ *  Chegou a ter uma segunda, a ESCADA (algarismos andando de um em um, que por isso saem todos
+ *  distintos sem o número ser de ninguém), e ela foi retirada logo depois de medida: a mesma
+ *  cauda em escada aparece num celular perfeitamente plausível, e perdoá-la lá é perdoar um
+ *  número de gente. Saiu mais barato o pacote escrever o seu único exemplo de fixo inventado
+ *  como escreve todos os outros exemplos, com algarismo repetido. */
+function pareceFixture(oito) {
+  return new Set(oito).size <= FONE_DISTINTOS_MAX;
+}
 
 // (6) vocabulário de um ramo: a verificação que este gate já fazia, preservada.
 // Só termos SEM uso legítimo numa foundation neutra. "alimento", "nutricional", "glúten"
@@ -228,16 +311,28 @@ const VOCABULARIO_SO_EM = "template/";
 
 // Trechos permitidos: a explicação do próprio bug, em comentário, precisa poder citar a
 // palavra uma vez. Mantém a lista CURTA: todo item aqui é uma exceção que alguém revisou.
-// VAZIA hoje, e é para continuar assim: exceção aqui é buraco no gate. Um item novo só entra
-// com o motivo escrito ao lado e alguém que o revisou.
-const PERMITIDOS = [];
+//
+// A exceção é ESTREITA de propósito: arquivo mais o trecho exato, e não o arquivo inteiro. Perdoar
+// um arquivo por causa de uma linha cega o gate para tudo o que entrar nele depois, e os dois itens
+// abaixo estão justamente dentro do gate, que é o arquivo em que menos se pode confiar sem olhar.
+//
+// Os dois entraram junto com a segunda lista de escopo: a partir dela o `tools/` é varrido, e este
+// arquivo cita `cliente (Nome)` e `(por Fulano)` no comentário que explica cada régua. São exemplos
+// da FORMA que a régua pega, escritos com nome inventado; sem eles o comentário não diz o que pega.
+const PERMITIDOS = [
+  { arquivo: "tools/check-template-neutro.mjs", contem: "cliente (Nome)",
+    porque: "exemplo da forma que furou a peneira estrutural, com nome inventado" },
+  { arquivo: "tools/check-template-neutro.mjs", contem: "`(por Fulano)`",
+    porque: "exemplo da forma curta de atribuição que a régua passou a pegar, com nome inventado" },
+];
 
 // ── varredura ──────────────────────────────────────────────────────────────────────────
 const BINARIOS = /\.(webp|png|jpe?g|gif|ico|woff2?|ttf|otf|mp4|pdf|zip|tgz)$/i;
 const achados = [];
 function anotar(rel, n, motivo, texto) {
-  if (PERMITIDOS.some((ok) => rel === ok || rel.startsWith(ok))) return;
-  achados.push({ rel, n, motivo, texto: String(texto).trim().slice(0, 110) });
+  const linha = String(texto);
+  if (PERMITIDOS.some((e) => rel === e.arquivo && linha.includes(e.contem))) return;
+  achados.push({ rel, n, motivo, texto: linha.trim().slice(0, 110) });
 }
 
 /**
@@ -297,25 +392,37 @@ function conferirLinha(rel, n, linha, dentroDoTemplate) {
     break;
   }
 
-  for (const [re, fecha, motivo] of [[CPF_FORMA, cpfFechaAConta, "CPF de alguém (o dígito verificador fecha)"],
-                                     [CNPJ_FORMA, cnpjFechaAConta, "CNPJ de alguém (o dígito verificador fecha)"]]) {
+  const doc = documentoNa(linha);
+  if (doc) anotar(rel, n, doc, linha);
+
+  for (const re of FONE_FORMA) {
     re.lastIndex = 0;
     let achou = false;
-    while ((m = re.exec(linha))) if (fecha(m[0].replace(/\D/g, ""))) { achou = true; break; }
-    if (achou) { anotar(rel, n, motivo, linha); break; }
-  }
-
-  FONE_FORMA.lastIndex = 0;
-  while ((m = FONE_FORMA.exec(linha))) {
-    const finais = m[0].replace(/\D/g, "").slice(-8);
-    if (new Set(finais).size <= FONE_DISTINTOS_MAX) continue; // fixture: 99999-8888 e parentes
-    anotar(rel, n, "telefone de pessoa (dígito espalhado demais para ser fixture)", linha);
-    break;
+    while ((m = re.exec(linha))) if (!pareceFixture(m[0].replace(/\D/g, "").slice(-8))) { achou = true; break; }
+    if (achou) { anotar(rel, n, "telefone de pessoa (dígito espalhado demais para ser fixture)", linha); break; }
   }
 
   if (dentroDoTemplate) {
     for (const [re, motivo] of VOCABULARIO) if (re.test(linha)) { anotar(rel, n, motivo, linha); break; }
   }
+}
+
+// Público sem estar no tarball. `tools/` entra inteiro, recursivo: a pasta saiu do `files` na
+// v0.21.3 e continua no GitHub, e é onde moram o gate e o legado com caminho de máquina.
+const PUBLICOS_DO_REPOSITORIO = ["CHANGELOG.md", "LEIA-ME-FONTE.md", "tools/"];
+
+/** Expande a lista fixa: arquivo vira ele mesmo, pasta vira tudo o que tem dentro. */
+function publicosDoRepositorio() {
+  const saida = [];
+  const andar = (rel) => {
+    const abs = path.join(RAIZ, rel);
+    if (!fs.existsSync(abs)) return;
+    if (fs.statSync(abs).isDirectory()) {
+      for (const nome of fs.readdirSync(abs).sort()) andar(path.posix.join(rel.replace(/\/$/, ""), nome));
+    } else saida.push(rel);
+  };
+  for (const alvo of PUBLICOS_DO_REPOSITORIO) andar(alvo);
+  return saida;
 }
 
 /** A lista de verdade do que seria publicado, perguntada ao npm. */
@@ -337,14 +444,21 @@ if (process.argv[2] === "--hash") {
   process.exit(0);
 }
 
-let arquivos;
+let doPacote;
 try {
-  arquivos = arquivosDoPacote();
+  doPacote = arquivosDoPacote();
 } catch (e) {
   console.error(`\n✗ PACK BLOQUEADO: o gate não conseguiu listar o que seria publicado. ${e.message}`);
   console.error("  Sem a lista o gate varreria o vazio e aprovaria sem ter olhado.\n");
   process.exit(2);
 }
+const soNoRepositorio = publicosDoRepositorio().filter((f) => !doPacote.includes(f));
+if (!soNoRepositorio.length) {
+  console.error("\n✗ PACK BLOQUEADO: a lista fixa de arquivos públicos do repositório veio vazia.");
+  console.error("  Ou o CHANGELOG.md, o LEIA-ME-FONTE.md e o tools/ sumiram, ou a lista quebrou.\n");
+  process.exit(2);
+}
+const arquivos = [...doPacote, ...soNoRepositorio];
 
 for (const rel of arquivos) {
   // O CAMINHO é conteúdo: um arquivo chamado com o nome do cliente vaza sem uma linha dentro.
@@ -383,7 +497,7 @@ function semComentario(linha, dentroDeBloco) {
 }
 // A lista vem do npm, não escrita à mão: com quatro nomes fixos, um arquivo novo em `src/`
 // entrava no pacote sem nunca passar por esta checagem.
-for (const arquivo of arquivos.filter((f) => /^(?:bin|src)\//.test(f) && /\.[cm]?js$/.test(f))) {
+for (const arquivo of doPacote.filter((f) => /^(?:bin|src)\//.test(f) && /\.[cm]?js$/.test(f))) {
   const caminho = path.join(RAIZ, arquivo);
   if (!fs.existsSync(caminho)) continue;
   let bloco = false;
@@ -399,7 +513,7 @@ for (const arquivo of arquivos.filter((f) => /^(?:bin|src)\//.test(f) && /\.[cm]
 if (achados.length) {
   const porMotivo = new Map();
   for (const a of achados) porMotivo.set(a.motivo, (porMotivo.get(a.motivo) ?? 0) + 1);
-  console.error(`\n✗ PACK BLOQUEADO: ${achados.length} resíduo(s) em ${arquivos.length} arquivos que o npm publicaria.\n`);
+  console.error(`\n✗ PACK BLOQUEADO: ${achados.length} resíduo(s) em ${arquivos.length} arquivos públicos (${doPacote.length} no tarball + ${soNoRepositorio.length} só no repositório).\n`);
   for (const a of achados) console.error(`   ${a.rel}:${a.n}  [${a.motivo}]\n      ${a.texto}`);
   console.error("\n  Resumo:");
   for (const [motivo, n] of [...porMotivo].sort((x, y) => y[1] - x[1])) console.error(`   ${String(n).padStart(4)}  ${motivo}`);
@@ -410,4 +524,4 @@ if (achados.length) {
   console.error("  Nome de cliente novo entra na lista por hash: --hash \"Nome Da Marca\".\n");
   process.exit(1);
 }
-console.log(`✓ Pacote neutro: ${arquivos.length} arquivos publicáveis, sem nome de cliente, caminho pessoal, identificador interno, segredo de fábrica nem vocabulário de ramo`);
+console.log(`✓ Pacote neutro: ${arquivos.length} arquivos públicos varridos (${doPacote.length} no tarball + ${soNoRepositorio.length} só no repositório), sem nome de cliente, caminho pessoal, atribuição pessoal, identificador interno, segredo de fábrica, documento ou telefone de pessoa, nem vocabulário de ramo`);

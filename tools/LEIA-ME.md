@@ -24,19 +24,39 @@ voltou a ser verdade.
 
 ## `check-template-neutro.mjs` · o gate do `prepack`
 
-Varre EXATAMENTE o que o `npm pack` levaria (pergunta a lista ao próprio npm) e bloqueia o
-empacotamento se achar nome de cliente, caminho pessoal, identificador interno, segredo de
-fábrica, dado de uma pessoa ou vocabulário de um ramo específico. Também reprova travessão no
-texto que o wizard imprime, nos arquivos de `bin/` e `src/` que o npm listar.
+Bloqueia o empacotamento se achar nome de cliente, caminho pessoal, atribuição pessoal,
+identificador interno, segredo de fábrica, documento ou telefone de uma pessoa, ou vocabulário de
+um ramo específico. Também reprova travessão no texto que o wizard imprime, nos arquivos de `bin/`
+e `src/` que o npm listar.
+
+O escopo tem duas partes. A primeira é EXATAMENTE o que o `npm pack` levaria, com a lista
+perguntada ao próprio npm. A segunda é uma lista fixa de arquivos que são públicos sem estar no
+tarball: `CHANGELOG.md`, `LEIA-ME-FONTE.md` e este `tools/` inteiro, que estão todos no GitHub. A
+segunda parte existe porque a primeira encolheu: a v0.21.3 tirou `tools` do `files`, e sem ela
+tirar a pasta do tarball teria custado a cobertura dela justamente na versão que limpou, à mão,
+cinco nomes de cliente do `CHANGELOG.md`, um caminho de máquina do `workflow-storefront.legado.js`
+e o id de uma página interna daqui. O vocabulário de ramo continua cobrado só dentro de
+`template/`: o changelog NARRA o defeito ("a loja dizia polvilhe") e proibir a palavra ali apagaria
+a explicação. As outras réguas valem em tudo.
 
 A unidade de medida da varredura de NOME é o arquivo, não a linha: um nome que já estava na
 lista passou pelo gate na v0.21.2 porque caiu no fim de uma linha do README e continuou na
 seguinte. Quem escreve o texto não escolhe onde a linha quebra.
 
 Dado de uma pessoa não tem forma própria: um CPF é feito dos mesmos algarismos que qualquer
-número. Então o gate CALCULA. Documento entra pelo dígito verificador (se fecha a conta, é
-documento de alguém e não é enfeite) e telefone entra pela repetição (fixture de verdade usa o
-mesmo algarismo várias vezes; número copiado de relatório tem dígito espalhado).
+número. Então o gate CALCULA. **Documento** entra pelo dígito verificador (se fecha a conta, é
+documento de alguém e não é enfeite), e a conta roda sobre CORRIDAS de algarismos, não sobre a
+pontuação canônica: numa corrida colada ele testa toda subsequência de 11 e de 14 algarismos, e
+numa corrida separada por ponto, hífen, barra ou espaço ele testa o valor inteiro. Antes só havia a
+forma canônica, e o mesmo documento passava escrito com espaço ou embutido numa corrida maior.
+**Telefone** entra pela repetição (fixture de verdade usa o mesmo algarismo várias vezes; número
+copiado de relatório tem dígito espalhado), em três formas: celular com DDD, celular sem DDD e
+fixo com DDD. No fixo a pontuação é obrigatória, porque sem o `9` de âncora dez algarismos seguidos
+têm a cara de qualquer inteiro e um `z-index` do CSS viraria telefone.
+
+O que estas réguas NÃO cobrem, e é melhor estar escrito do que descoberto depois: **e-mail pessoal
+e endereço residencial**. Um e-mail de pessoa não tem forma que o separe do e-mail de contato de
+uma loja, e um endereço de rua não tem conta que feche. Quem revisa continua tendo de olhar.
 
 ```bash
 npm run check:neutro                                   # varredura

@@ -1,9 +1,38 @@
 ## Changelog
 
-### v0.21.3 — o que saiu do pacote, e o gate que passou a medir o arquivo inteiro
+### v0.21.3 — o que saiu do pacote, o segredo que deixou de ter valor de fábrica, e o gate que passou a medir o arquivo inteiro
 
-Rodada de limpeza do que o pacote publicava sem precisar. Nenhuma mudança de comportamento na loja gerada:
-o que muda é o que viaja no tarball e o que o `prepack` consegue reprovar.
+Rodada de limpeza do que o pacote publicava sem precisar. Quase tudo é o que viaja no tarball e o que o
+`prepack` consegue reprovar, sem efeito na loja gerada. **Há UMA exceção, e ela muda o comportamento da
+loja em produção: `SESSION_SECRET` deixou de ter valor de fábrica e passou a ser obrigatório para fechar
+pedido.** Está logo abaixo, antes do resto, porque é a única coisa desta versão que exige providência no
+ambiente do deploy ANTES de publicar.
+
+**`SESSION_SECRET` virou obrigatório em produção, e sem ele o checkout recusa na porta.** Até a v0.21.2 o
+`lib/config.ts` tinha um fallback fixo para essa variável. Ele era, na prática, o segredo de toda loja que
+não a definiu, e ele viajava escrito no pacote público: quem baixasse o tarball assinava o cookie de posse
+de pedido de qualquer uma dessas lojas. O fallback saiu, e em produção a variável ausente deixa o segredo
+VAZIO de propósito. Assinar com segredo vazio dá uma assinatura constante, igual em toda loja e
+reproduzível por quem leu o pacote, que é exatamente a posse forjável que o HMAC existe para impedir;
+então `lib/session.ts` **recusa** assinar e conferir. O que isso significa na prática:
+
+- **Cadastre `SESSION_SECRET` no ambiente do deploy antes do primeiro pedido.** O CLI gera um valor no
+  `.env.local`, e o `.env.local` é ignorado pelo git de propósito: ele NÃO sobe junto com o projeto. Numa
+  loja que roda na Vercel, a variável tem de estar cadastrada no painel do projeto (qualquer valor
+  aleatório longo serve) e o deploy refeito depois disso. Loja que hoje está no ar sem a variável vinha
+  funcionando com o segredo de fábrica e vai parar de fechar pedido na 0.21.x.
+- **A recusa acontece ANTES de cobrar.** A assinatura da posse só aconteceria depois do `placeOrder`, que
+  é produção real e não é idempotente: a recusa lá dentro cairia no `catch` do handler como 502 com o
+  pedido já criado e cobrado na Unbox, o cliente leria "não foi possível concluir" e tentaria de novo. É a
+  cobrança dupla que o próprio comentário daquele `catch` existe para evitar. Então `POST /api/checkout`
+  passou a conferir a variável na primeira guarda do handler, junto do rate-limit, e a responder **503**
+  com o código `SESSION_SECRET_AUSENTE` e o carrinho intacto. O log do servidor nomeia a variável.
+- **O `lib/env-check.ts` avisa no boot, e continua sendo só aviso.** Ele roda no import do `lib/config.ts`,
+  que o layout raiz carrega em toda página; lançar ali derrubaria a loja inteira por uma variável que
+  talvez nem seja usada naquela visita. A defesa é a guarda do checkout; o aviso serve para o problema
+  aparecer no primeiro deploy, e não no primeiro pedido.
+
+O resto da versão não muda comportamento nenhum:
 
 **Saiu dado de pessoa de dentro de dois scripts que rodam contra a loja de produção.**
 `scripts/test-live.ts` e `scripts/place-order-pix.ts` carregavam, em texto aberto, um CPF que fecha a conta do
@@ -56,6 +85,42 @@ um parêntese ou de aspas de abertura, e não só depois de um espaço, que era 
 vocabulário de ramo ganhou os nomes em inglês; e a lista de arquivos da checagem de
 travessão passou a vir do próprio npm em vez de quatro nomes escritos à mão, senão um arquivo novo em `src/`
 entrava no pacote sem nunca ser conferido.
+
+**E o gate passou a varrer o que é público sem estar no tarball.** O escopo dele era a lista do `npm pack`,
+e nesta mesma versão o `files` perdeu o `tools`: o gate teria deixado de enxergar justamente a pasta que ele
+mora dentro. Pior, ele nunca enxergou o `CHANGELOG.md`. Os dois estão no GitHub, que é público, e foi de
+dentro deles que saíram, à mão, nesta versão, cinco nomes de cliente, o caminho da máquina de quem escreveu
+o `workflow-storefront.legado.js` e o id de uma página do Notion. Agora o escopo é a lista do npm MAIS uma
+lista fixa (`CHANGELOG.md`, `LEIA-ME-FONTE.md` e `tools/` inteiro), com todas as réguas menos a de
+vocabulário de ramo, que continua valendo só dentro de `template/` porque o changelog precisa poder narrar o
+defeito. As duas listas aparecem separadas na linha de saída do gate.
+
+**As réguas de dado de pessoa deixaram de depender da forma.** Elas cobravam a pontuação canônica, e a
+pontuação é o que há de mais fácil de trocar: o mesmo documento passava escrito com espaço em vez de ponto,
+ou embutido numa corrida maior de algarismos; e o telefone só era procurado com o `9` de celular colado nos
+quatro algarismos seguintes, então o `9` separado escapava e telefone FIXO de pessoa nunca foi procurado.
+Agora o dígito verificador roda sobre CORRIDAS de algarismos (na corrida colada, toda subsequência de 11 e
+de 14; na corrida pontuada, o valor inteiro) e o telefone tem três formas, com a do fixo exigindo pontuação,
+senão um `z-index` do CSS viraria telefone. Medido com os oito plantios que acharam os buracos: seis
+bloqueiam agora e os dois que sobram, e-mail pessoal e endereço residencial, estão escritos no
+`tools/LEIA-ME.md` como o que a régua NÃO cobre, porque promessa que o gate não cumpre é pior que régua
+faltando. As duas primeiras coisas que o gate novo reprovou foram comentários dele mesmo, escritos com o
+documento e o telefone de verdade que eles explicavam.
+
+**Exceção do gate agora é arquivo MAIS trecho, não o arquivo inteiro.** Perdoar um arquivo por causa de uma
+linha o cega para tudo o que entrar nele depois. A lista tem dois itens, os dois dentro do próprio gate, que
+cita a forma que cada régua pega como exemplo e por isso casa com ela.
+
+**O exemplo de telefone fixo do pacote passou a repetir algarismo, como todos os outros.** Ele estava em
+`lib/schemas.ts` e no changelog explicando a remoção do zero do DDD, com um número inventado em escada, e
+escada tem oito algarismos distintos: pela régua da repetição, número de gente. Chegou a existir uma régua
+para perdoar escada, e ela foi retirada porque perdoava junto um celular perfeitamente plausível. Sai mais
+barato o exemplo seguir a convenção do resto do pacote.
+
+**Saiu do `README.md` uma instrução de operação do editor da Unbox.** O README é público e é documento de
+quem GERA loja, e quem instala o CLI não configura o ambiente do editor. Ficou lá só o efeito que essa
+pessoa consegue ver: prévia de página do lojista responde 404 quando o editor não está configurado, com uma
+linha no log da loja. A variável e o porquê foram para o `LEIA-ME-FONTE.md`.
 
 **Ficou registrado o que não dá para consertar aqui:** o skill `web-design-guidelines`, vendorizado sob MIT, não
 tem como ganhar o `LICENSE.txt` ao lado que o skill vizinho tem. O repositório de origem declara MIT só na seção
@@ -611,7 +676,7 @@ aparecem no formulário.
 
 **O DDD é validado.** O schema conferia só o comprimento (10 a 11 dígitos), e a Unbox recusa o
 pedido por DDD inexistente. O zero à esquerda passou a ser removido antes de validar, porque é o
-que a pessoa quis dizer ("011 99999-8888" vira 11999998888, "019 8765-4321" vira DDD 19), e o DDD
+que a pessoa quis dizer ("011 99999-8888" vira 11999998888, "019 3333-4444" vira DDD 19), e o DDD
 é conferido contra a lista da Anatel. Testado com as duas formas do relatório e com DDDs falsos.
 
 **O erro do login por código deixou de cair no genérico.** O login sem senha responde em formato

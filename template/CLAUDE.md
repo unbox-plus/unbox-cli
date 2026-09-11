@@ -397,7 +397,11 @@ voltar, inclusive em comentário, porque comentário ensina o agente a escrever 
   em produção ele precisa existir, e não existir não é aviso: `lib/session.ts` **recusa** assinar
   e conferir a posse (lança), porque assinar com segredo vazio dá uma assinatura constante, igual
   em toda loja, que é a posse forjável que o HMAC existe para impedir. Em desenvolvimento,
-  `lib/config.ts` sorteia um valor no boot e nada disso aparece.
+  `lib/config.ts` sorteia um valor no boot e nada disso aparece. **A recusa é conferida na PORTA do
+  `POST /api/checkout`**, junto do rate-limit: sem a variável a rota responde 503 com o código
+  `SESSION_SECRET_AUSENTE` e o carrinho intacto. Não mova essa guarda para depois do `placeOrder`:
+  lá o pedido já foi criado e cobrado, a recusa cairia no `catch` como 502 e o cliente tentaria de
+  novo, que é a cobrança dupla que o comentário daquele `catch` existe para evitar.
 - **O preço final vem sempre do catálogo.** O servidor recalcula o carrinho a partir dele, então
   o preço enviado no `addCartItems` não altera o que é cobrado.
   Kit "com desconto" calculado no front (`combos.ts`) é promessa que o carrinho desmente: desconto
