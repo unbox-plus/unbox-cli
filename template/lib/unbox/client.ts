@@ -23,6 +23,7 @@ import type {
   PlaceOrderParams, FulfillmentOption, CatalogProduct, Connection,
   PaymentLinkConstraints, DeviceInput, SimpleInventoryInfo,
 } from "./types";
+import { comSelecaoEnxuta, normalizarMiniaturas, IMAGENS_DO_ITEM, RESUMO_DETALHADO, ENVIO_E_RASTREIO } from "./pedido";
 
 const DEFAULTS = {
   apiBaseUrl: "https://api.unbox.com.br",
@@ -80,6 +81,27 @@ export class UnboxError extends Error {
     this.name = "UnboxError";
     this.errors = errors;
   }
+}
+
+/**
+ * PRODUTO OCULTO NO PAINEL NÃO ENTRA EM VITRINE. `catalogItems` não aceita filtro de visibilidade e
+ * devolve o produto oculto junto com os outros. A PDP já barrava (`notFound()`), as listagens não: o
+ * produto seguia no catálogo e na home, com preço e botão de comprar, e quebrava só no clique.
+ *
+ * O filtro mora AQUI, no ponto por onde todo catálogo passa, e não em `mapCatalogItems`: ali ficariam
+ * de fora quem lê os nós crus (relacionados da PDP, kits, ofertas do checkout, llms.txt, o seletor do
+ * editor). `totalCount` desconta o que saiu desta página, senão o contador e a paginação da busca
+ * prometem resultado que a página não mostra.
+ */
+function semOcultos<T extends { nodes?: any[]; totalCount?: number }>(conn: T): T {
+  const nodes = conn?.nodes ?? [];
+  const visiveis = nodes.filter((n: any) => (n?.product ?? n)?.isVisible !== false);
+  if (visiveis.length === nodes.length) return conn;
+  return {
+    ...conn,
+    nodes: visiveis,
+    totalCount: typeof conn.totalCount === "number" ? Math.max(0, conn.totalCount - (nodes.length - visiveis.length)) : conn.totalCount,
+  };
 }
 
 /** Erro que indica formato de Authorization rejeitado (gateway de parceiros). */
@@ -285,20 +307,20 @@ export class UnboxClient {
           }}}
         }}`;
       const d = await this.gqlPartner<{ catalogItems: any }>(q, vars);
-      return d.catalogItems;
+      return semOcultos(d.catalogItems);
     }
-    const q = `query($s:[ID]!,$first:Int,$offset:Int,$searchText:String,$tagIds:[ID],$sortBy:CatalogItemSortByField,$sortOrder:SortOrder){
-      catalogItems(shopIds:$s,first:$first,offset:$offset,searchText:$searchText,tagIds:$tagIds,sortBy:$sortBy,sortOrder:$sortOrder){
+    const q = `query($shopIds:[ID]!,$first:Int,$offset:Int,$searchText:String,$tagIds:[ID],$sortBy:CatalogItemSortByField,$sortOrder:SortOrder){
+      catalogItems(shopIds:$shopIds,first:$first,offset:$offset,searchText:$searchText,tagIds:$tagIds,sortBy:$sortBy,sortOrder:$sortOrder){
         totalCount pageInfo{hasNextPage endCursor}
         nodes{... on CatalogItemProduct{ _id shortDescription product{${UnboxClient.CATALOG_PRODUCT_FIELDS}
         }}}
       }}`;
     const d = await this.gql<{ catalogItems: any }>(q, {
-      s: [this.shopId], first: opts.first ?? 24, offset: opts.offset ?? 0,
+      shopIds: [this.shopId], first: opts.first ?? 24, offset: opts.offset ?? 0,
       searchText: opts.searchText, tagIds: opts.tagIds,
       sortBy: opts.sortBy, sortOrder: opts.sortOrder,
     });
-    return d.catalogItems;
+    return semOcultos(d.catalogItems);
   }
 
   private static PDP_PRODUCT_FIELDS = `_id productId title pageTitle slug description additionalInformation productType
@@ -402,8 +424,8 @@ export class UnboxClient {
   }
 
   async getPaymentMethods(): Promise<any[]> {
-    const q = `query($s:ID!){availablePaymentMethods(shopId:$s){name displayName isEnabled canRefund pluginName}}`;
-    const d = await this.gql<{ availablePaymentMethods: any[] }>(q, { s: this.shopId });
+    const q = `query($shopId:ID!){availablePaymentMethods(shopId:$shopId){name displayName isEnabled canRefund pluginName}}`;
+    const d = await this.gql<{ availablePaymentMethods: any[] }>(q, { shopId: this.shopId });
     return d.availablePaymentMethods;
   }
 
@@ -417,9 +439,9 @@ export class UnboxClient {
       const d = await this.gqlPartner<{ discountCodes: any }>(q, { first });
       return d.discountCodes;
     }
-    const q = `query($s:ID!,$first:ConnectionLimitInt){ discountCodes(shopId:$s,first:$first){
+    const q = `query($shopId:ID!,$first:ConnectionLimitInt){ discountCodes(shopId:$shopId,first:$first){
       totalCount nodes{_id code label description enabled discountMethod calculation{__typename}} }}`;
-    const d = await this.gql<{ discountCodes: any }>(q, { s: this.shopId, first });
+    const d = await this.gql<{ discountCodes: any }>(q, { shopId: this.shopId, first });
     return d.discountCodes;
   }
 
@@ -685,51 +707,43 @@ export class UnboxClient {
    * o token do cliente logado (`UnboxCustomerClient.order`). Ver docs 09-seguranca.
    */
   async getOrder(referenceId: string, token?: string): Promise<any> {
-    // Partner: orderByReferenceId(id) NÃO aceita o token de posse — a verificação de posse
-    // do pedido é (e sempre foi) responsabilidade do BFF (lib/orders.ts getOwnedOrder, via
-    // cookie httpOnly). Diferença de shape: OrderItem tem imageURLs em vez de thumbnail —
-    // normalizamos aqui pra manter o contrato do app.
-    if (this.usesPartnerApi) {
-      const q = (endereco: string) => `query($id:ID!){
-        orderByReferenceId(id:$id){
-          _id referenceId status email
-          summary{total{amount displayAmount}}
-          payments{displayName mode processor isCaptured cardBrand captureErrorMessage amount{amount displayAmount}}
+    // Seleção COMPLETA (quebra do total, envio, rastreio e status do pagamento) com volta para a
+    // ENXUTA se a API recusar: ver comSelecaoEnxuta em ./pedido. Notas que valem para os dois
+    // caminhos:
+    //   · `OrderItem` tem `imageURLs` (objeto de tamanhos); a normalização devolve o `thumbnail`
+    //     que o app lê.
+    //   · `trackingUrl` não existe em Order, mas `fulfillmentGroups.tracking.url` existe
+    //     (OrderTrackingData { code, url, event }).
+    //   · fora displayStatus e payments.data, resolvedores que derrubam a consulta inteira.
+    //   · `payments` sempre junto de `summary` (ver customer.ts, orders()).
+    const selecao = (raiz: string, endereco: string, rica: boolean) => `${raiz}{
+          _id referenceId status email${rica ? " createdAt" : ""}
+          summary{total{amount displayAmount}${rica ? RESUMO_DETALHADO : ""}}
+          payments{displayName mode processor isCaptured cardBrand captureErrorMessage amount{amount displayAmount}${rica ? " status{status}" : ""}}
           fulfillmentGroups{
             status type trackingCode
+            ${rica ? ENVIO_E_RASTREIO : ""}
             ${endereco}
-            items{nodes{_id title variantTitle quantity imageURLs{thumbnail small medium large original} productSlug price{amount displayAmount} subtotal{displayAmount} productConfiguration{productId productVariantId}}}
+            items{nodes{_id title variantTitle quantity ${IMAGENS_DO_ITEM} productSlug price{amount displayAmount} subtotal{displayAmount} productConfiguration{productId productVariantId}}}
           }
           invoiceIssued dispatched delivered
-          recurringOrderId }}`;
-      const d = await comEnderecoDoGrupo((endereco) => this.gqlPartner<{ orderByReferenceId: any }>(q(endereco), { id: referenceId }));
-      const order = d.orderByReferenceId;
-      for (const g of order?.fulfillmentGroups ?? []) {
-        for (const n of g?.items?.nodes ?? []) {
-          // imageURLs é um OBJETO de tamanhos (ImageSizes), não uma lista: `?.[0]` vinha vazio.
-          const img = n?.imageURLs;
-          if (n && n.thumbnail === undefined) n.thumbnail = img?.thumbnail ?? img?.small ?? img?.medium ?? img?.original ?? "";
-        }
-      }
-      return order;
+          recurringOrderId }`;
+
+    // Partner: orderByReferenceId(id) NÃO aceita o token de posse. A verificação de posse do pedido
+    // é (e sempre foi) responsabilidade do BFF (lib/orders.ts getOwnedOrder, via cookie httpOnly).
+    if (this.usesPartnerApi) {
+      const consulta = (rica: boolean) => comEnderecoDoGrupo((endereco) =>
+        this.gqlPartner<{ orderByReferenceId: any }>(`query($id:ID!){ ${selecao("orderByReferenceId(id:$id)", endereco, rica)} }`, { id: referenceId }));
+      const d = await comSelecaoEnxuta("orderByReferenceId (parceiro)", () => consulta(true), () => consulta(false));
+      return normalizarMiniaturas(d.orderByReferenceId);
     }
-    // Seleção conservadora: fora displayStatus e payments.data (resolvedores que quebram a
-    // consulta inteira) e trackingUrl (não existe neste contexto: use trackingCode). O endereço
-    // do grupo entra pelo comEnderecoDoGrupo, que repete sem ele se a união não resolver.
-    const q = (endereco: string) => `query($id:ID!,$shopId:ID,$token:String){
-      orderByReferenceId(id:$id,shopId:$shopId,token:$token){
-        _id referenceId status email
-        summary{total{amount displayAmount}}
-        payments{displayName mode processor isCaptured cardBrand captureErrorMessage amount{amount displayAmount}}
-        fulfillmentGroups{
-          status type trackingCode
-          ${endereco}
-          items{nodes{_id title variantTitle quantity thumbnail productSlug price{amount displayAmount} subtotal{displayAmount} productConfiguration{productId productVariantId}}}
-        }
-        invoiceIssued dispatched delivered
-        recurringOrderId }}`;
-    const d = await comEnderecoDoGrupo((endereco) => this.gql<{ orderByReferenceId: any }>(q(endereco), { id: referenceId, shopId: this.shopId, token }));
-    return d.orderByReferenceId;
+    const consulta = (rica: boolean) => comEnderecoDoGrupo((endereco) =>
+      this.gql<{ orderByReferenceId: any }>(
+        `query($id:ID!,$shopId:ID,$token:String){ ${selecao("orderByReferenceId(id:$id,shopId:$shopId,token:$token)", endereco, rica)} }`,
+        { id: referenceId, shopId: this.shopId, token },
+      ));
+    const d = await comSelecaoEnxuta("orderByReferenceId", () => consulta(true), () => consulta(false));
+    return normalizarMiniaturas(d.orderByReferenceId);
   }
 
   // -------------------------------------------------------- conta do cliente (OTP)

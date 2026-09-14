@@ -5,7 +5,7 @@ import { ArrowLeft } from "@phosphor-icons/react/dist/ssr";
 import { getCustomerClient } from "@/lib/customer-session";
 import { getOwnedOrder } from "@/lib/orders";
 import { AccountShell } from "@/components/account/account-shell";
-import { OrderStatusCard } from "@/components/order-status";
+import { OrderStatusCard, StatusBadge, orderSeal } from "@/components/order-status";
 import { EmptyState } from "@/components/empty-state";
 import { ReorderButton, type ReorderItem } from "@/components/account/reorder-button";
 import { mockupOr } from "@/lib/mockup";
@@ -19,12 +19,16 @@ export default async function PedidoDetalhePage({ params }: { params: Promise<{ 
   const order = await mockupOr(getOwnedOrder(referenceId), null, "pedido/getOwnedOrder");
 
   return (
-    <AccountShell title={`Pedido #${referenceId}`}>
+    <AccountShell
+      title={`Pedido #${referenceId}`}
+      aoLado={order ? <StatusBadge {...orderSeal(order)} /> : null}
+    >
       {!order ? (
         <EmptyState title="Pedido não encontrado" />
       ) : (
         <>
-          <OrderStatusCard order={order} />
+          {/* número e selo já estão no título da página */}
+          <OrderStatusCard order={order} mostrarNumero={false} />
           <div className="mt-4 flex flex-wrap gap-2.5">
             <ReorderButton
               items={order.items

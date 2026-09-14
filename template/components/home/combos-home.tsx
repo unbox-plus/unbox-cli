@@ -14,6 +14,7 @@ import type { VitrinesResolvidas } from "@/lib/vitrine";
 
 export function CombosHome({
   combos,
+  catalogo = [],
   featured,
   bundles = [],
   categories = [],
@@ -23,6 +24,8 @@ export function CombosHome({
   layoutEditavel = true,
 }: {
   combos: CatalogProductItem[];
+  /** os produtos que as vitrines citam (ver HomeData.catalogo) */
+  catalogo?: CatalogProductItem[];
   featured: CatalogProductItem | null;
   bundles?: ResolvedCombo[];
   categories?: CatalogCategory[];
@@ -36,7 +39,7 @@ export function CombosHome({
   /** `false` em página que REAPROVEITA a receita: a copy editada vale, a ordem da home não manda ali. */
   layoutEditavel?: boolean;
 }) {
-  const data: HomeData = { combos, featured, bundles, categories, combosTitle, freeShipLabel, vitrines };
+  const data: HomeData = { combos, catalogo, featured, bundles, categories, combosTitle, freeShipLabel, vitrines };
   return (
     <div className="store-layout full-bleed bg-white text-[var(--store-ink)]">
       {/* O título do hero é o h1 da home. Sem hero na receita, um h1 invisível com o nome da loja. */}

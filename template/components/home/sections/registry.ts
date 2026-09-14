@@ -41,6 +41,11 @@ import { BlocoHtmlSection } from "./bloco-html";
 /** Dados buscados pelo servidor (app/page.tsx) e entregues a todas as seções. */
 export interface HomeData {
   combos: CatalogProductItem[];
+  /**
+   * Os produtos do catálogo que as vitrines escolhidas citam (lib/catalog-map.ts, `catalogoDasVitrines`).
+   * É contra eles que o card de vitrine se resolve, e não contra `combos`, que é só o recorte editorial.
+   */
+  catalogo: CatalogProductItem[];
   featured: CatalogProductItem | null;
   bundles: ResolvedCombo[];
   categories: CatalogCategory[];

@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { CaretRight, ArrowsClockwise } from "@phosphor-icons/react/dist/ssr";
-import { getCustomerClient } from "@/lib/customer-session";
+import { getCustomerClient, lerDaConta } from "@/lib/customer-session";
+import { formatarData } from "@/lib/format";
 import { AccountShell } from "@/components/account/account-shell";
 import { EmptyState } from "@/components/empty-state";
 
@@ -11,12 +12,18 @@ export const metadata: Metadata = { title: "Minhas assinaturas", robots: { index
 export default async function AssinaturasPage() {
   const me = await getCustomerClient();
   if (!me) redirect("/conta/entrar");
-  const subs = await me.subscriptions({ first: 20 }).catch(() => ({ nodes: [], totalCount: 0 }));
-  const nodes: any[] = subs.nodes ?? [];
+  const leitura = await lerDaConta("/conta/assinaturas", me.subscriptions({ first: 20 }));
+  const nodes: any[] = leitura.ok ? leitura.valor?.nodes ?? [] : [];
 
   return (
     <AccountShell title="Minhas assinaturas">
-      {nodes.length === 0 ? (
+      {!leitura.ok ? (
+        <EmptyState title="Não conseguimos carregar suas assinaturas" description="Suas assinaturas continuam ativas como estavam. Tente de novo em instantes.">
+          <Link href="/conta/assinaturas" className="font-display inline-flex h-11 items-center rounded-xl bg-[var(--store-primary,#18181B)] px-5 text-[14px] font-bold text-white no-underline transition-colors hover:bg-[var(--store-primary-dark,#09090B)]">
+            Tentar de novo
+          </Link>
+        </EmptyState>
+      ) : nodes.length === 0 ? (
         <EmptyState title="Você não tem assinaturas" description="Assine um produto e receba periodicamente com desconto.">
           <Link href="/produtos" className="font-display inline-flex h-11 items-center rounded-xl bg-[var(--store-primary,#18181B)] px-5 text-[14px] font-bold text-white no-underline transition-colors hover:bg-[var(--store-primary-dark,#09090B)]">
             Ver produtos
@@ -37,7 +44,7 @@ export default async function AssinaturasPage() {
                 <div>
                   <p className="font-display text-[15.5px] font-bold text-[var(--store-ink)]">Assinatura #{s.referenceId}</p>
                   <p className="mt-0.5 text-[12.5px] text-[var(--store-muted)]">
-                    {s.createdAt ? `desde ${new Date(s.createdAt).toLocaleDateString("pt-BR")}` : ""}
+                    {s.createdAt ? `desde ${formatarData(s.createdAt)}` : ""}
                   </p>
                 </div>
               </div>

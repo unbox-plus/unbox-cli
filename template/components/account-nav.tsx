@@ -1,7 +1,8 @@
 "use client";
 
 // Link de conta no header. Mantém o layout estático (ISR): busca o nome do cliente no client.
-// Logado → primeiro nome com uma pimentinha; senão → "Entrar".
+// Logado → ícone de conta preenchido e o primeiro nome; senão → "Entrar". Quem está logado e vê
+// "Entrar" tem o nome falhando em /api/account/me: o motivo fica no log do servidor.
 import * as React from "react";
 import Link from "next/link";
 import { User, UserCircle } from "@phosphor-icons/react/dist/ssr";

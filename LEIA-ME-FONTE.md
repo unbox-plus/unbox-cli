@@ -52,7 +52,7 @@ Vivem em `template/scripts/` e são copiados para cada loja:
 | comando | o que mede | bloqueia? |
 |---|---|---|
 | `unbox:honestidade` | promessa comercial ou prova social sem lastro | sim, no `prebuild` |
-| `prebuild` (check-unbox-brand) | selo Powered by, GTM central, `?id=&token=` do checkout, contrato do dataLayer, travessão na copy | sim |
+| `prebuild` (check-unbox-brand) | selo Powered by, GTM central, `?id=&token=` do checkout, contrato do dataLayer, travessão na copy, formulário sem destino, variável do id da loja fora de `$shopId`, data formatada sem fuso | sim |
 | `unbox:editavel` | quanto do que a loja mostra o lojista consegue editar, página por página | sim, quando rodado |
 | `unbox:placeholder` | `[NOME DA LOJA]`, `[CNPJ]`, `TODO:` no **HTML servido** | gate de publicação |
 | `unbox:medir` | tamanhos de tipo, raios, hex fora de token, largura de container | não, é relatório |

@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft } from "@phosphor-icons/react/dist/ssr";
-import { getCustomerClient } from "@/lib/customer-session";
+import { getCustomerClient, lerDaConta } from "@/lib/customer-session";
+import { formatarData } from "@/lib/format";
 import { getShopData } from "@/lib/queries";
 import { subscriptionStatusLabel } from "@/lib/unbox/customer";
 import { AccountShell } from "@/components/account/account-shell";
@@ -17,20 +18,27 @@ export default async function AssinaturaDetalhePage({ params }: { params: Promis
   if (!me) redirect("/conta/entrar");
   const { referenceId } = await params;
 
-  const [sub, shop] = await Promise.all([
-    me.subscription(referenceId).catch(() => null),
+  const [leitura, shop] = await Promise.all([
+    lerDaConta("/conta/assinaturas/[referenceId]", me.subscription(referenceId)),
     getShopData().catch(() => null),
   ]);
+  const sub = leitura.ok ? leitura.valor : null;
 
   if (!sub) {
+    // "não encontrada" só quando a API respondeu que não existe; falha na leitura diz o que é
     return (
       <AccountShell title="Assinatura">
-        <EmptyState title="Assinatura não encontrada" />
+        {leitura.ok ? (
+          <EmptyState title="Assinatura não encontrada" />
+        ) : (
+          <EmptyState title="Não conseguimos carregar esta assinatura" description="Ela continua como estava. Tente de novo em instantes." />
+        )}
       </AccountShell>
     );
   }
 
-  const cycles = await me.subscriptionCycles(sub._id, 12).catch(() => ({ nodes: [] }));
+  const ciclos = await lerDaConta("/conta/assinaturas/[referenceId]/ciclos", me.subscriptionCycles(sub._id, 12));
+  const cycles = ciclos.ok ? ciclos.valor : { nodes: [] };
   const actions = shop?.recurringOrdersPolicy?.customerActions ?? {};
   const status = sub.status?.value ?? "ACTIVE";
   const card = sub.unboxPayCustomerCreditCard;
@@ -52,7 +60,7 @@ export default async function AssinaturaDetalhePage({ params }: { params: Promis
         <dl className="grid gap-3 text-sm sm:grid-cols-2">
           {sub.totalAmount?.displayAmount && <Info label="Valor por ciclo" value={sub.totalAmount.displayAmount} />}
           {sub.cyclesInformation?.nextCycleDate && (
-            <Info label="Próxima cobrança" value={new Date(sub.cyclesInformation.nextCycleDate).toLocaleDateString("pt-BR")} />
+            <Info label="Próxima cobrança" value={formatarData(sub.cyclesInformation.nextCycleDate)} />
           )}
           {card && <Info label="Cartão" value={`•••• ${card.last4Digits} (${card.expirationMonth}/${card.expirationYear})`} />}
           {addr && <Info label="Entrega" value={`${addr.address1}, ${addr.number ?? ""} · ${addr.city}/${addr.region}`} />}
@@ -87,7 +95,7 @@ export default async function AssinaturaDetalhePage({ params }: { params: Promis
               <li key={c._id} className="flex items-center justify-between p-3.5">
                 <span className="font-semibold text-[var(--store-ink-2)]">Ciclo #{c.cycleIndex}</span>
                 <span className="text-[var(--store-muted)]">
-                  {c.skipped ? "Pulado" : c.completedAt ? `Concluído em ${new Date(c.completedAt).toLocaleDateString("pt-BR")}` : "Pendente"}
+                  {c.skipped ? "Pulado" : c.completedAt ? `Concluído em ${formatarData(c.completedAt)}` : "Pendente"}
                 </span>
               </li>
             ))}

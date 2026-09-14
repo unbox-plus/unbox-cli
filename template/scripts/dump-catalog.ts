@@ -70,7 +70,7 @@ async function main() {
   try {
     // Consulta direto no core com o _id que acabamos de buscar (o shopId do .env é opcional).
     const d = await client.gql<{ availablePaymentMethods: any[] }>(
-      `query($s:ID!){availablePaymentMethods(shopId:$s){name displayName isEnabled}}`, { s: shop._id },
+      `query($shopId:ID!){availablePaymentMethods(shopId:$shopId){name displayName isEnabled}}`, { shopId: shop._id },
     );
     for (const m of d.availablePaymentMethods) console.log(`• ${m.displayName ?? m.name} ${m.isEnabled ? "" : "(desabilitada)"}`);
   } catch (e: any) {

@@ -128,3 +128,24 @@ export function parseBRL(s?: string | null): number | null {
   const n = Number(s.replace(/[^\d,.-]/g, "").replace(/\./g, "").replace(",", "."));
   return Number.isNaN(n) ? null : n;
 }
+
+// ── DATAS NO FUSO DA LOJA ─────────────────────────────────────────────────────────────────────
+// `toLocaleString("pt-BR")` no SERVIDOR usa o fuso do servidor, e o da Vercel é UTC: um pedido das
+// 20:59 saía "23:59", e um das 22h de ontem saía com a data de hoje. `pt-BR` escolhe o formato, não o
+// fuso. Toda data exibida passa por aqui (o prebuild recusa `new Date(...).toLocale...` fora deste
+// arquivo).
+const FUSO_DA_LOJA = "America/Sao_Paulo";
+
+/** "05/09/2026". Entrada inválida ou ausente devolve "". */
+export function formatarData(valor: string | number | Date | null | undefined): string {
+  const d = valor == null ? null : new Date(valor);
+  if (!d || Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("pt-BR", { timeZone: FUSO_DA_LOJA, day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+/** "05/09/2026, 20:59". Entrada inválida ou ausente devolve "". */
+export function formatarDataHora(valor: string | number | Date | null | undefined): string {
+  const d = valor == null ? null : new Date(valor);
+  if (!d || Number.isNaN(d.getTime())) return "";
+  return d.toLocaleString("pt-BR", { timeZone: FUSO_DA_LOJA, day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+}
