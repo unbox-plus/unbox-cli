@@ -68,6 +68,33 @@ clientes para cobrar a régua, mas escrever a carteira num arquivo seria o próp
 que ele existe para impedir. `--hash` gera a linha a colar, sem que o nome apareça no
 repositório.
 
+## `github-release.mjs` · o release no GitHub
+
+Lê o primeiro bloco do `CHANGELOG.md` da branch `main` e publica o release no repositório
+declarado no `package.json`, com o mesmo mapeamento que vinha sendo feito à mão: o `### vX.Y.Z
+— título` vira a tag `X.Y.Z` (sem o `v`) e o título do release, e o corpo do bloco vira a
+descrição, verbatim.
+
+```bash
+npm run release                            # prévia + confirmação
+node tools/github-release.mjs --previa     # só mostra o que faria
+node tools/github-release.mjs --sim        # sem perguntar (CI)
+node tools/github-release.mjs --rascunho   # cria como draft
+node tools/github-release.mjs --local      # lê do main local, sem fetch
+```
+
+Precisa do `gh` autenticado: o release é criado por ele, e não por token escrito em lugar nenhum.
+
+O texto vem do `origin/main`, não da cópia de trabalho, e a tag aponta para o **SHA** do topo
+de `main`, não para o nome `main`. As duas coisas são a mesma no instante em que se lê, e
+deixam de ser se alguém empurrar um commit no meio: a tag ficaria sobre um texto que o script
+não leu, e o release descreveria outra coisa.
+
+Publicar é irreversível na prática, então a conferência é toda antes e qualquer uma aborta:
+versão do bloco diferente da do `package.json` **do mesmo commit** (uma das duas ficou para
+trás, e adivinhar qual é o que não se deve fazer aqui), tag já existente no remoto, release já
+existente, título fora do formato. A prévia sai inteira na tela e nada é criado antes do "sim".
+
 ## `notion-doc.mjs` · a página interna do CLI
 
 Gera o conteúdo da página **create-unbox-store — CLI de geração de loja**, em
