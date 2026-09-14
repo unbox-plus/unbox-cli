@@ -3,8 +3,9 @@ import Link from "next/link";
 import Image from "next/image";
 import { redirect } from "next/navigation";
 import { CaretRight, ArrowsClockwise, MapPin, Package } from "@phosphor-icons/react/dist/ssr";
-import { getCustomerClient } from "@/lib/customer-session";
-import { shapeOrderSummary, type ShapedOrderSummary } from "@/lib/orders";
+import { getCustomerClient, lerDaConta } from "@/lib/customer-session";
+import { shapeOrderSummary, completarImagensDoCatalogo, type ShapedOrderSummary } from "@/lib/orders";
+import { formatarData } from "@/lib/format";
 import { AccountShell } from "@/components/account/account-shell";
 import { EmptyState } from "@/components/empty-state";
 import { StatusBadge, statusTone } from "@/components/order-status";
@@ -15,12 +16,31 @@ export default async function PedidosPage() {
   const me = await getCustomerClient();
   if (!me) redirect("/conta/entrar");
 
-  const orders = await me.orders({ first: 30 }).catch(() => ({ nodes: [], totalCount: 0 }));
-  const list: ShapedOrderSummary[] = (orders.nodes ?? []).map((n: any) => shapeOrderSummary(n));
+  // Falha na leitura NÃO vira "você ainda não tem pedidos": quem comprou veria a conta vazia e acharia
+  // que o pedido sumiu. Ver lerDaConta.
+  const leitura = await lerDaConta("/conta/pedidos", me.orders({ first: 30 }));
+  const nodes: any[] = leitura.ok ? leitura.valor?.nodes ?? [] : [];
+
+  // miniaturas: o item do pedido costuma vir sem foto, e a do catálogo entra no lugar
+  const itens = nodes.flatMap((o: any) => (o.fulfillmentGroups ?? []).flatMap((g: any) => g.items?.nodes ?? []));
+  const alvos = itens.map((n: any) => ({ slug: n.productSlug ?? undefined, thumbnail: n.thumbnail || undefined, n }));
+  await completarImagensDoCatalogo(alvos);
+  for (const a of alvos) a.n.thumbnail = a.thumbnail;
+
+  const list: ShapedOrderSummary[] = nodes.map((n: any) => shapeOrderSummary(n));
 
   return (
     <AccountShell title="Meus pedidos">
-      {list.length === 0 ? (
+      {!leitura.ok ? (
+        <EmptyState
+          title="Não conseguimos carregar seus pedidos"
+          description="Seus pedidos continuam registrados. Tente de novo em instantes."
+        >
+          <Link href="/conta/pedidos" className="font-display inline-flex h-11 items-center rounded-xl bg-[var(--store-primary,#18181B)] px-5 text-[14px] font-bold text-white no-underline transition-colors hover:bg-[var(--store-primary-dark,#09090B)]">
+            Tentar de novo
+          </Link>
+        </EmptyState>
+      ) : list.length === 0 ? (
         <EmptyState
           title="Você ainda não tem pedidos"
           description="Quando você fizer uma compra, ela aparece aqui com status, itens e rastreio."
@@ -42,7 +62,7 @@ export default async function PedidosPage() {
                 <div className="min-w-0">
                   <p className="font-display text-[15.5px] font-extrabold text-[var(--store-ink)]">#{o.referenceId}</p>
                   <p className="mt-0.5 flex items-center gap-1.5 text-[12.5px] text-[var(--store-muted)]">
-                    {o.createdAt ? new Date(o.createdAt).toLocaleDateString("pt-BR") : ""}
+                    {formatarData(o.createdAt)}
                     {o.recurring && (
                       <span className="inline-flex items-center gap-1 font-semibold text-[var(--store-primary,#18181B)]">
                         <ArrowsClockwise weight="bold" className="text-[12px]" />assinatura

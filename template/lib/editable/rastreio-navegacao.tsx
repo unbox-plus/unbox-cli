@@ -22,10 +22,11 @@
 // `window`, e este hook não o chama. É assim que ele nunca dispara o mesmo provedor duas vezes: um
 // script por provedor na página, uma chamada por provedor por navegação.
 //
-// CARREGAMENTO INICIAL: quem já conta sozinho (gtag 'config', fbq PageView, ttq.page, pintrk page) é
-// pulado. Quando NENHUM deles está na página, o page_view de entrada vai direto no dataLayer, que é de
-// onde os contêineres de GTM leem (o central da Unbox e o próprio da marca). Sem isso, uma loja só com
-// GTM ficava sem o evento de entrada.
+// CARREGAMENTO INICIAL, PROVEDOR POR PROVEDOR: quem conta a entrada no próprio snippet (fbq PageView,
+// ttq.page, pintrk page) é pulado na primeira passada. O dataLayer NÃO conta sozinho, então o page_view
+// de entrada vai para ele sempre que não houver gtag, com ou sem Pixel na página. Pular tudo por haver
+// UM provedor deixava o GTM central da Unbox (presente em toda loja) sem o evento de entrada numa loja
+// com Pixel e sem GA4, e some justamente o visitante de campanha, que abre uma página e sai.
 import * as React from "react";
 import { usePathname } from "next/navigation";
 
@@ -46,13 +47,12 @@ export function PageViewPorRota() {
     const primeiro = first.current;
     first.current = false;
 
-    const contadoPorOutro = typeof w.gtag === "function" || typeof w.fbq === "function" || typeof w.ttq?.page === "function" || typeof w.pintrk === "function";
-    if (primeiro && contadoPorOutro) return;
-
     // o GA4 (gtag) não está aqui de propósito: ele conta a navegação sozinho (ver o topo do arquivo)
-    try { w.fbq?.("track", "PageView"); } catch { /* ignora */ }
-    try { w.ttq?.page?.(); } catch { /* ignora */ }
-    try { w.pintrk?.("page"); } catch { /* ignora */ }
+    if (!primeiro) {
+      try { w.fbq?.("track", "PageView"); } catch { /* ignora */ }
+      try { w.ttq?.page?.(); } catch { /* ignora */ }
+      try { w.pintrk?.("page"); } catch { /* ignora */ }
+    }
     // sem gtag, o page_view vai direto no dataLayer: é dele que todos os contêineres de GTM leem
     try {
       if (typeof w.gtag !== "function" && Array.isArray(w.dataLayer)) {

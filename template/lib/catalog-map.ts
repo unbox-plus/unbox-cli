@@ -15,6 +15,24 @@ export function buildCategories(tags: any[]): CatalogCategory[] {
     .map((t: any): CatalogCategory => ({ name: t.displayTitle || t.name, slug: t.slug }));
 }
 
+/**
+ * Os itens do catálogo que as VITRINES do documento citam, para o card resolver o produto contra o
+ * CATÁLOGO e não contra `combos`.
+ *
+ * `combos` é recorte editorial (kits, senão ofertas, senão os 8 primeiros, cortado em 10). Um produto
+ * escolhido na vitrine e fora desse recorte virava card sem variante e sem preço antigo: sem botão de
+ * comprar, com estoque no painel. A disponibilidade exibida ficava amarrada a estar em promoção.
+ *
+ * Só os citados, e não o catálogo inteiro: a home é componente de cliente, e cem produtos a mais
+ * viajariam no HTML de toda visita.
+ */
+export function catalogoDasVitrines(items: CatalogProductItem[], vitrines: Record<string, { id: string; slug: string }[]> | undefined): CatalogProductItem[] {
+  const citados = new Set<string>();
+  for (const lista of Object.values(vitrines ?? {})) for (const p of lista) { citados.add(p.id); citados.add(p.slug); }
+  if (!citados.size) return [];
+  return items.filter((it) => (it.productId && citados.has(it.productId)) || citados.has(it.slug));
+}
+
 export function mapCatalogItems(nodes: any[], tagMap: Map<string, string>): CatalogProductItem[] {
   return (nodes ?? [])
     .map((n: any) => n.product ?? n)

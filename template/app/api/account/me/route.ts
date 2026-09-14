@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCustomerClient } from "@/lib/customer-session";
+import { getCustomerClient, lerDaConta } from "@/lib/customer-session";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +20,8 @@ function firstNameFrom(account: any): string | null {
 export async function GET() {
   const customer = await getCustomerClient();
   if (!customer) return NextResponse.json({ firstName: null });
-  const account = await customer.me().catch(() => null);
-  return NextResponse.json({ firstName: account ? firstNameFrom(account) : null });
+  // Sem o nome, o cabeçalho mostra "Entrar". É o sintoma mais rápido de que o contexto da loja não está
+  // resolvendo (ver customer.ts, me()), então a falha tem de ficar no log e não só virar null.
+  const leitura = await lerDaConta("/api/account/me", customer.me());
+  return NextResponse.json({ firstName: leitura.ok && leitura.valor ? firstNameFrom(leitura.valor) : null });
 }

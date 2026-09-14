@@ -78,7 +78,9 @@ export function limiteDaVitrine(limite?: number | null): number {
 /** Node do catálogo (ou item de PDP) → produto de vitrine. `null` quando não dá para identificar. */
 export function produtoDaVitrine(node: any): VitrineProduto | null {
   const p = node?.product ?? node;
-  if (!p?.slug) return null;
+  // Oculto no painel não entra: a página do catálogo já chega filtrada (client.ts, semOcultos), mas o
+  // produto escolhido a dedo que não estava nela é buscado sozinho, por id ou slug, e volta mesmo oculto.
+  if (!p?.slug || p.isVisible === false) return null;
   return {
     id: String(p.productId ?? p._id ?? p.slug),
     titulo: p.title ?? "",

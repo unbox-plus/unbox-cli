@@ -9,7 +9,7 @@
 // `mockupOr` em toda busca: sem credenciais da Unbox (o começo de toda loja) a página continua
 // abrindo, com a vitrine vazia, em vez de estourar.
 import "server-only";
-import { buildCategories, buildTagMap, mapCatalogItems } from "@/lib/catalog-map";
+import { buildCategories, buildTagMap, mapCatalogItems, catalogoDasVitrines } from "@/lib/catalog-map";
 import { FREE_SHIPPING_THRESHOLD } from "@/lib/store-config";
 import { getCatalog, getTopTags } from "@/lib/queries";
 import { mockupOr } from "@/lib/mockup";
@@ -32,6 +32,7 @@ export async function dadosDasPaginas(doc: ContentDocument | null | undefined, c
   const vitrines = await resolverVitrinesDoDocumento(doc, container);
   return {
     combos: items.slice(0, 10),
+    catalogo: catalogoDasVitrines(items, vitrines),
     featured: items[0] ?? null,
     bundles: [],
     categories: buildCategories(tags as any[]),

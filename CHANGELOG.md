@@ -1,5 +1,62 @@
 ## Changelog
 
+### v0.21.6 — a área logada volta a mostrar os pedidos, e a página do pedido ganha blocos
+
+Rodada que saiu de uma loja em produção: cliente logado sem nenhum pedido na conta, o cabeçalho dizendo
+"Entrar" para quem estava logado, produto oculto à venda na home e status crus na tela. Quatro das causas
+são do backend da Unbox e estão com o time do core; aqui entra o que a loja precisa fazer para não
+depender delas.
+
+**Consultas do cliente logado**
+
+- **`payments` junto de `summary`, sempre.** O resolver do total lê `payments[0]` e o banco só traz
+  `payments` quando a consulta pede. Pedir o total sem o pagamento apagava a lista de pedidos inteira.
+- **A variável do id da loja se chama `$shopId`.** O backend acha a loja pelo NOME da variável; com `$s`,
+  `currentCustomerAccount` caía e o cabeçalho mostrava "Entrar". Gate novo no `prebuild` cobra o nome.
+- **Imagem do item por `imageURLs`**, normalizada para o `thumbnail` que a loja já lia, nas três
+  consultas de pedido. E quando o pedido não traz foto, ela vem do catálogo, casada pelo slug, sem
+  sobrescrever a que o pedido trouxe.
+- **`FulfillmentMethod` só pelos campos anuláveis** (`label`, `carrier`, `daysToDeliver`): `displayName` e
+  `name` são obrigatórios no schema e voltam vazios, derrubando a consulta.
+- **Seleção completa com volta para a enxuta.** Resumo detalhado, envio, rastreio e status do pagamento
+  entram numa tentativa; se a API recusar, a página cai para o essencial e o motivo fica no log.
+- **O cliente logado alterna o formato do `Authorization`**, como o de loja já fazia. Só consulta repete;
+  mutação nunca, porque pausar assinatura é um interruptor e executar duas vezes desfaz.
+
+**Comportamento**
+
+- **Falha de leitura deixou de virar "você não tem pedidos".** Pedidos, assinaturas, endereços e
+  preferências registram o erro e mostram estado próprio. Preferências não abre o formulário com valores
+  padrão quando não conseguiu ler: salvar ali sobrescreveria a escolha real.
+- **Token de cliente vencido vale como deslogado**, em vez de deixar a conta num beco sem saída.
+- **Produto oculto no painel sai de toda vitrine**, no ponto por onde todo catálogo passa, com o
+  `totalCount` descontado. Também sai quando foi escolhido a dedo e buscado sozinho.
+- **Card de vitrine se resolve contra o catálogo**, não contra o recorte de combos: produto fora das
+  ofertas perdia o botão de comprar. Só os produtos citados pelas vitrines viajam no HTML.
+- **`page_view` de entrada no dataLayer mesmo com Pixel na página.** A regra pulava tudo por haver um
+  provedor, e o GTM central ficava sem o evento de entrada numa loja com Pixel e sem GA4.
+- **Datas no fuso de São Paulo** (`formatarData`, `formatarDataHora`). No servidor saíam em UTC: 20:59
+  virava 23:59. Gate novo recusa data formatada sem fuso.
+- **Status com rótulo em português**: grupo de entrega (com e sem o prefixo `coreOrderWorkflow/`), tipo
+  de entrega, eventos de rastreio e pagamento. O que não tem rótulo aparece como veio, em vez de sumir.
+
+**Página do pedido**
+
+- Em blocos com título, na ordem da conta hospedada: Detalhes da compra (grade de duas colunas), Histórico
+  de rastreio, Produto e preço, Resumo.
+- O selo é o status do **pagamento** ("Pedido pago"), ao lado do título.
+- Resumo com Subtotal, Frete, Descontos e Total, quando a API entrega a quebra.
+- Link "Rastrear" pela `tracking.url`, que existe no grupo de entrega. O comentário que dizia o contrário
+  valia só para `Order`.
+- No celular, o menu da conta vem depois do conteúdo.
+
+Loja já gerada: trocar `lib/unbox/{customer,client,pedido}.ts`, `lib/customer-session.ts`, `lib/orders.ts`,
+`lib/format.ts`, `lib/catalog-map.ts`, `lib/vitrine.ts`, `lib/paginas-dados.ts`,
+`lib/editable/rastreio-navegacao.tsx`, `components/order-status.tsx`, `components/account/account-shell.tsx`,
+`components/home/{combos-home.tsx,sections/registry.ts,sections/combos-carousel.tsx}`,
+`scripts/check-unbox-brand.mjs` e as páginas de `app/(loja)/conta/`, `app/(loja)/page.tsx`,
+`app/(loja)/oferta/page.tsx` e `app/api/account/me/route.ts`.
+
 ### v0.21.5 — o lojista escreve o CSS da loja
 
 A saída para o ajuste que os controles do editor não alcançam. A loja passa a emitir, por último, a

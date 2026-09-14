@@ -40,6 +40,7 @@ export default async function OfertaPage() {
 
   const data: HomeData = {
     combos,
+    catalogo: [], // /oferta não lê o documento: não há vitrine escolhida para resolver
     featured: combos[0] ?? items[0] ?? null,
     bundles: resolveCombos((catalog.nodes ?? []).map((n: any) => n.product ?? n)),
     categories: buildCategories(tags as any[]),

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Package, Gear, CaretRight } from "@phosphor-icons/react/dist/ssr";
-import { getCustomerClient } from "@/lib/customer-session";
+import { getCustomerClient, lerDaConta } from "@/lib/customer-session";
 import { AccountShell } from "@/components/account/account-shell";
 
 export const metadata: Metadata = { title: "Minha conta", robots: { index: false } };
@@ -17,7 +17,9 @@ export default async function ContaPage() {
   const me = await getCustomerClient();
   if (!me) redirect("/conta/entrar");
 
-  const account = await me.me().catch(() => null);
+  // a visão geral só usa a conta para a saudação: sem ela, cai no genérico, mas a falha fica no log
+  const leitura = await lerDaConta("/conta", me.me());
+  const account = leitura.ok ? leitura.valor : null;
 
   return (
     <AccountShell title="Minha conta">
