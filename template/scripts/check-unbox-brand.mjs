@@ -247,6 +247,46 @@ for (const caminho of arquivosDeCopy) {
   });
 }
 
+// ── 10. Variável do id da loja se chama `shopId` ─────────────────────────────
+// O backend descobre a loja da requisição procurando nas variables uma chave com o nome LITERAL
+// `shopId`. `query($s:String!){ currentCustomerAccount(shopId:$s) }` passa o mesmo valor ao mesmo
+// argumento e mesmo assim chega sem contexto de loja: o resolver estoura e a consulta inteira cai. Não
+// há como ver isso pelo schema, então a regra é de nome.
+const arquivosDeCodigo = [...arquivosDeCopy];
+(function varreCodigo(dir) {
+  let entradas;
+  try { entradas = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+  for (const e of entradas) {
+    if (e.name === "node_modules") continue;
+    const caminho = path.join(dir, e.name);
+    if (e.isDirectory()) varreCodigo(caminho);
+    else if (/\.(tsx?|mjs)$/.test(e.name)) arquivosDeCodigo.push(caminho);
+  }
+})(path.join(ROOT, "lib"));
+for (const caminho of arquivosDeCodigo) {
+  const rel = path.relative(ROOT, caminho);
+  fs.readFileSync(caminho, "utf8").split("\n").forEach((linha, idx) => {
+    const m = linha.match(/\bshopId:\s*\$(\w+)/);
+    if (m && m[1] !== "shopId") {
+      errors.push(`${rel}:${idx + 1} passa o id da loja na variável $${m[1]}: ela precisa se chamar $shopId, senão o backend não resolve a loja da requisição.`);
+    }
+  });
+}
+
+// ── 11. Data exibida no fuso da loja ─────────────────────────────────────────
+// `toLocaleString("pt-BR")` no servidor usa o fuso do servidor (UTC na Vercel): 20:59 saía 23:59, e o
+// pedido das 22h de ontem saía com a data de hoje. Data exibida passa por formatarData/formatarDataHora
+// (lib/format.ts), que fixam America/Sao_Paulo.
+for (const caminho of arquivosDeCodigo) {
+  const rel = path.relative(ROOT, caminho);
+  if (rel === path.join("lib", "format.ts")) continue;
+  fs.readFileSync(caminho, "utf8").split("\n").forEach((linha, idx) => {
+    if (/new Date\([^)]*\)\.toLocale(Date|Time)?String\(/.test(linha) && !/timeZone/.test(linha)) {
+      errors.push(`${rel}:${idx + 1} formata data sem fuso: use formatarData ou formatarDataHora de lib/format.ts.`);
+    }
+  });
+}
+
 // ── Avisos NÃO bloqueantes (acabamento de marca) ──────────────────────────────
 const warnings = [];
 if (layout && /description:\s*(undefined|""|process\.env\.NEXT_PUBLIC_SITE_DESCRIPTION \|\| undefined)/.test(layout) && !process.env.NEXT_PUBLIC_SITE_DESCRIPTION) {

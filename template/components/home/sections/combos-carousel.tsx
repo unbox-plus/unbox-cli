@@ -112,7 +112,9 @@ export function CombosCarouselSection({ data }: SectionComponentProps) {
           // LISTA VAZIA cai nos produtos do CÓDIGO, não numa fileira em branco: é o que a página
           // publicada faz (`resolverVitrinesDoDocumento` deixa de fora o caminho que não resolveu em
           // nada). Quem avisa o lojista é a tarja âmbar do primitivo, que só existe na prévia.
-          const itens = resolvidos && resolvidos.length ? resolvidos.slice(0, teto).map((p) => itemDaVitrine(p, data.combos)) : data.combos;
+          // o produto escolhido se resolve contra o CATÁLOGO (HomeData.catalogo); `combos` fica de reserva
+          // para a prévia do editor, que pode citar produto que o servidor ainda não resolveu
+          const itens = resolvidos && resolvidos.length ? resolvidos.slice(0, teto).map((p) => itemDaVitrine(p, [...data.catalogo, ...data.combos])) : data.combos;
           return (
             // dois refs num elemento só: o do carrossel (setas) e o do editor (seleção)
             <div ref={(el) => { rowRef.current = el; ref(el); }} {...attrs} className="flex gap-[18px] overflow-x-auto pb-3.5 [scrollbar-width:thin]">

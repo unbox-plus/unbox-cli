@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { getCatalog, getTopTags } from "@/lib/queries";
-import { buildTagMap, buildCategories, mapCatalogItems } from "@/lib/catalog-map";
+import { buildTagMap, buildCategories, mapCatalogItems, catalogoDasVitrines } from "@/lib/catalog-map";
 import { FREE_SHIPPING_THRESHOLD } from "@/lib/store-config";
 import { resolveCombos } from "@/lib/enrichment/combos";
 import { CombosHome } from "@/components/home/combos-home";
@@ -84,6 +84,7 @@ export default async function HomePage() {
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ldJson(jsonLd) }} />
     <CombosHome
       combos={combos}
+      catalogo={catalogoDasVitrines(items, vitrines)}
       featured={featured}
       bundles={bundles}
       categories={buildCategories(tags as any[])}

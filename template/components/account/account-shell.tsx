@@ -11,7 +11,16 @@ const NAV = [
   { href: "/conta/preferencias", label: "Preferências", icon: Gear },
 ];
 
-export function AccountShell({ title, children }: { title: string; children: React.ReactNode }) {
+export function AccountShell({
+  title,
+  /** Ao lado do título: o selo do pedido, na página do pedido. */
+  aoLado,
+  children,
+}: {
+  title: string;
+  aoLado?: React.ReactNode;
+  children: React.ReactNode;
+}) {
   return (
     <div className="store-layout full-bleed bg-white text-[var(--store-ink)]">
       <div className="mx-auto max-w-[1240px] px-4 py-7 sm:px-6">
@@ -23,7 +32,9 @@ export function AccountShell({ title, children }: { title: string; children: Rea
         </div>
 
         <div className="mt-6 grid items-start gap-7 md:grid-cols-[248px_1fr]">
-          <aside className="h-fit rounded-xl border border-[var(--store-line)] bg-white p-3 md:sticky md:top-6">
+          {/* No celular o menu vem DEPOIS do conteúdo: quem abre um pedido quer ver o pedido, não a
+              navegação. A partir de md volta a ser a coluna da esquerda. */}
+          <aside className="order-2 h-fit rounded-xl border border-[var(--store-line)] bg-white p-3 md:order-1 md:sticky md:top-6">
             <nav className="flex flex-col gap-1">
               {NAV.map(({ href, label, icon: Icon }) => (
                 <Link key={href} href={href} className="flex items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-[14px] font-semibold text-[var(--store-ink-2)] no-underline transition-colors hover:bg-[var(--store-primary-soft,#F1F1F3)] hover:text-[var(--store-primary,#18181B)]">
@@ -36,8 +47,11 @@ export function AccountShell({ title, children }: { title: string; children: Rea
             </nav>
           </aside>
 
-          <section>
-            <h1 className="font-display mb-5">{title}</h1>
+          <section className="order-1 min-w-0 md:order-2">
+            <div className="mb-5 flex flex-wrap items-center gap-x-3 gap-y-2">
+              <h1 className="font-display">{title}</h1>
+              {aoLado}
+            </div>
             {children}
           </section>
         </div>
