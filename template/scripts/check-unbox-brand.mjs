@@ -290,7 +290,7 @@ for (const caminho of arquivosDeCodigo) {
 // ── Avisos NÃO bloqueantes (acabamento de marca) ──────────────────────────────
 const warnings = [];
 if (layout && /description:\s*(undefined|""|process\.env\.NEXT_PUBLIC_SITE_DESCRIPTION \|\| undefined)/.test(layout) && !process.env.NEXT_PUBLIC_SITE_DESCRIPTION) {
-  warnings.push('a loja ainda não tem meta description: escreva uma frase com o que ela vende e para quem, em app/layout.tsx (busca e IA extraem daí).');
+  warnings.push('a loja ainda não tem meta description: escreva uma frase com o que ela vende e para quem em NEXT_PUBLIC_SITE_DESCRIPTION, ou deixe para o lojista escrever no editor (Configurações gerais → Como a loja aparece no Google). Busca e IA extraem daí.');
 }
 for (const f of ["app/icon.svg", "app/apple-icon.svg"]) {
   const svg = read(f);

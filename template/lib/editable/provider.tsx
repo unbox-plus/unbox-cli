@@ -31,6 +31,7 @@ import {
   type ManifestSemContainer,
   emptyDocument,
   type ManifestFonte,
+  type ManifestRotaComSeo,
   type OpcaoDeToken,
   type TipoDeToken,
   ehFamiliaDeLetra, juntarFatia, normalizarPagina, PESOS_DA_LETRA, resolveValue, type SectionKind, SECTION_KIND_LABEL, tokenAceita, valorDeTokenEmCss, cssDoLojistaEmSeguranca} from "./document";
@@ -458,6 +459,7 @@ export function EditableProvider({
   editorOrigin,
   apps,
   paginasDoLojista,
+  rotasComSeo,
   children,
 }: {
   doc: ContentDocument | null;
@@ -488,6 +490,13 @@ export function EditableProvider({
    * 404 para sempre, com a barra dizendo "não publicado".
    */
   paginasDoLojista?: ManifestPaginasDoLojista;
+  /**
+   * PÁGINAS DO CÓDIGO COM SEO EDITÁVEL (foundation 16): as rotas cujo `generateMetadata` lê
+   * `ContentDocument.seoDasRotas`, com o título e a descrição que cada uma emite hoje. Como
+   * `paginasDoLojista`, é a prop que LIBERA o bloco no painel: loja que copiou a lib nova sem trocar o
+   * `generateMetadata` das rotas não a passa, e o editor não oferece um campo que a loja não lê.
+   */
+  rotasComSeo?: ManifestRotaComSeo[];
   children: React.ReactNode;
 }) {
   const [doc, setDoc] = React.useState<ContentDocument>(initialDoc ?? emptyDocument(shop));
@@ -672,8 +681,8 @@ export function EditableProvider({
     // na tela. Então quem responde é a folha DELA, por um marcador que só o bloco da escada declara,
     // e a resposta é lida do valor computado — como já se faz com a cor.
     const letraDaLoja = cs ? cs.getPropertyValue("--unbox-letra-da-loja").trim() === "1" : false;
-    return { shop, capturedAt: new Date().toISOString(), url: pagina, foundation: 15, entries, sections: secs, tipos, semContainer: fora, tokens: toks, ...(fontes.length ? { fontes } : {}), ...(letraDaLoja ? { letraDaLoja } : {}), ...(apps ? { apps } : {}), ...(paginasDoLojista ? { paginasDoLojista } : {}) };
-  }, [shop, tokens, apps, paginasDoLojista]);
+    return { shop, capturedAt: new Date().toISOString(), url: pagina, foundation: 16, entries, sections: secs, tipos, semContainer: fora, tokens: toks, ...(fontes.length ? { fontes } : {}), ...(letraDaLoja ? { letraDaLoja } : {}), ...(apps ? { apps } : {}), ...(paginasDoLojista ? { paginasDoLojista } : {}), ...(rotasComSeo?.length ? { rotasComSeo } : {}) };
+  }, [shop, tokens, apps, paginasDoLojista, rotasComSeo]);
 
   // manifesto: publica depois que os registros assentam (debounce)
   const manifestTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
