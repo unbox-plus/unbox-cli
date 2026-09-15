@@ -1167,6 +1167,35 @@ export interface SeoDaPagina {
   /** `noindex` e fora do sitemap, sem tirar a página do ar */
   ocultarDeBuscadores?: boolean;
 }
+/**
+ * O SEO DE UMA PÁGINA DO CÓDIGO (foundation 16): a página inicial, o catálogo, o que a loja declarar.
+ * Só título, descrição e imagem do compartilhamento. "Ocultar de buscadores" fica de fora de propósito:
+ * numa página do lojista ele é um cuidado, na página inicial seria um clique que tira a loja
+ * inteira do Google.
+ */
+export type SeoDaRota = Pick<SeoDaPagina, "title" | "description" | "image">;
+
+/**
+ * Uma página do código cujo SEO a loja lê do documento, como ela se declara no manifesto. É a loja que
+ * sabe o que a página mostra hoje sem edição nenhuma (`tituloAtual`, `descricaoAtual`), e o painel usa
+ * isso para mostrar ao lojista o que o Google já vê antes de ele mudar qualquer coisa.
+ */
+export interface ManifestRotaComSeo {
+  /** a rota como o navegador a abre: "/", "/produtos" */
+  rota: string;
+  /** o nome que o lojista lê: "Página inicial", "Catálogo" */
+  nome: string;
+  /** o `<title>` que a página emite sem valor no documento */
+  tituloAtual?: string;
+  /** a meta description que a página emite sem valor no documento */
+  descricaoAtual?: string;
+  /**
+   * o que a loja acrescenta ao título escrito pelo lojista (" · Nome da loja"). Ausente = o título sai
+   * como ele escreveu, que é o caso da página inicial.
+   */
+  sufixoDoTitulo?: string;
+}
+
 export interface PaginaDoLojista {
   tipo: TipoDePagina;
   handle: string;
@@ -1334,6 +1363,29 @@ export function cssDoLojistaEmSeguranca(css: string): string {
 
 /** loja que ainda não sabe emitir a folha do lojista */
 export const FRASE_SEM_CSS = "Nesta loja ainda não dá para escrever CSS. Fale com a Unbox para liberar.";
+
+/** loja que ainda não lê o SEO das páginas do código */
+export const FRASE_SEM_SEO_DA_ROTA = "Nesta loja ainda não dá para mudar como esta página aparece no Google. Fale com a Unbox para liberar.";
+
+/**
+ * O SEO que o lojista gravou para uma página do código, só com os campos na forma certa. É o que a loja
+ * usa no `generateMetadata`: o documento publicado vem de fora, e um campo torto vira ausência (a página
+ * emite o que o código dela emite) em vez de derrubar a página.
+ */
+export function seoDaRota(doc: ContentDocument | null | undefined, rota: string): SeoDaRota | null {
+  const bruto = doc?.seoDasRotas?.[rota];
+  if (!bruto || typeof bruto !== "object" || Array.isArray(bruto)) return null;
+  const out: SeoDaRota = {};
+  const title = typeof bruto.title === "string" ? bruto.title.trim() : "";
+  const description = typeof bruto.description === "string" ? bruto.description.trim() : "";
+  if (title && Array.from(title).length <= SEO_TITLE_MAX) out.title = title;
+  if (description && Array.from(description).length <= SEO_DESCRIPTION_MAX) out.description = description;
+  const img = bruto.image;
+  if (img && typeof img === "object" && typeof img.src === "string" && img.src.trim() && isSafeUrl(img.src)) {
+    out.image = { src: img.src.trim(), alt: typeof img.alt === "string" ? img.alt : "" };
+  }
+  return Object.keys(out).length ? out : null;
+}
 
 export const SEPARADOR_DE_ARTIGO = "--";
 
@@ -1541,6 +1593,15 @@ export interface ContentDocument {
    * Opcional e nunca vazio: documento sem `css` é o de sempre.
    */
   css?: string;
+  /**
+   * SEO DAS PÁGINAS DO CÓDIGO (foundation 16): chave = a rota que a loja declarou em
+   * `Manifest.rotasComSeo` ("/", "/produtos"). O SEO das páginas do LOJISTA mora no registro delas
+   * (`paginas[id].seo`); este mapa é o das páginas que vieram com a loja e não têm registro.
+   *
+   * Quem lê é o SERVIDOR (`generateMetadata`), então o mapa não viaja ao navegador
+   * (`documentoSemPaginas` o tira). Opcional e nunca vazio, como os outros mapas.
+   */
+  seoDasRotas?: Record<string, SeoDaRota>;
   /** Registro de honestidade: edições que o lojista declarou sem fonte (nota, prazo, depoimento). */
   declared?: Record<string, DeclaredEntry>;
   /**
@@ -1615,6 +1676,8 @@ function projetarDocumento(doc: ContentDocument, mantem: (chave: string) => bool
   delete projetado.paginas;
   delete projetado.colecoes;
   delete projetado.redirecionamentos;
+  // o SEO das páginas do código é lido pelo servidor, no `generateMetadata`: ninguém no navegador o usa
+  delete projetado.seoDasRotas;
   return projetado;
 }
 
@@ -1709,6 +1772,8 @@ type OpDoDocumento =
   | { op: "set"; path: string; value: EditableValue; /** interno (inverso de desfazer): declaração anterior a devolver */ declaredAnterior?: DeclaredEntry | null }
   | { op: "unset"; path: string; declaredAnterior?: DeclaredEntry | null }
   | { op: "set_css"; css: string | null }
+  /** `seo: null` apaga o SEO da rota, e a página volta a emitir o que o código dela emite */
+  | { op: "set_seo_da_rota"; rota: string; seo: SeoDaRota | null }
   | { op: "set_token"; token: string; value: string }
   | { op: "unset_token"; token: string }
   | { op: "set_order"; container: string; order: string[] }
@@ -1962,6 +2027,18 @@ export function applyOp(doc: ContentDocument, op: PatchOp): { doc: ContentDocume
       delete next.values[op.path];
       if (next.declared) delete next.declared[op.path];
       if (op.declaredAnterior) next.declared = { ...(next.declared ?? {}), [op.path]: op.declaredAnterior };
+      break;
+    }
+    case "set_seo_da_rota": {
+      const prev = doc.seoDasRotas?.[op.rota];
+      inverse = { op: "set_seo_da_rota", rota: op.rota, seo: prev === undefined ? null : clone(prev) };
+      const mapa = { ...(next.seoDasRotas ?? {}) };
+      const vazio = !op.seo || Object.keys(op.seo).length === 0;
+      if (vazio) delete mapa[op.rota];
+      else mapa[op.rota] = clone(op.seo as SeoDaRota);
+      // mapa que esvaziou some, como os outros
+      if (Object.keys(mapa).length) next.seoDasRotas = mapa;
+      else delete next.seoDasRotas;
       break;
     }
     case "set_css": {
@@ -2716,6 +2793,12 @@ export interface Manifest {
    */
   paginasDoLojista?: ManifestPaginasDoLojista;
   /**
+   * PÁGINAS DO CÓDIGO COM SEO EDITÁVEL (foundation 16): as rotas cujo título, descrição e imagem de
+   * compartilhamento a loja lê de `ContentDocument.seoDasRotas`. Ausente = nenhuma: `validateOp` recusa
+   * `set_seo_da_rota` e o painel não mostra o bloco.
+   */
+  rotasComSeo?: ManifestRotaComSeo[];
+  /**
    * A LETRA QUE ESTA LOJA CARREGOU (foundation 14). Ausente = loja anterior à 14 (ou prévia que ainda
    * não respondeu): o painel não oferece troca de fonte, e `validateOp` cobra só o formato fechado,
    * porque sem a lista não há como saber que a escolha existe no projeto da loja.
@@ -3121,6 +3204,17 @@ export function validateOp(op: PatchOp, manifest: Manifest, doc?: ContentDocumen
       if (foraDeSecao(byPath.get(base), base)) return RAIZ(op.path);
       return byPath.has(op.path) || (isStylePath(op.path) && (byPath.has(base) || manifest.sections.some((x) => `${x.container}.${x.id}` === base))) ? { ok: true } : { ok: false, reason: `caminho inexistente: ${op.path}` };
     }
+    case "set_seo_da_rota": {
+      // a loja precisa LER o mapa: numa que só recebeu a lib nova, o valor entraria no documento e o
+      // Google continuaria vendo o título antigo
+      if ((manifest.foundation ?? 1) < 16) return { ok: false, reason: FRASE_SEM_SEO_DA_ROTA };
+      if (typeof op.rota !== "string" || !(manifest.rotasComSeo ?? []).some((r) => r.rota === op.rota)) {
+        return { ok: false, reason: "Esta página não tem SEO editável nesta loja." };
+      }
+      if (op.seo === null) return SIM;
+      const r = recusaDeSeo(op.seo, "rota");
+      return r ? { ok: false, reason: r } : SIM;
+    }
     case "set_css": {
       // a loja precisa saber emitir a folha: numa que só recebeu a lib nova, o valor entraria no
       // documento e a tela ficaria igual, que é o defeito que esta casa não comete
@@ -3261,10 +3355,11 @@ const SIM: Resultado = { ok: true };
 const tamanho = (s: string) => Array.from(s).length;
 
 /** o SEO de uma página (ou o de uma coleção, que só tem título e descrição), campo a campo */
-function recusaDeSeo(seo: unknown, deColecao: boolean): string | null {
+function recusaDeSeo(seo: unknown, de: boolean | "rota"): string | null {
   if (!seo || typeof seo !== "object" || Array.isArray(seo)) return "o SEO precisa ser um objeto com título e descrição";
   const o = seo as Record<string, unknown>;
-  const permitidos = deColecao ? ["title", "description"] : ["title", "description", "image", "ocultarDeBuscadores"];
+  // `true` = coleção (título e descrição), `false` = página do lojista (tudo), "rota" = página do código
+  const permitidos = de === "rota" ? ["title", "description", "image"] : de ? ["title", "description"] : ["title", "description", "image", "ocultarDeBuscadores"];
   for (const k of Object.keys(o)) if (!permitidos.includes(k)) return `campo desconhecido no SEO: ${k}`;
   if (o.title !== undefined && (typeof o.title !== "string" || tamanho(o.title) > SEO_TITLE_MAX)) return `O título para buscadores tem até ${SEO_TITLE_MAX} caracteres.`;
   if (o.description !== undefined && (typeof o.description !== "string" || tamanho(o.description) > SEO_DESCRIPTION_MAX)) return `A descrição para buscadores tem até ${SEO_DESCRIPTION_MAX} caracteres.`;

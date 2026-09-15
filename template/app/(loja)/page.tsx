@@ -17,8 +17,13 @@ import { resolverVitrinesDoDocumento } from "@/lib/vitrine";
 // ela é, no lugar em que o buscador mais acredita.
 import { jsonLdDaLoja, SITE_URL } from "@/lib/paginas-seo";
 
-// Canonical por página: o layout raiz não declara (seria herdado por todas as rotas).
-export const metadata: Metadata = { alternates: { canonical: "/" } };
+import { metadadosDaRotaDoCodigo } from "@/lib/seo-das-rotas";
+
+// Canonical por página: o layout raiz não declara (seria herdado por todas as rotas). Título, descrição e
+// imagem de compartilhamento o lojista escreve no editor; sem edição, é só a canônica, como sempre foi.
+export async function generateMetadata(): Promise<Metadata> {
+  return metadadosDaRotaDoCodigo(await getPublishedContent(), "/");
+}
 
 export const revalidate = 300; // ISR — catálogo público e estável
 

@@ -69,7 +69,7 @@ const LOGO_DA_MARCA = `${SITE_URL}/brand/logo.svg`;
 const IMAGEM_SOCIAL_DA_LOJA = { url: new URL("/opengraph-image", SITE_URL).toString(), width: 1200, height: 630 };
 
 /** as imagens do cartão: a da página quando existe, senão a da loja. Nunca vazio (ver o cabeçalho). */
-function imagensDoCartao(imagem: string | undefined) {
+export function imagensDoCartao(imagem: string | undefined) {
   return imagem ? [imagem] : [IMAGEM_SOCIAL_DA_LOJA];
 }
 
@@ -106,7 +106,7 @@ function truncar(texto: string | undefined, teto = DESCRICAO_MAX): string | unde
  * são três lugares onde a loja afirma alguma coisa em nome da marca. É a mesma porta que `server.ts`
  * já põe no bloco de HTML e no texto formatado, aplicada à imagem.
  */
-function imagemAbsoluta(src: string | undefined): string | undefined {
+export function imagemAbsoluta(src: string | undefined): string | undefined {
   if (!src || !isSafeUrl(src)) return undefined;
   try {
     return new URL(src, SITE_URL).toString();
