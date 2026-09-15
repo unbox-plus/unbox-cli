@@ -123,9 +123,11 @@ Answer engines extraem respostas curtas e autocontidas. Reestruture cada item pr
 redor ("Sim, trocamos em até 7 dias (CDC). Basta..." e não "Conforme mencionado acima...").
 Detalhes vêm depois do parágrafo de resposta.
 
-JSON-LD na página (sempre via `JSON.stringify`):
+JSON-LD na página (sempre via `ldJson`, nunca `JSON.stringify` puro):
 
-```ts
+```tsx
+import { ldJson } from "@/lib/json-ld";
+
 const faqSchema = {
   "@context": "https://schema.org",
   "@type": "FAQPage",
@@ -135,6 +137,8 @@ const faqSchema = {
     acceptedAnswer: { "@type": "Answer", text: item.respostaDireta },
   })),
 };
+
+<script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ldJson(faqSchema) }} />
 ```
 
 **Regra dura:** o conteúdo vem do FAQ REAL da marca (site atual ou briefing), verbatim no
@@ -250,8 +254,8 @@ do briefing (Entendimento da Marca / Posicionamento); nada inventado.
   listada. Decisão de manter algo sem fonte é do LOJISTA, registrada
   (`marca/honestidade-permitido.txt`).
 - **Nunca duplicar** schema que 11/14 já emitem — leia os arquivos antes de editar.
-- `<script type="application/ld+json">` sempre via `JSON.stringify()` (XSS com interpolação
-  direta).
+- `<script type="application/ld+json">` sempre via `ldJson()` de `@/lib/json-ld`. `JSON.stringify()`
+  sozinho não escapa `<`: uma resposta com `</script>` fecha a tag e vira HTML na página.
 - `llms.txt` e `robots.ts` devem funcionar em modo mockup (catálogo de exemplo) sem quebrar
   o build — rode `npm run build` ao final.
 - Textos em português do Brasil, no tom de voz do briefing (sem travessão na copy).

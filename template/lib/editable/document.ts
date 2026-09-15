@@ -1572,12 +1572,34 @@ export function dadosDaLoja(doc: ContentDocument | null | undefined): DadosDaLoj
 const RESERVADOS_DO_REDIRECIONAMENTO = ["api", "_next", "previa-do-editor", "acesso", "sitemap.xml", "robots.txt", "llms.txt", "manifest.webmanifest", "favicon.ico", "icon.svg", "apple-icon.svg", "opengraph-image"];
 
 /** a recusa de um redirecionamento manual; `null` = cabe */
+/**
+ * CAMINHO DA PRÓPRIA LOJA, conferido também DECODIFICADO. A régua literal barra `//host` e `/\host`, mas não
+ * `/%2F%2Fhost` nem `/%5Chost`: gravados como estão, eles só ficam seguros enquanto nenhuma camada entre a loja
+ * e o navegador decodificar a barra, e essa é uma garantia que esta função não tem como dar. Então o caminho é
+ * conferido nas duas formas, e barra ou contrabarra codificada é recusada de saída (inclusive a codificada duas
+ * vezes, que a forma decodificada revela): nenhum endereço de loja legítimo precisa delas. Decodificação
+ * malformada também é recusa. É a mesma função na gravação (`recusaDoRedirecionamento`) e na leitura
+ * (`redirecionamentoDe`), porque o documento publicado vem de fora e não pode ser confiado só por ter passado
+ * pela régua um dia.
+ */
+const CAMINHO_LITERAL_DA_LOJA = /^\/(?![/\\])[^\s"'<>\\]*$/;
+function caminhoDaLoja(caminho: string, teto: number): boolean {
+  if (caminho.length > teto + 1) return false;
+  let decodificado: string;
+  try {
+    decodificado = decodeURIComponent(caminho);
+  } catch {
+    return false;
+  }
+  return [caminho, decodificado].every((forma) => CAMINHO_LITERAL_DA_LOJA.test(forma) && !/%(2f|5c)/i.test(forma));
+}
+
 export function recusaDoRedirecionamento(doc: ContentDocument, de: unknown, para: unknown, prefixoDePaginas: string = PREFIXO_DE_PAGINAS_PADRAO): string | null {
   if (typeof de !== "string" || typeof para !== "string") return "Informe o endereço antigo e o novo.";
   const origem = normalizarPagina(de.trim());
   const destino = normalizarPagina(para.trim());
-  if (!/^\/(?![/\\])[^\s"'<>\\]{0,300}$/.test(origem) || origem === "/") return "O endereço antigo é o caminho depois do domínio, começando com / (por exemplo /produto/cafe-antigo). A página inicial não pode ser redirecionada.";
-  if (/^https?:/i.test(para.trim()) || !/^\/(?![/\\])[^\s"'<>\\]{0,300}$/.test(destino)) return "O endereço novo precisa ser uma página desta loja, começando com / (por exemplo /produto/cafe-novo).";
+  if (!caminhoDaLoja(origem, 300) || origem === "/") return "O endereço antigo é o caminho depois do domínio, começando com / (por exemplo /produto/cafe-antigo). A página inicial não pode ser redirecionada.";
+  if (/^https?:/i.test(para.trim()) || !caminhoDaLoja(destino, 300)) return "O endereço novo precisa ser uma página desta loja, começando com / (por exemplo /produto/cafe-novo).";
   if (origem === destino) return "O endereço antigo e o novo são o mesmo.";
   const [primeiro] = origem.split("/").filter(Boolean);
   if (RESERVADOS_DO_REDIRECIONAMENTO.includes(primeiro)) return "Esse endereço é usado pela própria loja e não pode ser redirecionado.";
@@ -1712,7 +1734,7 @@ export function redirecionamentoDe(doc: ContentDocument | null | undefined, cami
   // o destino é conferido AQUI, e não só na hora de gravar: quem lê é a loja, com o JSON publicado, e um
   // destino de fora (`https://…`, `//host`, `/\host`) viraria um redirecionamento permanente da loja para
   // outro site. A régua é a mesma dos links: caminho absoluto da própria loja.
-  return typeof para === "string" && para !== de && /^\/(?![/\\])[^\s"'<>\\]{0,2000}$/.test(para) ? para : null;
+  return typeof para === "string" && para !== de && caminhoDaLoja(para, 2000) ? para : null;
 }
 
 /**

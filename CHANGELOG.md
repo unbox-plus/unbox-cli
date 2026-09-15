@@ -1,5 +1,29 @@
 ## Changelog
 
+### v0.21.9 — redirecionamento conferido também decodificado, e JSON-LD sempre por `ldJson`
+
+Duas correções de segurança. Endereço legítimo e JSON-LD que a foundation já gera não mudam.
+
+- **Redirecionamento manual**: a régua do caminho barrava `//outro-site` e `/\outro-site`, mas aceitava
+  `/%2F%2Foutro-site` e `/%5Coutro-site`. Gravados assim, eles só ficam seguros enquanto nenhuma camada entre a
+  loja e o navegador decodificar a barra, e isso a loja não tem como garantir. Agora o caminho é conferido nas
+  duas formas, como veio e decodificado, na gravação (`recusaDoRedirecionamento`) e na leitura
+  (`redirecionamentoDe`, por onde passam produto, categoria e as páginas do lojista): barra ou contrabarra
+  codificada, inclusive codificada duas vezes, e decodificação malformada são recusadas. Caminho com acento
+  codificado (`/produto/caf%C3%A9`) continua valendo.
+- **Instrução dos agentes 04, 14 e 17**: mandavam serializar o JSON-LD com `JSON.stringify()` e diziam que isso
+  evitava XSS com `</script>`. Não evita: `JSON.stringify` não escapa `<`, e um título, descrição ou resposta de
+  FAQ com `</script>` fecha a tag e o resto vira HTML na página (medido). Os exemplos (breadcrumbs, FAQ) e as
+  regras passam a usar `ldJson()` de `@/lib/json-ld`, que as páginas da foundation já usavam. O risco era o
+  agente seguir a instrução ao escrever um bloco novo.
+
+Conferido: caminhos legítimos (inclusive com acento codificado) gravados e seguidos; `%2F` e `%5C` em
+maiúscula e minúscula, `/.%2F%2F`, codificação dupla, decodificação malformada e `%3Cscript%3E` recusados na
+gravação e na leitura; `//`, `/\` e `https://` continuam recusados.
+
+Loja já gerada: atualizar `lib/editable/document.ts`. Se algum agente já escreveu JSON-LD com
+`__html: JSON.stringify(...)`, trocar por `ldJson(...)`.
+
 ### v0.21.8 — favicon, Search Console, redirecionamentos e dados da empresa pelo editor
 
 Foundation 17. O editor ganha a aba SEO (prévia do resultado no Google e do compartilhamento, título e

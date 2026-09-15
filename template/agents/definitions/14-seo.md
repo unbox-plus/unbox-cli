@@ -179,6 +179,8 @@ export default async function Image({ params }: { params: { productSlug: string 
 **Arquivo:** `components/ui/breadcrumbs.tsx`
 
 ```tsx
+import { ldJson } from "@/lib/json-ld"
+
 interface Crumb { label: string; href?: string }
 
 export function Breadcrumbs({ items }: { items: Crumb[] }) {
@@ -195,7 +197,7 @@ export function Breadcrumbs({ items }: { items: Crumb[] }) {
 
   return (
     <>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ldJson(jsonLd) }} />
       <nav aria-label="Breadcrumb">
         <ol className="flex flex-wrap items-center gap-1 text-sm text-muted-foreground">
           {items.map((crumb, i) => (
@@ -382,7 +384,7 @@ Checklist pós-deploy:
 ## Regras
 
 - **Nunca duplicar** o que o agente 11 já fez — ler `app/(loja)/produto/[productSlug]/page.tsx` (metadata/JSON-LD inline — não existe lib/metadata.ts na foundation) antes de editar.
-- `<script type="application/ld+json">` deve usar `JSON.stringify()` — nunca template string com interpolação direta (risco de XSS se dados contiverem `</script>`).
+- `<script type="application/ld+json">` sempre com `ldJson()` de `@/lib/json-ld`, como toda página da foundation. `JSON.stringify()` sozinho **não** protege: ele não escapa `<`, então um título, descrição ou resposta de FAQ com `</script>` fecha a tag e o resto do texto vira HTML na página. Template string com interpolação direta, menos ainda.
 - OG images no Edge Runtime — não usar `import "server-only"` nem APIs Node.js nativas.
 - `priority={true}` apenas na primeira imagem visível — não em todas; múltiplos preloads prejudicam LCP.
 - Templates de título: nunca ultrapassar ~60 caracteres no título e ~155 na description para evitar truncamento no Google.
