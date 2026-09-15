@@ -94,4 +94,4 @@ export async function generateMetadata({ params }) {
 ```
 
 ## JSON-LD
-Incluir `<script type="application/ld+json">` com Product schema na página.
+Incluir `<script type="application/ld+json">` com Product schema na página, serializado com `ldJson()` de `@/lib/json-ld` (`JSON.stringify` puro não escapa `</script>`).
