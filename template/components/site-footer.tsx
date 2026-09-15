@@ -27,11 +27,16 @@ import { chromeRecipe } from "@/components/chrome/chrome-recipe";
 // Exports NOMEADOS: este arquivo é server component e não consegue usar `Editable.*`
 // (o objeto vem de um módulo "use client" e chega como undefined).
 import { EditableSection, EditableText } from "@/lib/editable";
+import { lerDadosDaLoja, linhasDaEmpresa } from "@/lib/dados-da-loja";
 
 export async function SiteFooter() {
   const shop = await mockupOr(getShopData(), null, "chrome/getShopData");
   const shopName = shop?.name ?? "Minha Loja";
   const data: ChromeData = { shopName, categories: [] };
+  // DADOS DA EMPRESA (foundation 17): quem vende e como falar com ela, que a lei do comércio eletrônico pede
+  // num lugar visível. Vêm do cadastro no editor (Configurações gerais), não são copy: sem cadastro, a linha
+  // não existe.
+  const { quem, contato } = linhasDaEmpresa((await lerDadosDaLoja()).empresa);
 
   const Footer = FOOTERS[chromeRecipe.footer];
 
@@ -52,12 +57,18 @@ export async function SiteFooter() {
                 fallback={`© ${new Date().getFullYear()} ${shopName}. Todos os direitos reservados.`}
                 label="Linha de direitos autorais"
               />
-              {/* TODO: adicionar CNPJ e endereço da empresa */}
               {/* obrigatório (contrato Unbox) — o build falha sem isso, não remova */}
               <span data-editor-ignore="" style={{ display: "contents" }}>
                 <PoweredByUnbox className="text-[var(--store-chrome-muted)]" />
               </span>
             </div>
+            {quem || contato ? (
+              <p className="mt-2 leading-relaxed" data-editor-ignore="">
+                {quem}
+                {quem && contato ? <br /> : null}
+                {contato ? <>Atendimento: {contato}</> : null}
+              </p>
+            ) : null}
           </div>
         </div>
       </footer>

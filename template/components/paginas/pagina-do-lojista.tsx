@@ -71,7 +71,7 @@ export async function PaginaDoLojistaNaTela({
   const colecao = registro.tipo === "artigo" && registro.colecao ? tituloDaColecao(doc, registro.colecao) : undefined;
   // a entidade da loja vai JUNTO: `publisher` e `isPartOf` apontam para ela por `@id`, e um `@id` que
   // só existe no JSON-LD da home não é resolvido por quem lê esta página (ver `jsonLdDaLoja`)
-  const jsonLd = [jsonLdDaPagina({ doc, id, registro, caminho, colecao }), jsonLdDeMigalhas(migalhas, caminho), ...jsonLdDaLoja()];
+  const jsonLd = [jsonLdDaPagina({ doc, id, registro, caminho, colecao }), jsonLdDeMigalhas(migalhas, caminho), ...jsonLdDaLoja(doc)];
 
   return (
     <>

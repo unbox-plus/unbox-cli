@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { lerDadosDaLoja, enderecoEmUmaLinha } from "@/lib/dados-da-loja";
+import { formatarCnpj } from "@/lib/editable/document";
 
 export const metadata: Metadata = {
   title: "Política de Privacidade",
@@ -8,9 +10,16 @@ export const metadata: Metadata = {
 
 // TODO [JURÍDICO]: revisar e completar este texto antes do lançamento.
 // Este é um placeholder estruturado para LGPD (Lei 13.709/2018).
-// Substituir [NOME DA LOJA], [CNPJ], [ENDEREÇO], [EMAIL DPO] pelos dados reais.
+// Nome empresarial, CNPJ, endereço e o e-mail de privacidade vêm dos Dados da empresa, no editor
+// (lib/dados-da-loja.ts). Sem o dado, o marcador entre colchetes continua e o gate de publicação cobra.
 
-export default function PrivacidadePage() {
+export default async function PrivacidadePage() {
+  const { empresa } = await lerDadosDaLoja();
+  const nome = empresa?.razaoSocial ?? "[NOME DA LOJA]";
+  const cnpj = empresa?.cnpj ? formatarCnpj(empresa.cnpj) : "[CNPJ]";
+  const endereco = empresa?.endereco ? enderecoEmUmaLinha(empresa.endereco) : "[ENDEREÇO COMPLETO]";
+  // sem e-mail próprio para dados pessoais, vale o de atendimento: é para lá que a pessoa escreveria
+  const emailDePrivacidade = empresa?.emailDePrivacidade ?? empresa?.email ?? "[EMAIL DPO]";
   return (
     <article className="texto-rico mx-auto max-w-2xl py-8 px-4">
       <h1>Política de Privacidade</h1>
@@ -18,8 +27,8 @@ export default function PrivacidadePage() {
 
       <h2>1. Quem somos</h2>
       <p>
-        <strong>[NOME DA LOJA]</strong>, inscrita no CNPJ sob o nº <strong>[CNPJ]</strong>,
-        com sede em <strong>[ENDEREÇO COMPLETO]</strong>, é a controladora dos dados pessoais
+        <strong>{nome}</strong>, inscrita no CNPJ sob o nº <strong>{cnpj}</strong>,
+        com sede em <strong>{endereco}</strong>, é a controladora dos dados pessoais
         tratados neste site, nos termos da Lei Geral de Proteção de Dados (LGPD, Lei 13.709/2018).
       </p>
 
@@ -79,7 +88,7 @@ export default function PrivacidadePage() {
       </ul>
       <p>
         Para exercer seus direitos, entre em contato com nosso Encarregado de Proteção de Dados (DPO)
-        pelo e-mail <strong>[EMAIL DPO]</strong>.
+        pelo e-mail <strong>{emailDePrivacidade}</strong>.
       </p>
 
       <h2>8. Retenção dos dados</h2>
@@ -104,7 +113,7 @@ export default function PrivacidadePage() {
 
       <h2>11. Contato e DPO</h2>
       <p>
-        Dúvidas, solicitações ou reclamações: <strong>[EMAIL DPO]</strong><br />
+        Dúvidas, solicitações ou reclamações: <strong>{emailDePrivacidade}</strong><br />
         Você também pode registrar queixas na Autoridade Nacional de Proteção de Dados (ANPD):
         <a href="https://www.gov.br/anpd" target="_blank" rel="noopener noreferrer">www.gov.br/anpd</a>
       </p>

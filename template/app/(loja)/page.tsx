@@ -69,7 +69,7 @@ export default async function HomePage() {
   // páginas do lojista dizem `publisher: { "@id": ... }` e `isPartOf: { "@id": ... }`. Por isso os
   // dois nós saem de `jsonLdDaLoja()`, a MESMA função que aquelas páginas chamam: com o `@id` igual,
   // o conteúdo tem de ser igual também, senão o buscador lê a mesma entidade dizendo duas coisas.
-  const [organizacao, site] = jsonLdDaLoja();
+  const [organizacao, site] = jsonLdDaLoja(doc);
   const jsonLd = [
     organizacao,
     // A BUSCA INTERNA SÓ AQUI. `potentialAction` é o que liga a busca da loja ao Google (a caixa de

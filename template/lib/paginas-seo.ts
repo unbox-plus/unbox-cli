@@ -31,7 +31,9 @@ import { TIPOS_DAS_PAGINAS } from "@/components/paginas/tipos";
 import { dataDoArtigo } from "@/components/paginas/data-do-artigo";
 import { tituloDaPaginaOuEndereco } from "@/components/paginas/titulos";
 import type { Migalha } from "@/components/paginas/casca-de-pagina";
+import { empresaNoDadoEstruturado } from "@/lib/dados-da-loja";
 import {
+  dadosDaLoja,
   isHtmlPath,
   isRichPath,
   isSafeUrl,
@@ -326,9 +328,14 @@ function dataLegivel(iso: string | undefined): iso is string {
  * resultado de um artigo, e é numa página de artigo que ele lê este nó. A ÚNICA coisa que continua
  * só na home é o `potentialAction` da busca interna, porque é lá que o Google pede que ela esteja.
  */
-export function jsonLdDaLoja() {
+/**
+ * `doc` é o documento publicado: dele saem nome empresarial, CNPJ, endereço, contato e perfis (foundation 17,
+ * lib/dados-da-loja.ts). TODA rota que emite a entidade passa o mesmo documento, porque o `@id` é o mesmo e o
+ * conteúdo tem de ser igual.
+ */
+export function jsonLdDaLoja(doc: ContentDocument | null | undefined) {
   return [
-    { "@context": "https://schema.org", "@type": "Organization", "@id": ID_DA_ORGANIZACAO, name: SITE_NAME, url: SITE_URL, logo: LOGO_DA_MARCA },
+    { "@context": "https://schema.org", "@type": "Organization", "@id": ID_DA_ORGANIZACAO, name: SITE_NAME, url: SITE_URL, logo: LOGO_DA_MARCA, ...empresaNoDadoEstruturado(dadosDaLoja(doc)) },
     { "@context": "https://schema.org", "@type": "WebSite", "@id": ID_DO_SITE, name: SITE_NAME, url: SITE_URL },
   ];
 }
