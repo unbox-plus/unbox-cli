@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { getPublishedContent } from "@/lib/editable/server";
+import { metadadosDaRotaDoCodigo } from "@/lib/seo-das-rotas";
 import { getCatalog, getTopTags } from "@/lib/queries";
 import { buildTagMap, buildCategories, mapCatalogItems } from "@/lib/catalog-map";
 import { resolveCombos } from "@/lib/enrichment/combos";
@@ -7,7 +9,10 @@ import { mockupOr } from "@/lib/mockup";
 import { DataLayerReady } from "@/components/analytics/data-layer-ready";
 
 export const revalidate = 300;
-export const metadata: Metadata = { title: "Catálogo", alternates: { canonical: "/produtos" } };
+// Título "Catálogo" e a canônica; o lojista pode reescrever título, descrição e imagem no editor.
+export async function generateMetadata(): Promise<Metadata> {
+  return metadadosDaRotaDoCodigo(await getPublishedContent(), "/produtos");
+}
 
 export default async function ProdutosPage() {
   // Catálogo completo (a loja tem dezenas de produtos) — filtragem/ordenação/paginação é client-side.

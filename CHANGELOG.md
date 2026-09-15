@@ -1,5 +1,35 @@
 ## Changelog
 
+### v0.21.7 — o lojista escreve como a página inicial e o catálogo aparecem no Google
+
+Foundation 16. As páginas que o lojista cria já tinham título, descrição e imagem de compartilhamento na
+ficha. As que vieram com a loja não: o título da página inicial estava escrito no `app/layout.tsx` e a
+descrição vinha de `NEXT_PUBLIC_SITE_DESCRIPTION`, lida no build. Mudar o que aparece no Google pedia deploy.
+
+Agora o editor tem, em Configurações gerais, o bloco "Como a loja aparece no Google" para a página inicial e
+o catálogo, com os mesmos contadores e a mesma exigência de texto alternativo da ficha de página, e passando
+pela mesma honestidade.
+
+- **`lib/seo-das-rotas.ts`**: a lista das rotas que o layout declara ao editor (com o título e a descrição que
+  cada uma emite hoje) e o `metadadosDaRotaDoCodigo` que a página inicial e o catálogo usam no
+  `generateMetadata`.
+- **Sem edição, nada muda.** Conferido no HTML servido: o `<head>` da página inicial e do catálogo sai igual
+  ao da versão anterior, campo a campo, e as duas rotas continuam estáticas com ISR.
+- **Título da página inicial sai como o lojista escreveu**; no catálogo, o nome da loja entra no fim, como em
+  toda página. O painel mostra essa diferença antes de salvar.
+- **Sem "ocultar de buscadores"** nestas rotas: na página inicial seria tirar a loja do Google.
+- O SEO das rotas não viaja ao navegador: quem lê é o servidor.
+- `lib/editable/`: `document.ts` e `provider.tsx` da foundation 16, e o `page_view` de entrada da v0.21.6, agora
+  também na fonte da foundation.
+
+Junto, no editor: a rota pública passa a entregar o **CSS do lojista** (v0.21.5), que ficava de fora. Ele
+aparecia na prévia e nunca ia ao ar. A loja não precisa mudar nada para isso.
+
+Loja já gerada: atualizar `lib/editable/`, acrescentar `lib/seo-das-rotas.ts`, exportar `imagemAbsoluta` e
+`imagensDoCartao` de `lib/paginas-seo.ts`, e trocar `app/layout.tsx`, `app/(loja)/page.tsx` e
+`app/(loja)/produtos/page.tsx`. Loja que só atualizar `lib/editable/` fica como estava: sem `rotasComSeo` no
+layout, o editor não oferece o bloco.
+
 ### v0.21.6 — a área logada volta a mostrar os pedidos, e a página do pedido ganha blocos
 
 Rodada que saiu de uma loja em produção: cliente logado sem nenhum pedido na conta, o cabeçalho dizendo

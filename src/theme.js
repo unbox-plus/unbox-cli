@@ -282,6 +282,8 @@ export function applyStoreName(targetDir, displayName) {
   // que repete siteName no seu próprio openGraph — o App Router substitui o objeto
   // openGraph inteiro do layout pai, não faz merge, então o campo precisa existir lá também.
   // (e app/api/unbox/paginas/route.ts: é o `nome` que a loja declara ao editor em `loja: { slug, nome }`)
+  // lib/seo-das-rotas.ts guarda o título padrão e o nome do fim do título desde a foundation 16: o layout os
+  // importa de lá, e o painel mostra ao lojista o mesmo texto que a loja emite.
   //
   // lib/paginas-seo.ts e app/llms.txt/route.ts pelo MESMO motivo, e eles ficaram de fora até a
   // revisão de 10/09: os dois têm `process.env.NEXT_PUBLIC_SITE_NAME || "Minha Loja"`, e o `.env.local`
@@ -289,7 +291,7 @@ export function applyStoreName(targetDir, displayName) {
   // ambiente da Vercel, a MESMA página dizia dois nomes: o `<title>` trazia o da loja (vem do template
   // do layout, reescrito aqui) e o `og:site_name` do artigo trazia o placeholder. Reescrever o literal
   // não tira nada de ninguém: o ambiente continua vencendo quando existe.
-  for (const rel of [["app", "layout.tsx"], ["app", "(loja)", "produto", "[productSlug]", "page.tsx"], ["app", "(loja)", "page.tsx"], ["app", "opengraph-image.tsx"], ["app", "api", "unbox", "paginas", "route.ts"], ["lib", "paginas-seo.ts"], ["app", "llms.txt", "route.ts"]]) {
+  for (const rel of [["app", "layout.tsx"], ["app", "(loja)", "produto", "[productSlug]", "page.tsx"], ["app", "(loja)", "page.tsx"], ["app", "opengraph-image.tsx"], ["app", "api", "unbox", "paginas", "route.ts"], ["lib", "paginas-seo.ts"], ["lib", "seo-das-rotas.ts"], ["app", "llms.txt", "route.ts"]]) {
     const p = path.join(targetDir, ...rel);
     if (!fs.existsSync(p)) continue;
     fs.writeFileSync(p, fs.readFileSync(p, "utf8").replaceAll("Minha Loja", nome));

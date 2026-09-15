@@ -21,6 +21,10 @@ import { EDITOR_ORIGIN, STORE_SLUG } from "@/lib/editable/config";
 // prometer páginas que a loja não sabe abrir.
 import { declaracaoDoLojista } from "@/lib/paginas-do-lojista";
 import { reservadosDaLoja } from "@/lib/reservados";
+// SEO DAS PÁGINAS DO CÓDIGO (foundation 16): a página inicial e o catálogo têm título, descrição e imagem
+// no editor. `rotasComSeo` é o interruptor, e só vale porque as duas rotas leem o documento no
+// `generateMetadata` delas (lib/seo-das-rotas.ts).
+import { ROTAS_COM_SEO, SUFIXO_DO_TITULO, TITULO_DA_LOJA } from "@/lib/seo-das-rotas";
 
 // UNBOX-FONTS-BEGIN (bloco reescrito pelo create-unbox-store conforme o estilo escolhido — não renomear os markers)
 import { Geist_Mono, Poppins, Plus_Jakarta_Sans } from "next/font/google";
@@ -48,8 +52,8 @@ const UNBOX_GTM_ID = "GTM-PZLT336";
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: "Minha Loja · Compre Online",
-    template: "%s · Minha Loja",
+    default: TITULO_DA_LOJA,
+    template: `%s${SUFIXO_DO_TITULO}`,
   },
   // ⚠ Descrição PROVISÓRIA: não diz o que a loja vende. O briefing troca por uma frase com o
   // produto e o público — é o que busca e resposta de IA extraem. O build avisa enquanto for esta.
@@ -89,7 +93,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
             página do lojista é 100% documento, e sem este corte cem artigos publicados viajariam
             junto com a página de um produto. Quem renderiza uma página do lojista acrescenta a fatia
             dela na própria rota (`<EditableFatia>`). */}
-        <EditableProvider doc={documentoSemPaginas(conteudo)} shop={STORE_SLUG} tokens={EDITABLE_TOKENS} editorOrigin={EDITOR_ORIGIN || undefined} apps={presencaNoAmbiente(process.env, { unboxGtmId: UNBOX_GTM_ID })} paginasDoLojista={declaracaoDoLojista(reservadosDaLoja())}>
+        <EditableProvider doc={documentoSemPaginas(conteudo)} shop={STORE_SLUG} tokens={EDITABLE_TOKENS} editorOrigin={EDITOR_ORIGIN || undefined} apps={presencaNoAmbiente(process.env, { unboxGtmId: UNBOX_GTM_ID })} paginasDoLojista={declaracaoDoLojista(reservadosDaLoja())} rotasComSeo={ROTAS_COM_SEO}>
           {children}
         </EditableProvider>
         <Toaster position="top-center" />
