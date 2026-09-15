@@ -25,6 +25,9 @@ import { reservadosDaLoja } from "@/lib/reservados";
 // no editor. `rotasComSeo` é o interruptor, e só vale porque as duas rotas leem o documento no
 // `generateMetadata` delas (lib/seo-das-rotas.ts).
 import { ROTAS_COM_SEO, SUFIXO_DO_TITULO, TITULO_DA_LOJA } from "@/lib/seo-das-rotas";
+// DADOS DA LOJA (foundation 17): favicon e verificação do Google aqui; empresa e redes no rodapé, nos termos,
+// na privacidade e no dado estruturado. A declaração libera os blocos no editor.
+import { DECLARACAO_DOS_DADOS_DA_LOJA, iconesDaLoja, lerDadosDaLoja } from "@/lib/dados-da-loja";
 
 // UNBOX-FONTS-BEGIN (bloco reescrito pelo create-unbox-store conforme o estilo escolhido — não renomear os markers)
 import { Geist_Mono, Poppins, Plus_Jakarta_Sans } from "next/font/google";
@@ -49,7 +52,10 @@ const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 // ═══════════════════════════════════════════════════════════════════════════
 const UNBOX_GTM_ID = "GTM-PZLT336";
 
-export const metadata: Metadata = {
+export async function generateMetadata(): Promise<Metadata> {
+  const { seo } = await lerDadosDaLoja();
+  const icons = iconesDaLoja(seo);
+  return {
   metadataBase: new URL(siteUrl),
   title: {
     default: TITULO_DA_LOJA,
@@ -65,10 +71,14 @@ export const metadata: Metadata = {
   // marca): todo compartilhamento sai com imagem, mesmo antes de a marca mandar uma foto.
   openGraph: { type: "website", locale: "pt_BR", siteName: "Minha Loja" },
   twitter: { card: "summary_large_image" },
-  // Favicon: NÃO declarar `icons` aqui — app/icon.svg e app/apple-icon.svg (convenção do
-  // App Router) já geram os <link> corretos. Apontar pro logo horizontal deixa o favicon
-  // ilegível/invisível na aba. Personalize substituindo esses dois arquivos.
-};
+  // Favicon: sem ícone enviado no editor, `icons` fica AUSENTE e vale app/icon.svg (convenção do App
+  // Router). Com ícone enviado, a lista substitui o arquivo (ver `iconesDaLoja`). Nunca apontar para o
+  // logo horizontal: ele fica ilegível na aba.
+  ...(icons ? { icons } : {}),
+  // a tag que prova ao Google Search Console que a loja é de quem pediu, colada pelo lojista na aba SEO
+  ...(seo?.verificacaoGoogle ? { verification: { google: seo.verificacaoGoogle } } : {}),
+  };
+}
 
 // NÃO adicione maximumScale/userScalable aqui. Bloquear o pinch-zoom viola a WCAG 1.4.4
 // (Resize Text) e prejudica de verdade quem depende de ampliar a tela — e toda loja gerada
@@ -93,7 +103,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
             página do lojista é 100% documento, e sem este corte cem artigos publicados viajariam
             junto com a página de um produto. Quem renderiza uma página do lojista acrescenta a fatia
             dela na própria rota (`<EditableFatia>`). */}
-        <EditableProvider doc={documentoSemPaginas(conteudo)} shop={STORE_SLUG} tokens={EDITABLE_TOKENS} editorOrigin={EDITOR_ORIGIN || undefined} apps={presencaNoAmbiente(process.env, { unboxGtmId: UNBOX_GTM_ID })} paginasDoLojista={declaracaoDoLojista(reservadosDaLoja())} rotasComSeo={ROTAS_COM_SEO}>
+        <EditableProvider doc={documentoSemPaginas(conteudo)} shop={STORE_SLUG} tokens={EDITABLE_TOKENS} editorOrigin={EDITOR_ORIGIN || undefined} apps={presencaNoAmbiente(process.env, { unboxGtmId: UNBOX_GTM_ID })} paginasDoLojista={declaracaoDoLojista(reservadosDaLoja())} rotasComSeo={ROTAS_COM_SEO} dadosDaLoja={DECLARACAO_DOS_DADOS_DA_LOJA}>
           {children}
         </EditableProvider>
         <Toaster position="top-center" />

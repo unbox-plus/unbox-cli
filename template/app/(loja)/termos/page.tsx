@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { lerDadosDaLoja, enderecoEmUmaLinha } from "@/lib/dados-da-loja";
+import { formatarCnpj } from "@/lib/editable/document";
 
 export const metadata: Metadata = {
   title: "Termos de Uso",
@@ -8,9 +10,16 @@ export const metadata: Metadata = {
 };
 
 // TODO [JURÍDICO]: revisar e completar antes do lançamento.
-// Substituir [NOME DA LOJA], [CNPJ], [ENDEREÇO], [EMAIL ATENDIMENTO] pelos dados reais.
+// Nome empresarial, CNPJ, endereço, e-mail e foro vêm dos Dados da empresa, no editor (lib/dados-da-loja.ts).
+// Sem o dado, o marcador entre colchetes continua na página e o gate de publicação cobra.
 
-export default function TermosPage() {
+export default async function TermosPage() {
+  const { empresa } = await lerDadosDaLoja();
+  const nome = empresa?.razaoSocial ?? "[NOME DA LOJA]";
+  const cnpj = empresa?.cnpj ? formatarCnpj(empresa.cnpj) : "[CNPJ]";
+  const endereco = empresa?.endereco ? enderecoEmUmaLinha(empresa.endereco) : "[ENDEREÇO COMPLETO]";
+  const foro = empresa?.endereco ? `${empresa.endereco.cidade}/${empresa.endereco.uf}` : "[CIDADE/ESTADO]";
+  const email = empresa?.email ?? "[EMAIL ATENDIMENTO]";
   return (
     <article className="texto-rico mx-auto max-w-2xl py-8 px-4">
       <h1>Termos de Uso</h1>
@@ -25,8 +34,8 @@ export default function TermosPage() {
 
       <h2>2. Sobre a loja</h2>
       <p>
-        <strong>[NOME DA LOJA]</strong>, inscrita no CNPJ nº <strong>[CNPJ]</strong>,
-        com sede em <strong>[ENDEREÇO COMPLETO]</strong>, opera esta loja com tecnologia
+        <strong>{nome}</strong>, inscrita no CNPJ nº <strong>{cnpj}</strong>,
+        com sede em <strong>{endereco}</strong>, opera esta loja com tecnologia
         headless da plataforma Unbox (unbox.com.br).
       </p>
 
@@ -70,7 +79,7 @@ export default function TermosPage() {
       <h2>8. Propriedade intelectual</h2>
       <p>
         Todo o conteúdo deste site (textos, imagens, logotipos, layouts) é propriedade de
-        <strong> [NOME DA LOJA]</strong> ou de seus fornecedores e está protegido pelas leis de
+        <strong> {nome}</strong> ou de seus fornecedores e está protegido pelas leis de
         direitos autorais. É proibida a reprodução sem autorização prévia por escrito.
       </p>
 
@@ -90,14 +99,14 @@ export default function TermosPage() {
 
       <h2>11. Foro</h2>
       <p>
-        Fica eleito o foro da comarca de <strong>[CIDADE/ESTADO]</strong> para dirimir
+        Fica eleito o foro da comarca de <strong>{foro}</strong> para dirimir
         eventuais litígios decorrentes destes Termos, com renúncia a qualquer outro,
         por mais privilegiado que seja.
       </p>
 
       <h2>12. Contato</h2>
       <p>
-        Dúvidas sobre estes termos: <strong>[EMAIL ATENDIMENTO]</strong>
+        Dúvidas sobre estes termos: <strong>{email}</strong>
       </p>
     </article>
   );

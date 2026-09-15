@@ -1,5 +1,41 @@
 ## Changelog
 
+### v0.21.8 — favicon, Search Console, redirecionamentos e dados da empresa pelo editor
+
+Foundation 17. O editor ganha a aba SEO (prévia do resultado no Google e do compartilhamento, título e
+descrição por página, favicon, verificação do Search Console e redirecionamentos) e, em Configurações gerais,
+os dados da empresa e as redes sociais. A loja passa a mostrar cada um no lugar certo:
+
+- **Favicon** (32×32, 48×48 e o ícone do iPhone 180×180): o layout declara `icons` só quando há ícone
+  enviado. Declarar `icons` faz o Next deixar de emitir o `app/icon.svg` (medido no HTML servido), então sem
+  envio vale o arquivo da loja, como antes. O ícone do iPhone não existia: `app/apple-icon.svg` não gera tag,
+  porque o Next só aceita esse ícone em PNG ou JPG.
+- **Verificação do Google Search Console**: `<meta name="google-site-verification">` pelo `verification` do
+  metadata.
+- **Dados da empresa** (razão social, CNPJ, endereço, e-mail e telefone de atendimento, e-mail de privacidade):
+  numa linha no rodapé, no lugar dos marcadores de termos de uso e política de privacidade (inclusive o foro),
+  e no dado estruturado da empresa (`legalName`, `taxID`, `address`, `contactPoint`). É o que a lei do
+  comércio eletrônico (Decreto 7.962/2013) pede num lugar visível. Sem cadastro, o marcador continua e o gate
+  de publicação cobra, como antes.
+- **Redes sociais**: `sameAs` no dado estruturado da empresa.
+- **Redirecionamento manual**: produto e categoria conferem o mapa antes de responder 404 e redirecionam com
+  308; os endereços de um e dois segmentos já passavam pelas rotas das páginas do lojista, que conferiam. Não
+  cobre endereço de três segmentos ou mais.
+- **`lib/dados-da-loja.ts`**: a declaração ao editor (`DECLARACAO_DOS_DADOS_DA_LOJA`) e quem formata cada dado.
+- **`jsonLdDaLoja(doc)`** recebe o documento, e as três rotas que emitem a entidade passam o mesmo.
+
+Conferido no HTML servido, com um documento publicado com os dados e sem eles: com dados, os três ícones, a
+verificação, a entidade completa, a linha do rodapé, termos e privacidade sem marcador e os três
+redirecionamentos em 308; sem dados, `app/icon.svg`, entidade só com nome, sem linha no rodapé, marcadores de
+volta e 404. Termos, privacidade, produto e categoria mantêm o modo de renderização.
+
+Não entraram, da tela de SEO do painel da Unbox: **palavras-chave** (o Google ignora a meta keywords desde
+2009) e **URL externa de robots.txt e sitemap.xml** (a loja gera os dois do catálogo e das páginas).
+
+Loja já gerada: atualizar `lib/editable/`, acrescentar `lib/dados-da-loja.ts`, e trocar `app/layout.tsx`,
+`lib/paginas-seo.ts`, `components/site-footer.tsx`, `components/paginas/{colecao,pagina}-do-lojista.tsx`,
+`app/(loja)/page.tsx`, `app/(loja)/{termos,privacidade}/page.tsx` e os layouts de produto e categoria.
+
 ### v0.21.7 — o lojista escreve como a página inicial e o catálogo aparecem no Google
 
 Foundation 16. As páginas que o lojista cria já tinham título, descrição e imagem de compartilhamento na
