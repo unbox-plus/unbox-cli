@@ -1364,6 +1364,231 @@ export function cssDoLojistaEmSeguranca(css: string): string {
 /** loja que ainda não sabe emitir a folha do lojista */
 export const FRASE_SEM_CSS = "Nesta loja ainda não dá para escrever CSS. Fale com a Unbox para liberar.";
 
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// DADOS DA LOJA (foundation 17): quem é a empresa, onde a marca está nas redes, como o navegador e o
+// Google a reconhecem (favicon, verificação), e os endereços antigos que levam aos novos.
+//
+// Nada disso é copy de seção: é CADASTRO. Mora num mapa próprio (`ContentDocument.loja`), é editado nas
+// abas SEO e Configurações gerais, e quem lê é o SERVIDOR da loja (rodapé, termos, privacidade, dado
+// estruturado, metadados), então não viaja ao navegador. Cada parte só é oferecida quando a loja declara
+// que a lê (`Manifest.dadosDaLoja`): parte declarada sem leitura seria o lojista preenchendo o CNPJ e a
+// página de termos continuando com o marcador.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+export const REDES_SOCIAIS = ["instagram", "facebook", "tiktok", "youtube", "pinterest", "linkedin", "x"] as const;
+export type RedeSocial = (typeof REDES_SOCIAIS)[number];
+export const REDE_NOME: Record<RedeSocial, string> = { instagram: "Instagram", facebook: "Facebook", tiktok: "TikTok", youtube: "YouTube", pinterest: "Pinterest", linkedin: "LinkedIn", x: "X (Twitter)" };
+/** o endereço de um perfil precisa ser DAQUELA rede: um link de Instagram no campo do TikTok é erro de colagem */
+const DOMINIOS_DA_REDE: Record<RedeSocial, readonly string[]> = {
+  instagram: ["instagram.com"], facebook: ["facebook.com", "fb.com"], tiktok: ["tiktok.com"], youtube: ["youtube.com", "youtu.be"],
+  pinterest: ["pinterest.com", "pinterest.com.br", "pin.it"], linkedin: ["linkedin.com"], x: ["x.com", "twitter.com"],
+};
+export const UFS = ["AC", "AL", "AM", "AP", "BA", "CE", "DF", "ES", "GO", "MA", "MG", "MS", "MT", "PA", "PB", "PE", "PI", "PR", "RJ", "RN", "RO", "RR", "RS", "SC", "SE", "SP", "TO"] as const;
+
+export interface EnderecoDaEmpresa { logradouro: string; numero: string; complemento?: string; bairro: string; cidade: string; uf: string; cep: string }
+export interface EmpresaDaLoja {
+  /** o nome empresarial, como está no CNPJ */
+  razaoSocial?: string;
+  /** 14 caracteres sem pontuação; aceita o CNPJ alfanumérico (Receita Federal, julho de 2026) */
+  cnpj?: string;
+  endereco?: EnderecoDaEmpresa;
+  /** o e-mail de atendimento */
+  email?: string;
+  /** só dígitos, com DDD */
+  telefone?: string;
+  /** o e-mail para assuntos de dados pessoais (LGPD); ausente = o de atendimento */
+  emailDePrivacidade?: string;
+}
+export type RedesDaLoja = Partial<Record<RedeSocial, string>>;
+export interface SeoDaLoja {
+  /** o código da meta tag `google-site-verification` do Search Console */
+  verificacaoGoogle?: string;
+  /** PNG 32×32: a aba do navegador */
+  favicon32?: string;
+  /** PNG 48×48: o resultado do Google e o atalho no computador */
+  favicon48?: string;
+  /** PNG 180×180: o ícone quando alguém adiciona a loja à tela inicial do iPhone */
+  iconeApple?: string;
+}
+export interface DadosDaLoja { empresa?: EmpresaDaLoja; redes?: RedesDaLoja; seo?: SeoDaLoja }
+export type ParteDosDadosDaLoja = keyof DadosDaLoja;
+export const PARTES_DOS_DADOS_DA_LOJA: readonly ParteDosDadosDaLoja[] = ["empresa", "redes", "seo"];
+
+/** o que a loja declara que LÊ dos dados da loja (foundation 17) */
+export interface ManifestDadosDaLoja {
+  partes: ParteDosDadosDaLoja[];
+  /** a loja confere o mapa de redirecionamentos antes de responder 404 em qualquer rota, não só nas páginas do lojista */
+  redirecionamentos?: boolean;
+}
+
+export const FRASE_SEM_DADOS_DA_LOJA = "Nesta loja ainda não dá para preencher isto por aqui. Fale com a Unbox para liberar.";
+export const FRASE_SEM_REDIRECIONAMENTO_MANUAL = "Nesta loja ainda não dá para criar redirecionamentos por aqui. Fale com a Unbox para liberar.";
+
+const tamanhoDe = (v: string) => Array.from(v).length;
+const textoCurto = (v: unknown, max: number): v is string => typeof v === "string" && v.trim().length > 0 && tamanhoDe(v) <= max && !CARACTERE_DE_CONTROLE.test(v);
+
+/** o CNPJ sem pontuação e em maiúsculas: é assim que ele é guardado */
+export function normalizarCnpj(v: string): string {
+  return v.toUpperCase().replace(/[.\-\/\s]/g, "");
+}
+
+/**
+ * CNPJ VÁLIDO pelo dígito verificador, numérico ou ALFANUMÉRICO. Desde julho de 2026 a Receita emite CNPJ
+ * com letras nas doze primeiras posições; o cálculo é o mesmo, com o valor de cada caractere sendo o código
+ * dele menos 48 (0–9 continuam valendo 0–9, A vale 17). Conferir só o formato aceitaria "11.111.111/1111-11".
+ */
+export function cnpjValido(v: string): boolean {
+  const c = normalizarCnpj(v);
+  if (!/^[0-9A-Z]{12}[0-9]{2}$/.test(c) || /^(.)\1{13}$/.test(c)) return false;
+  const valor = (ch: string) => ch.charCodeAt(0) - 48;
+  const dv = (base: string, pesos: number[]) => {
+    const soma = pesos.reduce((acc, p, i) => acc + valor(base[i]) * p, 0);
+    const r = soma % 11;
+    return r < 2 ? 0 : 11 - r;
+  };
+  const d1 = dv(c.slice(0, 12), [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);
+  const d2 = dv(c.slice(0, 12) + d1, [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);
+  return c[12] === String(d1) && c[13] === String(d2);
+}
+
+/** com a pontuação: dois, três, três, quatro e os dois dígitos verificadores ("AA.AAA.AAA/AAAA-DV") */
+export function formatarCnpj(v: string): string {
+  const c = normalizarCnpj(v);
+  return c.length === 14 ? `${c.slice(0, 2)}.${c.slice(2, 5)}.${c.slice(5, 8)}/${c.slice(8, 12)}-${c.slice(12)}` : v;
+}
+
+/** telefone brasileiro com DDD, só dígitos: 10 (fixo) ou 11 (celular, começando em 9) */
+export function telefoneValido(v: string): boolean {
+  return /^[1-9][1-9](?:[2-8]\d{7}|9\d{8})$/.test(v);
+}
+
+/** "(11) 99999-9999" ou "(11) 3333-4444" */
+export function formatarTelefone(v: string): string {
+  if (v.length === 11) return `(${v.slice(0, 2)}) ${v.slice(2, 7)}-${v.slice(7)}`;
+  if (v.length === 10) return `(${v.slice(0, 2)}) ${v.slice(2, 6)}-${v.slice(6)}`;
+  return v;
+}
+
+export function emailValido(v: string): boolean {
+  return tamanhoDe(v) <= 120 && /^[^\s@<>"]+@[^\s@<>"]+\.[^\s@<>"]{2,}$/.test(v);
+}
+
+/** o perfil tem de ser um endereço https daquela rede */
+export function perfilDaRedeValido(rede: RedeSocial, v: string): boolean {
+  if (typeof v !== "string" || tamanhoDe(v) > 300 || !/^https:\/\/[^\s"'<>\\]+$/.test(v)) return false;
+  try {
+    const host = new URL(v).hostname.toLowerCase();
+    return DOMINIOS_DA_REDE[rede].some((d) => host === d || host.endsWith(`.${d}`));
+  } catch {
+    return false;
+  }
+}
+
+/** o código da verificação do Google: o `content` da meta tag, sem aspas e sem espaço */
+export const VERIFICACAO_GOOGLE = /^[A-Za-z0-9_-]{20,120}$/;
+
+/** endereço de ícone: https e sem nada que quebre o atributo */
+const urlDeIcone = (v: unknown): v is string => typeof v === "string" && /^https:\/\//.test(v) && isSafeUrl(v);
+
+/** a recusa de uma parte dos dados da loja, campo a campo; `null` = cabe */
+export function recusaDosDadosDaLoja(parte: ParteDosDadosDaLoja, valor: unknown): string | null {
+  if (!valor || typeof valor !== "object" || Array.isArray(valor)) return "Os dados precisam vir como um conjunto de campos.";
+  const o = valor as Record<string, unknown>;
+  if (parte === "empresa") {
+    for (const k of Object.keys(o)) if (!["razaoSocial", "cnpj", "endereco", "email", "telefone", "emailDePrivacidade"].includes(k)) return `campo desconhecido: ${k}`;
+    if (o.razaoSocial !== undefined && !textoCurto(o.razaoSocial, 150)) return "A razão social tem até 150 caracteres.";
+    if (o.cnpj !== undefined && (typeof o.cnpj !== "string" || o.cnpj !== normalizarCnpj(o.cnpj) || !cnpjValido(o.cnpj))) return "Esse CNPJ não confere. Confira os números (os dois últimos são o dígito verificador).";
+    if (o.email !== undefined && (typeof o.email !== "string" || !emailValido(o.email))) return "O e-mail de atendimento não parece um e-mail.";
+    if (o.emailDePrivacidade !== undefined && (typeof o.emailDePrivacidade !== "string" || !emailValido(o.emailDePrivacidade))) return "O e-mail de privacidade não parece um e-mail.";
+    if (o.telefone !== undefined && (typeof o.telefone !== "string" || !telefoneValido(o.telefone))) return "O telefone precisa do DDD e do número, como (11) 99999-9999.";
+    if (o.endereco !== undefined) {
+      const e = o.endereco as Record<string, unknown>;
+      if (!e || typeof e !== "object" || Array.isArray(e)) return "O endereço precisa vir completo.";
+      for (const k of Object.keys(e)) if (!["logradouro", "numero", "complemento", "bairro", "cidade", "uf", "cep"].includes(k)) return `campo desconhecido no endereço: ${k}`;
+      if (!textoCurto(e.logradouro, 120) || !textoCurto(e.numero, 20) || !textoCurto(e.bairro, 80) || !textoCurto(e.cidade, 80)) return "O endereço precisa de rua, número, bairro e cidade.";
+      if (e.complemento !== undefined && !textoCurto(e.complemento, 80)) return "O complemento tem até 80 caracteres.";
+      if (typeof e.uf !== "string" || !(UFS as readonly string[]).includes(e.uf)) return "Escolha o estado (UF) do endereço.";
+      if (typeof e.cep !== "string" || !/^\d{8}$/.test(e.cep)) return "O CEP tem 8 números.";
+    }
+    return null;
+  }
+  if (parte === "redes") {
+    for (const [k, v] of Object.entries(o)) {
+      if (!(REDES_SOCIAIS as readonly string[]).includes(k)) return `rede desconhecida: ${k}`;
+      if (typeof v !== "string" || !perfilDaRedeValido(k as RedeSocial, v)) return `O endereço do ${REDE_NOME[k as RedeSocial]} precisa ser o link do perfil, começando com https:// e no site do ${REDE_NOME[k as RedeSocial]}.`;
+    }
+    return null;
+  }
+  for (const k of Object.keys(o)) if (!["verificacaoGoogle", "favicon32", "favicon48", "iconeApple"].includes(k)) return `campo desconhecido: ${k}`;
+  if (o.verificacaoGoogle !== undefined && (typeof o.verificacaoGoogle !== "string" || !VERIFICACAO_GOOGLE.test(o.verificacaoGoogle))) return "Esse código de verificação não parece o do Google. Cole a tag inteira que o Search Console mostra, ou só o que vem dentro de content.";
+  for (const k of ["favicon32", "favicon48", "iconeApple"] as const) if (o[k] !== undefined && !urlDeIcone(o[k])) return "O ícone precisa ser uma imagem enviada ou um endereço começando com https://.";
+  return null;
+}
+
+/**
+ * OS DADOS DA LOJA como a loja os usa: só os campos na forma certa. O documento publicado vem de fora, e um
+ * campo torto vira ausência (o rodapé não mostra a linha, a página de termos mantém o marcador que o gate de
+ * publicação cobra) em vez de derrubar a página ou publicar um CNPJ que não confere.
+ */
+export function dadosDaLoja(doc: ContentDocument | null | undefined): DadosDaLoja {
+  const bruto = doc?.loja;
+  const out: DadosDaLoja = {};
+  if (!bruto || typeof bruto !== "object") return out;
+  const empresa = bruto.empresa;
+  if (empresa && typeof empresa === "object") {
+    const e: EmpresaDaLoja = {};
+    for (const [k, v] of Object.entries(empresa)) {
+      const um = { [k]: v } as Record<string, unknown>;
+      if (recusaDosDadosDaLoja("empresa", um) === null) Object.assign(e, um);
+    }
+    if (Object.keys(e).length) out.empresa = e;
+  }
+  const redes = bruto.redes;
+  if (redes && typeof redes === "object") {
+    const r: RedesDaLoja = {};
+    for (const rede of REDES_SOCIAIS) {
+      const v = (redes as Record<string, unknown>)[rede];
+      if (typeof v === "string" && perfilDaRedeValido(rede, v)) r[rede] = v;
+    }
+    if (Object.keys(r).length) out.redes = r;
+  }
+  const seo = bruto.seo;
+  if (seo && typeof seo === "object") {
+    const x: SeoDaLoja = {};
+    for (const [k, v] of Object.entries(seo)) {
+      const um = { [k]: v } as Record<string, unknown>;
+      if (recusaDosDadosDaLoja("seo", um) === null) Object.assign(x, um);
+    }
+    if (Object.keys(x).length) out.seo = x;
+  }
+  return out;
+}
+
+/**
+ * O PRIMEIRO SEGMENTO que um redirecionamento manual não pode ocupar: o que a loja nunca deixa chegar a uma
+ * rota de página (a API, os arquivos do framework, a prévia e a porta) e os arquivos que o buscador lê. É
+ * uma lista menor que `RESERVADOS_FIXOS` de propósito: `/p/…` e `/c/…` são endereços comuns de loja antiga,
+ * e é justamente deles que o lojista precisa redirecionar.
+ */
+const RESERVADOS_DO_REDIRECIONAMENTO = ["api", "_next", "previa-do-editor", "acesso", "sitemap.xml", "robots.txt", "llms.txt", "manifest.webmanifest", "favicon.ico", "icon.svg", "apple-icon.svg", "opengraph-image"];
+
+/** a recusa de um redirecionamento manual; `null` = cabe */
+export function recusaDoRedirecionamento(doc: ContentDocument, de: unknown, para: unknown, prefixoDePaginas: string = PREFIXO_DE_PAGINAS_PADRAO): string | null {
+  if (typeof de !== "string" || typeof para !== "string") return "Informe o endereço antigo e o novo.";
+  const origem = normalizarPagina(de.trim());
+  const destino = normalizarPagina(para.trim());
+  if (!/^\/(?![/\\])[^\s"'<>\\]{0,300}$/.test(origem) || origem === "/") return "O endereço antigo é o caminho depois do domínio, começando com / (por exemplo /produto/cafe-antigo). A página inicial não pode ser redirecionada.";
+  if (/^https?:/i.test(para.trim()) || !/^\/(?![/\\])[^\s"'<>\\]{0,300}$/.test(destino)) return "O endereço novo precisa ser uma página desta loja, começando com / (por exemplo /produto/cafe-novo).";
+  if (origem === destino) return "O endereço antigo e o novo são o mesmo.";
+  const [primeiro] = origem.split("/").filter(Boolean);
+  if (RESERVADOS_DO_REDIRECIONAMENTO.includes(primeiro)) return "Esse endereço é usado pela própria loja e não pode ser redirecionado.";
+  if (paginaDaRota(doc, origem, prefixoDePaginas)) return "Esse endereço é de uma página que você criou. Um redirecionamento ali nunca seria usado: renomeie ou exclua a página, que o editor oferece o redirecionamento.";
+  const seguinte = doc.redirecionamentos?.[destino];
+  if (seguinte !== undefined) return `O endereço novo também é redirecionado, para ${seguinte}. Aponte direto para ${seguinte}.`;
+  const total = Object.keys(doc.redirecionamentos ?? {}).length;
+  if (doc.redirecionamentos?.[origem] === undefined && total >= REDIRECIONAMENTOS_MAX) return `A loja chegou ao limite de ${REDIRECIONAMENTOS_MAX} redirecionamentos. Apague algum antes.`;
+  return null;
+}
+
 /** loja que ainda não lê o SEO das páginas do código */
 export const FRASE_SEM_SEO_DA_ROTA = "Nesta loja ainda não dá para mudar como esta página aparece no Google. Fale com a Unbox para liberar.";
 
@@ -1602,6 +1827,11 @@ export interface ContentDocument {
    * (`documentoSemPaginas` o tira). Opcional e nunca vazio, como os outros mapas.
    */
   seoDasRotas?: Record<string, SeoDaRota>;
+  /**
+   * DADOS DA LOJA (foundation 17): a empresa, as redes sociais, o favicon e a verificação do Google. Ver o
+   * bloco "DADOS DA LOJA". Lido pelo servidor, então não viaja ao navegador. Opcional e nunca vazio.
+   */
+  loja?: DadosDaLoja;
   /** Registro de honestidade: edições que o lojista declarou sem fonte (nota, prazo, depoimento). */
   declared?: Record<string, DeclaredEntry>;
   /**
@@ -1678,6 +1908,8 @@ function projetarDocumento(doc: ContentDocument, mantem: (chave: string) => bool
   delete projetado.redirecionamentos;
   // o SEO das páginas do código é lido pelo servidor, no `generateMetadata`: ninguém no navegador o usa
   delete projetado.seoDasRotas;
+  // os dados da loja (empresa, redes, favicon) também: rodapé, termos e metadados são renderizados no servidor
+  delete projetado.loja;
   return projetado;
 }
 
@@ -1774,6 +2006,10 @@ type OpDoDocumento =
   | { op: "set_css"; css: string | null }
   /** `seo: null` apaga o SEO da rota, e a página volta a emitir o que o código dela emite */
   | { op: "set_seo_da_rota"; rota: string; seo: SeoDaRota | null }
+  /** `valor: null` apaga a parte inteira */
+  | { op: "set_dados_da_loja"; parte: ParteDosDadosDaLoja; valor: EmpresaDaLoja | RedesDaLoja | SeoDaLoja | null }
+  /** REDIRECIONAMENTO MANUAL (foundation 17): um endereço antigo que passa a levar a um novo */
+  | { op: "add_redirect"; de: string; para: string }
   | { op: "set_token"; token: string; value: string }
   | { op: "unset_token"; token: string }
   | { op: "set_order"; container: string; order: string[] }
@@ -2027,6 +2263,24 @@ export function applyOp(doc: ContentDocument, op: PatchOp): { doc: ContentDocume
       delete next.values[op.path];
       if (next.declared) delete next.declared[op.path];
       if (op.declaredAnterior) next.declared = { ...(next.declared ?? {}), [op.path]: op.declaredAnterior };
+      break;
+    }
+    case "set_dados_da_loja": {
+      const prev = doc.loja?.[op.parte];
+      inverse = { op: "set_dados_da_loja", parte: op.parte, valor: prev === undefined ? null : clone(prev) } as PatchOp;
+      const loja: DadosDaLoja = { ...(next.loja ?? {}) };
+      if (!op.valor || Object.keys(op.valor).length === 0) delete loja[op.parte];
+      else (loja as Record<string, unknown>)[op.parte] = clone(op.valor);
+      if (Object.keys(loja).length) next.loja = loja;
+      else delete next.loja;
+      break;
+    }
+    case "add_redirect": {
+      const de = normalizarPagina(op.de.trim());
+      const para = normalizarPagina(op.para.trim());
+      const anterior = doc.redirecionamentos?.[de];
+      next.redirecionamentos = { ...(next.redirecionamentos ?? {}), [de]: para };
+      inverse = anterior === undefined ? { op: "unset_redirect", de } : { op: "set_redirect", de, para: anterior };
       break;
     }
     case "set_seo_da_rota": {
@@ -2799,6 +3053,11 @@ export interface Manifest {
    */
   rotasComSeo?: ManifestRotaComSeo[];
   /**
+   * DADOS DA LOJA (foundation 17): as partes que a loja LÊ (empresa, redes, SEO da loja) e se ela confere os
+   * redirecionamentos em toda rota. Ausente = nenhuma: o painel não mostra os blocos e `validateOp` recusa.
+   */
+  dadosDaLoja?: ManifestDadosDaLoja;
+  /**
    * A LETRA QUE ESTA LOJA CARREGOU (foundation 14). Ausente = loja anterior à 14 (ou prévia que ainda
    * não respondeu): o painel não oferece troca de fonte, e `validateOp` cobra só o formato fechado,
    * porque sem a lista não há como saber que a escolha existe no projeto da loja.
@@ -3204,6 +3463,18 @@ export function validateOp(op: PatchOp, manifest: Manifest, doc?: ContentDocumen
       if (foraDeSecao(byPath.get(base), base)) return RAIZ(op.path);
       return byPath.has(op.path) || (isStylePath(op.path) && (byPath.has(base) || manifest.sections.some((x) => `${x.container}.${x.id}` === base))) ? { ok: true } : { ok: false, reason: `caminho inexistente: ${op.path}` };
     }
+    case "set_dados_da_loja": {
+      if ((manifest.foundation ?? 1) < 17 || !manifest.dadosDaLoja) return { ok: false, reason: FRASE_SEM_DADOS_DA_LOJA };
+      if (!(PARTES_DOS_DADOS_DA_LOJA as readonly string[]).includes(op.parte) || !manifest.dadosDaLoja.partes.includes(op.parte)) return { ok: false, reason: FRASE_SEM_DADOS_DA_LOJA };
+      if (op.valor === null) return SIM;
+      const r = recusaDosDadosDaLoja(op.parte, op.valor);
+      return r ? { ok: false, reason: r } : SIM;
+    }
+    case "add_redirect": {
+      if ((manifest.foundation ?? 1) < 17 || !manifest.dadosDaLoja?.redirecionamentos) return { ok: false, reason: FRASE_SEM_REDIRECIONAMENTO_MANUAL };
+      const r = recusaDoRedirecionamento(doc ?? emptyDocument(manifest.shop), op.de, op.para, manifest.paginasDoLojista?.prefixoDePaginas);
+      return r ? { ok: false, reason: r } : SIM;
+    }
     case "set_seo_da_rota": {
       // a loja precisa LER o mapa: numa que só recebeu a lib nova, o valor entraria no documento e o
       // Google continuaria vendo o título antigo
@@ -3330,8 +3601,15 @@ export function validateOp(op: PatchOp, manifest: Manifest, doc?: ContentDocumen
     case "delete_collection":
     case "update_collection":
     case "rename_collection":
-    case "unset_redirect":
       return validarOpDePagina(op, manifest, doc ?? emptyDocument(manifest.shop), publicado);
+    case "unset_redirect": {
+      // apagar um desvio não depende de a loja ter páginas do lojista: com o redirecionamento manual declarado,
+      // basta ele existir
+      if ((manifest.foundation ?? 1) >= 17 && manifest.dadosDaLoja?.redirecionamentos) {
+        return typeof op.de === "string" && doc?.redirecionamentos?.[normalizarPagina(op.de)] !== undefined ? SIM : { ok: false, reason: "Esse redirecionamento não existe." };
+      }
+      return validarOpDePagina(op, manifest, doc ?? emptyDocument(manifest.shop), publicado);
+    }
   }
 }
 

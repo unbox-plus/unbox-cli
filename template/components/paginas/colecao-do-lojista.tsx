@@ -54,7 +54,7 @@ export async function ColecaoNaTela({
     jsonLdDeMigalhas(migalhas, caminho),
     // a entidade da loja vai JUNTO: o `isPartOf` do `CollectionPage` aponta para ela por `@id`, e um
     // `@id` que só existe no JSON-LD da home não é resolvido por quem lê esta página
-    ...jsonLdDaLoja(),
+    ...jsonLdDaLoja(doc),
   ];
   return (
     <>

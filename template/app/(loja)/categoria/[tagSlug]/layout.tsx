@@ -11,7 +11,8 @@
 // Medido: mesma página, só trocando a presença do loading.tsx → 404 vira 200.
 //
 // getTopTags é React cache(): chamar aqui e na página não duplica requisição.
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
+import { redirecionamentoDe } from "@/lib/paginas-publicadas";
 import { getTopTags } from "@/lib/queries";
 import { mockupOr } from "@/lib/mockup";
 
@@ -26,6 +27,11 @@ export default async function CategoriaLayout({
   // mockupOr: falha da API com credenciais RELANÇA — nunca vira 404 cacheado.
   const tags = await mockupOr(getTopTags(), [], `categoria/${tagSlug}`);
   const alvo = decodeURIComponent(tagSlug);
-  if (!(tags as { slug?: string }[]).some((t) => t.slug === alvo)) notFound();
+  if (!(tags as { slug?: string }[]).some((t) => t.slug === alvo)) {
+    // REDIRECIONAMENTO MANUAL (foundation 17): a categoria antiga leva aonde o lojista mandou antes do 404
+    const destino = (await redirecionamentoDe(`/categoria/${tagSlug}`)) ?? (await redirecionamentoDe(`/categoria/${alvo}`));
+    if (destino) permanentRedirect(destino);
+    notFound();
+  }
   return <>{children}</>;
 }

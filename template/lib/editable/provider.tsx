@@ -32,6 +32,7 @@ import {
   emptyDocument,
   type ManifestFonte,
   type ManifestRotaComSeo,
+  type ManifestDadosDaLoja,
   type OpcaoDeToken,
   type TipoDeToken,
   ehFamiliaDeLetra, juntarFatia, normalizarPagina, PESOS_DA_LETRA, resolveValue, type SectionKind, SECTION_KIND_LABEL, tokenAceita, valorDeTokenEmCss, cssDoLojistaEmSeguranca} from "./document";
@@ -460,6 +461,7 @@ export function EditableProvider({
   apps,
   paginasDoLojista,
   rotasComSeo,
+  dadosDaLoja,
   children,
 }: {
   doc: ContentDocument | null;
@@ -497,6 +499,13 @@ export function EditableProvider({
    * `generateMetadata` das rotas não a passa, e o editor não oferece um campo que a loja não lê.
    */
   rotasComSeo?: ManifestRotaComSeo[];
+  /**
+   * DADOS DA LOJA (foundation 17): as partes que a loja LÊ do documento (empresa, redes, SEO da loja) e se ela
+   * confere os redirecionamentos antes de responder 404. Mesmo contrato das duas props acima: a loja só a
+   * passa quando o rodapé, os termos, os metadados e as rotas já leem, senão o lojista preencheria o CNPJ e a
+   * página continuaria com o marcador.
+   */
+  dadosDaLoja?: ManifestDadosDaLoja;
   children: React.ReactNode;
 }) {
   const [doc, setDoc] = React.useState<ContentDocument>(initialDoc ?? emptyDocument(shop));
@@ -681,8 +690,8 @@ export function EditableProvider({
     // na tela. Então quem responde é a folha DELA, por um marcador que só o bloco da escada declara,
     // e a resposta é lida do valor computado — como já se faz com a cor.
     const letraDaLoja = cs ? cs.getPropertyValue("--unbox-letra-da-loja").trim() === "1" : false;
-    return { shop, capturedAt: new Date().toISOString(), url: pagina, foundation: 16, entries, sections: secs, tipos, semContainer: fora, tokens: toks, ...(fontes.length ? { fontes } : {}), ...(letraDaLoja ? { letraDaLoja } : {}), ...(apps ? { apps } : {}), ...(paginasDoLojista ? { paginasDoLojista } : {}), ...(rotasComSeo?.length ? { rotasComSeo } : {}) };
-  }, [shop, tokens, apps, paginasDoLojista, rotasComSeo]);
+    return { shop, capturedAt: new Date().toISOString(), url: pagina, foundation: 17, entries, sections: secs, tipos, semContainer: fora, tokens: toks, ...(fontes.length ? { fontes } : {}), ...(letraDaLoja ? { letraDaLoja } : {}), ...(apps ? { apps } : {}), ...(paginasDoLojista ? { paginasDoLojista } : {}), ...(rotasComSeo?.length ? { rotasComSeo } : {}), ...(dadosDaLoja ? { dadosDaLoja } : {}) };
+  }, [shop, tokens, apps, paginasDoLojista, rotasComSeo, dadosDaLoja]);
 
   // manifesto: publica depois que os registros assentam (debounce)
   const manifestTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
