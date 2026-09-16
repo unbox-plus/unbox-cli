@@ -114,14 +114,14 @@ const ADDR = {
     return r;
   });
 
-  await step("8b. addCartItems / getCart / update / remove", async () => {
+  await step("8b. getCart / update / remove / addCartItems", async () => {
     if (!cart || !picked) throw new Error("sem carrinho");
-    await client.addCartItems(cart.cartId, cart.cartToken, [{ productId: picked.productId, productVariantId: v._id, price: v.pricing[0].price, quantity: 1 }]);
-    const reloaded = await client.getCart(cart.cartId, cart.cartToken);
-    const itemId = reloaded.items.edges[0].node._id;
+    const itemId = cart.cart.items.edges[0].node._id;
     await client.updateItemQuantity(cart.cartId, cart.cartToken, itemId, 3);
     await client.removeCartItems(cart.cartId, cart.cartToken, [itemId]);
-    console.log(`   getCart itens=${reloaded.items.totalCount}; add/update/remove OK`);
+    await client.addCartItems(cart.cartId, cart.cartToken, [{ productId: picked.productId, productVariantId: v._id, price: v.pricing[0].price, quantity: 1 }]);
+    const reloaded = await client.getCart(cart.cartId, cart.cartToken);
+    console.log(`   getCart itens=${reloaded.items.totalCount}; update/remove/add OK`);
     return true;
   });
 

@@ -66,15 +66,14 @@ Todos os literais GraphQL do arquivo novo foram comparados com os do anterior; f
 acima, são idênticos. **Nada disto foi executado contra a loja real**: antes de publicar, rodar
 `npm run unbox:test`.
 
+Alterada sequência de testes de carrinho (8b) no `scripts/test-live.ts` para não seguir com um carrinho vazio após a remoção do item existente, fazendo com que o `addCartItems` seja chamado apenas no final da sequência.
+
 Loja já gerada: trocar `lib/unbox/client.ts`, `lib/unbox/customer.ts`, `lib/unbox/types.ts`,
 `lib/unbox/store.ts`, `lib/customer-session.ts`, `lib/config.ts`, `lib/env-check.ts`, `lib/orders.ts`,
 `lib/session.ts`, `lib/ratelimit.ts`, `app/api/payment-link/route.ts`, `app/api/account/otp/route.ts` e
 `scripts/check-unbox-brand.mjs`. No ambiente, preencher `UNBOX_PARTNER_API_KEY`; `UNBOX_API_KEY`,
 `UNBOX_AUTH_URL`, `UNBOX_GRAPHQL_URL` e `UNBOX_CAPTCHA_BYPASS` podem sair. Quem chama `createPaymentLink`
 com itens de catálogo precisa passar a mandar título, quantidade e preço.
-
-Pendente com a Unbox: `UpsertAddressBookInput` não declara `_id`, então editar um endereço do cliente depende
-de o backend casar o registro sozinho. Vale confirmar antes de prometer edição de endereço na conta.
 
 ### v0.21.10 — o valor nulo do pagamento deixa de derrubar a área logada
 
