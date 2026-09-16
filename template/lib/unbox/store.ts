@@ -30,7 +30,6 @@ async function doSignIn(): Promise<CachedToken> {
     partnerApiKey: serverEnv.partnerApiKey,
     partnerGqlUrl: serverEnv.partnerGqlUrl,
     shopId: serverEnv.shopId,
-    captchaBypass: serverEnv.captchaBypass,
   });
   const token = await client.signIn(serverEnv.user, serverEnv.pass);
   const claims = decodeJwtClaims(token);
@@ -73,7 +72,6 @@ export async function getStoreClient(): Promise<UnboxClient> {
     partnerApiKey: serverEnv.partnerApiKey,
     partnerGqlUrl: serverEnv.partnerGqlUrl,
     shopId: c.shopId,
-    captchaBypass: serverEnv.captchaBypass,
   });
   client.setToken(c.token);
   return client;

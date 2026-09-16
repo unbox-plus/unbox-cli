@@ -19,7 +19,6 @@ export const serverEnv = {
   // UNBOX_USER/UNBOX_PASS que diz, no signIn. Ver lib/unbox/client.ts.
   partnerApiKey: process.env.UNBOX_PARTNER_API_KEY ?? "",
   partnerGqlUrl: process.env.UNBOX_PARTNER_GRAPHQL_URL ?? "https://partners.unbox.com.br/graphql",
-  captchaBypass: process.env.UNBOX_CAPTCHA_BYPASS ?? "",
   webhookSecret: process.env.UNBOX_WEBHOOK_SECRET ?? "",
   // SEM DEFAULT DE FÁBRICA. Este arquivo viaja num pacote npm PÚBLICO, e até a v0.21.2 havia
   // aqui uma string fixa de fallback: ela era o segredo de toda loja que não definiu a variável,

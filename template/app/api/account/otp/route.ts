@@ -1,5 +1,5 @@
 // Pede o código OTP por e-mail. ⚠️ EFEITO REAL: dispara e-mail de verdade (customerOTPRequest).
-// Exige x-captcha-verification (o SDK cuida). Rate-limit anti-spam. NÃO retentar automaticamente.
+// O captcha é injetado na borda do gateway de parceiros. Rate-limit anti-spam. NÃO retentar automaticamente.
 import { withStoreClient } from "@/lib/unbox/store";
 import { rateLimit, clientIp, LIMITS } from "@/lib/ratelimit";
 import { emailSchema } from "@/lib/schemas";

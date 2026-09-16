@@ -13,7 +13,6 @@ const client = new UnboxClient({
   partnerApiKey: process.env.UNBOX_PARTNER_API_KEY ?? "",
   shopId: SHOP,
   partnerGqlUrl: process.env.UNBOX_PARTNER_GRAPHQL_URL,
-  captchaBypass: process.env.UNBOX_CAPTCHA_BYPASS,
 });
 
 let pass = 0,

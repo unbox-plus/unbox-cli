@@ -342,13 +342,6 @@ async function main() {
       { type: "password", name: "UNBOX_PASS", message: "UNBOX_PASS" },
       { type: "text", name: "UNBOX_SHOP_ID", message: "UNBOX_SHOP_ID (opcional, Enter pra deixar em branco)" },
       { type: "text", name: "UNBOX_SHOP_SLUG", message: "UNBOX_SHOP_SLUG (opcional, Enter pra deixar em branco)" },
-      {
-        // É o segredo que o header x-captcha-verification espera no signIn, o único ponto onde
-        // ele ainda aparece (nas demais chamadas o gateway resolve o captcha sozinho).
-        type: "password",
-        name: "UNBOX_CAPTCHA_BYPASS",
-        message: "UNBOX_CAPTCHA_BYPASS: segredo de bypass do reCAPTCHA, exigido no signIn (pedir à Unbox junto com a key de parceiro)",
-      },
       { type: "password", name: "UNBOX_MCP_TOKEN", message: "Token do MCP da Unbox (opcional, habilita o .mcp.json pronto; pedir à Unbox; Enter pra pular)" },
     ], { onCancel });
   } else {

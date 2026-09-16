@@ -177,7 +177,6 @@ Nomes reais (confira sempre contra `.env.example` do projeto, já houve doc desa
 # .env.local (server-only: nunca NEXT_PUBLIC_)
 UNBOX_PARTNER_API_KEY=    # API pública de parceiros: key única do parceiro (todas as lojas dele).
                           # É por ela que TODA chamada à Unbox passa (partners.unbox.com.br)
-UNBOX_CAPTCHA_BYPASS=     # obrigatória: x-captcha-verification do signIn (pedir à Unbox)
 UNBOX_USER=               # usuário de API da loja (ex.: api_minhaloja)
 UNBOX_PASS=               # senha do usuário de API
 UNBOX_SHOP_ID=            # opcional: extraído do JWT se vazio

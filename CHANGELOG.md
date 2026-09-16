@@ -10,10 +10,18 @@ cliente, assinaturas, cupons, CEP, OTP, webhooks e inventário. O roteamento con
 
 **Três cabeçalhos, e cada um responde uma pergunta.** `x-api-key` diz qual PARCEIRO; `Authorization` leva o
 token da LOJA, e é dele que o gateway extrai o shopId; `x-customer-token` leva o token do CLIENTE final e só
-aparece na área do cliente. Por isso **nenhuma chamada manda shopId nem token de bypass de captcha**. As duas
-exceções são campos que o próprio schema declara: o `shopId` de cada `fulfillmentGroup` no `placeOrder` e o de
-`createCartByTemplate`. E `UNBOX_CAPTCHA_BYPASS` sobrou num ponto só, o `signIn`, onde a doc oficial o exige.
+aparece na área do cliente. Por isso **nenhuma chamada manda shopId**. As duas exceções são campos que o
+próprio schema declara: o `shopId` de cada `fulfillmentGroup` no `placeOrder` e o de `createCartByTemplate`.
 
+- **A loja deixou de guardar segredo de captcha.** As operações protegidas por reCAPTCHA (`signIn`,
+  `customerOTPRequest`, `customerPasswordlessSignIn`, `placeOrder`, `placePaymentLinkOrder` e os dois
+  `setup*3DSTransaction`) recebem o token injetado na BORDA do gateway de parceiros. Some o header
+  `x-captcha-verification`, some o campo `captchaBypass` do client e some a variável
+  `UNBOX_CAPTCHA_BYPASS` do `.env`, do CLI e da documentação. Isso encerra também a armadilha que a v0.20.x
+  teve de consertar: mandar a api key `da2-...` nesse header fazia o backend repassá-la ao reCAPTCHA
+  Enterprise, que respondia MALFORMED, e o cliente via `CAPTCHA_MALFORMED_ERROR` no meio do pagamento. Não há
+  mais header para preencher errado. O que continua protegendo OTP e checkout de abuso do lado da loja é o
+  rate-limit do BFF (`lib/ratelimit.ts`), que sempre foi a defesa real — o header nunca foi um captcha.
 - **`lib/unbox/customer.ts` deixou de ter transporte próprio.** O `UnboxCustomerClient` agora carrega um
   `UnboxClient` de loja já autenticado e delega a ele, acrescentando o `x-customer-token`. São duas
   identidades na mesma requisição, e nenhuma das duas é dispensável: sem o token da loja não há contexto de
@@ -41,9 +49,10 @@ exceções são campos que o próprio schema declara: o `shopId` de cada `fulfil
 - **A posse do pedido continua sendo do BFF, e agora é só dele.** `orderByReferenceId` de parceiros não
   recebe token de posse, então quem chama `getOwnedOrder` passa antes pelo cookie httpOnly assinado
   (`lib/session.ts`). Sem essa guarda, a consulta abre qualquer pedido só pelo `referenceId`, que é curto.
-- **Credenciais**: `UNBOX_API_KEY`, `UNBOX_AUTH_URL` e `UNBOX_GRAPHQL_URL` saíram do código, do
-  `.env.example`, do CLI e da documentação. `UNBOX_PARTNER_API_KEY` passou de recomendada a obrigatória, e
-  `UNBOX_CAPTCHA_BYPASS` deixou de ser condicional no formulário do CLI.
+- **Credenciais**: `UNBOX_API_KEY`, `UNBOX_AUTH_URL`, `UNBOX_GRAPHQL_URL` e `UNBOX_CAPTCHA_BYPASS` saíram do
+  código, do `.env.example`, do CLI e da documentação. Sobraram três obrigatórias:
+  `UNBOX_PARTNER_API_KEY`, `UNBOX_USER` e `UNBOX_PASS`. O formulário do CLI passou a fazer uma pergunta a
+  menos.
 - **Gate 10 do `prebuild` saiu.** "A variável do id da loja tem de se chamar `shopId`" era regra do core, que
   descobria a loja procurando esse nome literal nas variables. Nenhuma consulta manda mais shopId, e a regra
   passaria a reprovar por engano justamente os dois pontos em que o schema declara o campo, onde o nome da
@@ -59,10 +68,10 @@ acima, são idênticos. **Nada disto foi executado contra a loja real**: antes d
 
 Loja já gerada: trocar `lib/unbox/client.ts`, `lib/unbox/customer.ts`, `lib/unbox/types.ts`,
 `lib/unbox/store.ts`, `lib/customer-session.ts`, `lib/config.ts`, `lib/env-check.ts`, `lib/orders.ts`,
-`lib/session.ts`, `app/api/payment-link/route.ts` e `scripts/check-unbox-brand.mjs`. No ambiente, preencher
-`UNBOX_PARTNER_API_KEY` e `UNBOX_CAPTCHA_BYPASS`; `UNBOX_API_KEY`, `UNBOX_AUTH_URL` e `UNBOX_GRAPHQL_URL`
-podem sair. Quem chama `createPaymentLink` com itens de catálogo precisa passar a mandar título, quantidade e
-preço.
+`lib/session.ts`, `lib/ratelimit.ts`, `app/api/payment-link/route.ts`, `app/api/account/otp/route.ts` e
+`scripts/check-unbox-brand.mjs`. No ambiente, preencher `UNBOX_PARTNER_API_KEY`; `UNBOX_API_KEY`,
+`UNBOX_AUTH_URL`, `UNBOX_GRAPHQL_URL` e `UNBOX_CAPTCHA_BYPASS` podem sair. Quem chama `createPaymentLink`
+com itens de catálogo precisa passar a mandar título, quantidade e preço.
 
 Pendente com a Unbox: `UpsertAddressBookInput` não declara `_id`, então editar um endereço do cliente depende
 de o backend casar o registro sozinho. Vale confirmar antes de prometer edição de endereço na conta.

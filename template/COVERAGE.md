@@ -57,7 +57,7 @@ smoke test HTTP do BFF (carrinho→endereço→frete) **200** em todas as etapas
 
 ## Documentos (01–11) — recursos cobertos
 
-- **01 Autenticação** — signin REST, JWT Bearer, cache/renovação, `x-captcha-verification`, dois contextos de auth, shopId/slug do JWT, erros em HTTP 200 → `lib/config.ts`, `lib/unbox/store.ts`, `lib/unbox/client.ts`.
+- **01 Autenticação** — `signIn` de parceiros, cache/renovação do JWT, os três cabeçalhos (`x-api-key`, `Authorization` da loja, `x-customer-token`), shopId/slug do JWT, erros em HTTP 200 → `lib/config.ts`, `lib/unbox/store.ts`, `lib/unbox/client.ts`.
 - **02 Catálogo** — `catalogItems`, `catalogItemProductBySlug`/`ById`, `tags`, variantes/preço, de/por, badges de estoque, min/max, mídia, HTML sanitizado → catálogo/PDP + `lib/sanitize.ts`.
 - **03 Carrinho & assinatura** — create/add/update/remove/get, brindes, `recurringItemsFrequencyId`, cart templates → `app/api/cart/**`, PDP (assinar), checkout.
 - **04 Promoções** — `shopSales` (banner), `applyDiscountCodeToCart` (antes do frete), `removeDiscountCodeFromCart` (por discountId), brinde automático, `discountCodes` → header/home + `app/api/cart/coupon`.

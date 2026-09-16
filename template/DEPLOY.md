@@ -54,7 +54,6 @@ Adicionar **antes do primeiro deploy** em **Production**, **Preview** e **Develo
 | Variável | Obrigatório | Descrição |
 |---|---|---|
 | `UNBOX_PARTNER_API_KEY` | ✅ | Api key única do PARCEIRO (`da2-...`) — toda chamada à Unbox passa por ela |
-| `UNBOX_CAPTCHA_BYPASS` | ✅ | x-captcha-verification do signIn, o único ponto que ainda o exige (pedir à Unbox) |
 | `UNBOX_USER` | ✅ | Usuário de acesso à API da loja |
 | `UNBOX_PASS` | ✅ | Senha de acesso à API |
 | `SESSION_SECRET` | ✅ | String aleatória forte (≥ 32 chars). Sem ela, em produção, a posse de pedido é RECUSADA (não é aviso: `/api/checkout` falha e o pedido não vira cookie) |
@@ -78,7 +77,6 @@ Adicionar **antes do primeiro deploy** em **Production**, **Preview** e **Develo
 
 ```bash
 npx vercel env add UNBOX_PARTNER_API_KEY
-npx vercel env add UNBOX_CAPTCHA_BYPASS
 npx vercel env add UNBOX_USER
 npx vercel env add UNBOX_PASS
 npx vercel env add SESSION_SECRET

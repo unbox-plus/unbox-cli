@@ -35,7 +35,6 @@ cp .env.example .env.local
 Variáveis obrigatórias (ver `.env.example`):
 ```env
 UNBOX_PARTNER_API_KEY=  # api key única do PARCEIRO (da2-...)
-UNBOX_CAPTCHA_BYPASS=   # obrigatória: exigida no signIn (pedir à Unbox)
 UNBOX_USER=             # usuário de API da loja
 UNBOX_PASS=             # senha (com # ou $? use aspas: "#senha")
 SESSION_SECRET=         # string aleatória forte
@@ -124,10 +123,13 @@ Três cabeçalhos, e cada um responde uma pergunta:
 | `Authorization` | qual LOJA (o shopId sai deste JWT) | toda chamada |
 | `x-customer-token` | qual CLIENTE final | só a área do cliente |
 
-Por isso **nenhuma chamada manda shopId nem token de bypass de captcha**: o gateway resolve os
-dois. As duas exceções são campos que o próprio schema declara — o `shopId` de cada
-`fulfillmentGroup` no `placeOrder` e o de `createCartByTemplate`. E `UNBOX_CAPTCHA_BYPASS`
-sobrou num ponto só, o `signIn`, onde a doc oficial da Unbox o exige.
+Por isso **nenhuma chamada manda shopId**. As duas exceções são campos que o próprio schema
+declara: o `shopId` de cada `fulfillmentGroup` no `placeOrder` e o de `createCartByTemplate`.
+
+**A loja não guarda segredo de captcha.** As operações protegidas por reCAPTCHA (`signIn`,
+`customerOTPRequest`, `customerPasswordlessSignIn`, `placeOrder`, `placePaymentLinkOrder` e os
+dois `setup*3DSTransaction`) recebem o token injetado na borda do gateway. O que protege OTP e
+checkout de abuso do lado da loja é o rate-limit do BFF (`lib/ratelimit.ts`).
 
 Uma coisa que a API de parceiros não publica, e como a loja resolve:
 

@@ -16,10 +16,6 @@ export interface UnboxConfig {
    *  vai no Authorization: isto só é usado nos DOIS pontos em que o schema declara o shopId
    *  explicitamente (fulfillmentGroups do placeOrder e CreateCartByTemplateInput). */
   shopId?: string;
-  /** x-captcha-verification do signIn — OBRIGATÓRIO segundo a doc oficial
-   *  (docs.unbox.com.br); fornecido pela Unbox. Sem ele o header é omitido e o signIn tende a
-   *  falhar. Nas demais operações o gateway resolve o captcha sozinho. */
-  captchaBypass?: string;
   /** Idioma de respostas/rótulos. Default: "pt-BR".
    *  ⚠️ displayStatus(language) tem resolver quebrado no live — use status cru + orderStatusLabel(). */
   language?: string;

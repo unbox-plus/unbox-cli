@@ -39,7 +39,6 @@ export async function getUnboxClient(): Promise<UnboxClient> {
   if (_client) return _client
   _client = new UnboxClient({
     partnerApiKey: process.env.UNBOX_PARTNER_API_KEY!,
-    captchaBypass: process.env.UNBOX_CAPTCHA_BYPASS,
     shopId: process.env.UNBOX_SHOP_ID,
   })
   await _client.signIn(process.env.UNBOX_USER!, process.env.UNBOX_PASS!)

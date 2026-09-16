@@ -13,10 +13,16 @@
 //   · Authorization    → o token da LOJA (o do signIn). É dele que o gateway extrai o shopId.
 //   · x-customer-token → o token do CLIENTE final (o do customerPasswordlessSignIn), só nas
 //                        operações da área do cliente. Ver UnboxCustomerClient (customer.ts).
-// É por isso que NENHUMA operação daqui manda shopId nem token de bypass de captcha: o gateway
-// resolve os dois a partir da api key + JWT. As únicas exceções são os campos que o próprio
-// schema de parceiros declara explicitamente (o `shopId` de CreateCartByTemplateInput e o de
-// cada fulfillmentGroup no placeOrder) — esses continuam indo porque são argumentos do contrato.
+// É por isso que NENHUMA operação daqui manda shopId. As únicas exceções são os campos que o
+// próprio schema de parceiros declara explicitamente (o `shopId` de CreateCartByTemplateInput e o
+// de cada fulfillmentGroup no placeOrder) — esses continuam indo porque são argumentos do contrato.
+//
+// CAPTCHA NÃO EXISTE MAIS AQUI. As operações protegidas por reCAPTCHA (`signIn`,
+// `customerOTPRequest`, `customerPasswordlessSignIn`, `placeOrder`, `placePaymentLinkOrder` e os
+// dois `setup*3DSTransaction`) recebem o token injetado na BORDA do gateway de parceiros. A loja
+// não tem segredo de captcha para guardar nem header para montar. Ver lib/ratelimit.ts: o que
+// protege OTP e checkout de abuso é o rate-limit do BFF, e sempre foi — o header nunca foi um
+// captcha de verdade.
 //
 // Peculiaridades do gateway (validadas ao vivo): args opcionais não aceitam null (montar query
 // só com args presentes); unions exigem __typename; Authorization aceita token puro E Bearer
@@ -121,7 +127,6 @@ export class UnboxClient {
   partnerApiKey: string;
   partnerGqlUrl: string;
   shopId: string;
-  captchaBypass: string;
   language: string;
   timeoutMs: number;
   token: string | null = null;
@@ -130,7 +135,6 @@ export class UnboxClient {
     this.partnerApiKey = cfg.partnerApiKey;
     this.partnerGqlUrl = cfg.partnerGqlUrl ?? DEFAULTS.partnerGqlUrl;
     this.shopId = cfg.shopId ?? "";
-    this.captchaBypass = cfg.captchaBypass ?? "";
     this.language = cfg.language ?? DEFAULTS.language;
     this.timeoutMs = cfg.timeoutMs ?? 15000;
   }
@@ -138,31 +142,23 @@ export class UnboxClient {
   // -------------------------------------------------------------------- auth
   /**
    * Autentica com user/senha DA LOJA (mutation `signIn`) e guarda o access_token (JWT, ~24h).
-   * Headers: x-api-key do parceiro + x-captcha-verification.
-   *
-   * ESTE é o único ponto onde o bypass de captcha aparece: a doc oficial declara
-   * `x-captcha-verification` no signIn, e ele não é derivável do resto da requisição. Nas demais
-   * operações o gateway resolve o captcha sozinho, e por isso nenhuma delas manda o header
-   * (mandar a api key ali fazia o backend repassá-la ao reCAPTCHA Enterprise, que devolvia
-   * MALFORMED no meio do pagamento — caso real em produção).
+   * Único header: a x-api-key do parceiro — ainda não existe token de loja para o Authorization,
+   * e o captcha é injetado na borda do gateway.
    */
   async signIn(username: string, password: string): Promise<string> {
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-      "x-api-key": this.partnerApiKey,
-    };
-    if (this.captchaBypass) headers["x-captcha-verification"] = this.captchaBypass;
     const q = `mutation($i:SignInInput!){ signIn(input:$i){ access_token id_token } }`;
     const res = await fetch(this.partnerGqlUrl, {
       method: "POST",
-      headers,
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": this.partnerApiKey,
+      },
       body: JSON.stringify({ query: q, variables: { i: { username, password } } }),
       signal: AbortSignal.timeout(this.timeoutMs),
     });
     const json = await res.json();
     if (json.errors?.length) {
-      const hint = this.captchaBypass ? "" : " (x-captcha-verification ausente — preencha UNBOX_CAPTCHA_BYPASS, obrigatório no signIn)";
-      throw new UnboxError(`signIn: ${json.errors.map((e: any) => e.message).join(" | ")}${hint}`, json.errors);
+      throw new UnboxError(`signIn: ${json.errors.map((e: any) => e.message).join(" | ")}`, json.errors);
     }
     const token = json.data?.signIn?.access_token;
     if (!token) throw new UnboxError("signIn sem access_token");
@@ -562,7 +558,7 @@ export class UnboxClient {
     return (d.getInstallments?.installments ?? []).map((i: any) => ({ installment: i.installment, amount: i.amount }));
   }
 
-  /** Cria o pedido (REAL). O captcha é resolvido pelo gateway — nada a enviar aqui. */
+  /** Cria o pedido (REAL). O captcha é injetado na borda do gateway — nada a enviar aqui. */
   async placeOrder(p: PlaceOrderParams): Promise<any> {
     // country é obrigatório (String!) tanto no shippingAddress quanto no billingAddress.
     const address = { country: "BR", ...p.address };
@@ -644,9 +640,10 @@ export class UnboxClient {
   // -------------------------------------------------------- conta do cliente (OTP)
   // As três operações abaixo são de PRÉ-LOGIN: acontecem quando ainda não existe token de
   // cliente, então vão só com o token da LOJA no Authorization. O `x-customer-token` entra
-  // depois, nas operações do cliente já autenticado (customer.ts).
+  // depois, nas operações do cliente já autenticado (customer.ts). As duas primeiras são
+  // protegidas por captcha do lado da Unbox, injetado na borda do gateway.
 
-  /** Storefront pede OTP por e-mail. O captcha é resolvido pelo gateway. */
+  /** Storefront pede OTP por e-mail. O captcha é injetado na borda do gateway. */
   async requestCustomerOtp(email: string): Promise<boolean> {
     const q = `mutation($i:CustomerOTPRequestInput!){ customerOTPRequest(input:$i){success} }`;
     const d = await this.gql<{ customerOTPRequest: { success: boolean } }>(q, { i: { email } });
