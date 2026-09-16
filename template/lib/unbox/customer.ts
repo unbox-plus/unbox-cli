@@ -104,6 +104,11 @@ export class UnboxCustomerClient {
   //   · totalItemQuantity  → "reading 'shop'"
   //   · shippingMethods    → "reading '0'"
   //   · summary sem payments → "reading '0'"
+  //   · payments.amount.amount → "Cannot return null for non-nullable field Money.amount": o campo é
+  //     non-null no schema e a Unbox manda null quando o pagamento não tem valor numérico. Um pedido
+  //     assim apaga a lista inteira, e a volta para a seleção enxuta não salva se ela pedir o mesmo
+  //     campo. Medido numa loja no ar: os 14 pedidos eram assim. Peça só `displayAmount`; o número que
+  //     a tela usa vem de `summary`.
   // O último é o mais traiçoeiro. O resolver de `summary` lê `payments[0]?.summary`, e a projeção do
   // banco só traz `payments` quando a consulta PEDE `payments`. Pedir o total sem pedir o pagamento é
   // GraphQL válido que apaga a resposta: o cliente logado via a conta sem nenhum pedido. Por isso
@@ -114,7 +119,7 @@ export class UnboxCustomerClient {
         totalCount pageInfo{hasNextPage endCursor}
         nodes{_id referenceId status createdAt
           recurringOrderId dispatched delivered isBoletoPaid invoiceIssued
-          payments{amount{amount displayAmount}}
+          payments{amount{displayAmount}}
           summary{total{amount displayAmount}}
           fulfillmentGroups{
             ${endereco}
@@ -126,7 +131,7 @@ export class UnboxCustomerClient {
       customerOrders(shopId:$shopId,first:$first){
         totalCount
         nodes{_id referenceId status createdAt recurringOrderId dispatched delivered
-          payments{amount{amount displayAmount}}
+          payments{amount{displayAmount}}
           summary{total{amount displayAmount}}
           fulfillmentGroups{items{nodes{_id title quantity productSlug ${IMAGENS_DO_ITEM} price{amount displayAmount}}}}
         } }}`;
@@ -154,7 +159,7 @@ export class UnboxCustomerClient {
         _id referenceId status email createdAt
         summary{total{amount displayAmount}${rica ? RESUMO_DETALHADO : ""}}
         discounts{code label discount discountMethod}
-        payments{displayName mode processor isCaptured cardBrand captureErrorMessage amount{amount displayAmount}${rica ? " status{status}" : ""}}
+        payments{displayName mode processor isCaptured cardBrand captureErrorMessage amount{displayAmount}${rica ? " status{status}" : ""}}
         fulfillmentGroups{
           status type trackingCode
           ${rica ? ENVIO_E_RASTREIO : ""}
