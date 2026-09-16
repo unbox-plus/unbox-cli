@@ -103,6 +103,15 @@ export function shapeOrderSummary(o: any): ShapedOrderSummary {
   };
 }
 
+/**
+ * O TEXTO QUE A API JÁ FORMATOU ("R$ 157,24"), quando o número não vem. A consulta deixou de pedir
+ * `payments.amount.amount` (ver lib/unbox/customer.ts), então o valor do pagamento chega só assim. O
+ * formato é conferido porque `displayAmount` no contexto de cliente já devolveu "R$NaN,undefined".
+ */
+function textoDeDinheiro(v: unknown): string | undefined {
+  return typeof v === "string" && /^R\$\s?[\d.]+,\d{2}$/.test(v.trim()) ? v.trim() : undefined;
+}
+
 export function shapeOrder(o: any): ShapedOrder {
   const pmt = o.payments?.[0];
   const groups: any[] = o.fulfillmentGroups ?? [];
@@ -136,7 +145,7 @@ export function shapeOrder(o: any): ShapedOrder {
           cardBrand: pmt.cardBrand,
           errorMessage: pmt.captureErrorMessage,
           statusLabel: pmt.status?.status ? paymentStatusLabel(pmt.status.status) : undefined,
-          amount: money(pmt.amount?.amount),
+          amount: money(pmt.amount?.amount) ?? textoDeDinheiro(pmt.amount?.displayAmount),
           seal: paymentSeal(pmt.status?.status),
         }
       : null,
@@ -151,7 +160,7 @@ export function shapeOrder(o: any): ShapedOrder {
     invoiceIssued: o.invoiceIssued,
     dispatched: o.dispatched,
     delivered: o.delivered,
-    total: money(o.summary?.total?.amount) ?? money(pmt?.amount?.amount) ?? money(itemsSum > 0 ? itemsSum : undefined),
+    total: money(o.summary?.total?.amount) ?? money(pmt?.amount?.amount) ?? textoDeDinheiro(pmt?.amount?.displayAmount) ?? money(itemsSum > 0 ? itemsSum : undefined),
     email: o.email,
     createdAt: o.createdAt ?? undefined,
     shipping: shapeShipping(groups),
