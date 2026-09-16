@@ -38,8 +38,9 @@ let _client: UnboxClient | null = null
 export async function getUnboxClient(): Promise<UnboxClient> {
   if (_client) return _client
   _client = new UnboxClient({
-    apiKey: process.env.UNBOX_API_KEY!,
-    shopId: process.env.UNBOX_SHOP_ID!,
+    partnerApiKey: process.env.UNBOX_PARTNER_API_KEY!,
+    captchaBypass: process.env.UNBOX_CAPTCHA_BYPASS,
+    shopId: process.env.UNBOX_SHOP_ID,
   })
   await _client.signIn(process.env.UNBOX_USER!, process.env.UNBOX_PASS!)
   return _client
@@ -47,7 +48,7 @@ export async function getUnboxClient(): Promise<UnboxClient> {
 ```
 
 ## Regras
-- `UNBOX_API_KEY` nunca com prefixo `NEXT_PUBLIC_`
+- `UNBOX_PARTNER_API_KEY` nunca com prefixo `NEXT_PUBLIC_`
 - `lib/unbox.ts` deve ter `import "server-only"` na primeira linha
 - Token de cliente é separado — `lib/auth.ts` usa cookies httpOnly
 - Tailwind v4: `app/globals.css` deve ter `@import "tailwindcss"`

@@ -30,8 +30,8 @@ Ele vai perguntar:
    primeiro plano), **Editorial** (clube/assinatura, tipografia de revista) ou **Boutique**
    (minimal premium). O estilo define layout da home, fontes, neutros, chrome e raios já no
    scaffold; o agente de Branding refina depois no briefing.
-9. Se você já tem as credenciais da loja Unbox (`UNBOX_PARTNER_API_KEY` ou `UNBOX_API_KEY`,
-   `UNBOX_USER`, `UNBOX_PASS`)
+9. Se você já tem as credenciais da loja Unbox (`UNBOX_PARTNER_API_KEY`, `UNBOX_USER`,
+   `UNBOX_PASS`)
    - **Não tem ainda?** Sem problema — responda "não" e o projeto sobe em **modo mockup**
      (layout completo, sem dados reais da loja). Preencha `.env.local` depois.
 10. Checkout customizável (código no projeto) ou padrão hospedado da Unbox
@@ -116,7 +116,7 @@ dois independentes lendo o mesmo `dataLayer`. Três coisas que não são óbvias
 ## Requisitos
 
 - Node.js ≥ 20 (recomendado: 22 LTS — veja `.nvmrc` no projeto gerado)
-- Credenciais da loja Unbox (`UNBOX_API_KEY`, `UNBOX_USER`, `UNBOX_PASS`) — opcional pra rodar em
+- Credenciais da loja Unbox (`UNBOX_PARTNER_API_KEY`, `UNBOX_USER`, `UNBOX_PASS`) — opcional pra rodar em
   modo mockup, obrigatório antes de ir pra produção (`npm run unbox:test` confirma a conexão)
 
 ## O que o CLI gera

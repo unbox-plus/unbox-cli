@@ -3,7 +3,7 @@
 import "server-only";
 import { UnboxCustomerClient } from "./unbox/customer";
 import { getCustomerToken } from "./session";
-import { getShopContext } from "./unbox/store";
+import { getStoreClient } from "./unbox/store";
 import { decodeJwtClaims } from "./config";
 
 /** Retorna um UnboxCustomerClient autenticado, ou null se o cliente não estiver logado. */
@@ -15,8 +15,11 @@ export async function getCustomerClient(): Promise<UnboxCustomerClient | null> {
   // backend e a conta virava beco sem saída, sem mostrar pedido e sem mandar para o login.
   const exp = decodeJwtClaims(token).exp;
   if (typeof exp === "number" && Date.now() >= exp * 1000) return null;
-  const { shopId } = await getShopContext();
-  return new UnboxCustomerClient({ token, shopId });
+  // DUAS IDENTIDADES: o cliente logado vai no `x-customer-token`, mas a requisição continua
+  // precisando do contexto de LOJA no Authorization — é dele que o gateway tira o shopId. Por
+  // isso o client do cliente carrega o client de loja já autenticado (token do cache do signIn).
+  const loja = await getStoreClient();
+  return new UnboxCustomerClient({ customerToken: token, loja });
 }
 
 /** Igual ao acima, mas lança um Error 401-like se não logado (para Route Handlers). */

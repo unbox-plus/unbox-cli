@@ -5,22 +5,18 @@ import { SEGREDO_DA_LOJA } from "./segredo-da-loja";
 import crypto from "node:crypto";
 import { checkEnv } from "./env-check";
 
-// UNBOX_API_KEY/USER/PASS são lidos sem lançar erro aqui — esse módulo é importado
+// UNBOX_PARTNER_API_KEY/USER/PASS são lidos sem lançar erro aqui — esse módulo é importado
 // pelo layout raiz (toda página), então validar no import quebraria o app inteiro
 // sem credenciais. A validação acontece em lib/unbox/store.ts, só quando uma página
 // de fato tenta buscar dados da API (permite "modo mockup" sem credenciais).
 export const serverEnv = {
-  apiKey: process.env.UNBOX_API_KEY ?? "",
   user: process.env.UNBOX_USER ?? "",
   pass: process.env.UNBOX_PASS ?? "",
   shopId: process.env.UNBOX_SHOP_ID ?? "",
   shopSlug: process.env.UNBOX_SHOP_SLUG ?? "",
-  authUrl: process.env.UNBOX_AUTH_URL ?? "https://api.unbox.com.br",
-  gqlUrl: process.env.UNBOX_GRAPHQL_URL ?? "https://core.unbox.com.br/graphql",
-  // API pública de PARCEIROS (nova): uma api key única por parceiro, independente do nº de
-  // lojas. Setar UNBOX_PARTNER_API_KEY liga o roteamento: signIn + leituras com paridade
-  // passam por partners.unbox.com.br; o restante (carrinho/checkout/cliente) segue no core
-  // até a Unbox liberar as escritas na API de parceiros. Ver lib/unbox/client.ts.
+  // API pública de PARCEIROS (partners.unbox.com.br): uma api key única por parceiro,
+  // independente do nº de lojas, e é por ela que TODA chamada à Unbox passa. QUAL loja é o
+  // UNBOX_USER/UNBOX_PASS que diz, no signIn. Ver lib/unbox/client.ts.
   partnerApiKey: process.env.UNBOX_PARTNER_API_KEY ?? "",
   partnerGqlUrl: process.env.UNBOX_PARTNER_GRAPHQL_URL ?? "https://partners.unbox.com.br/graphql",
   captchaBypass: process.env.UNBOX_CAPTCHA_BYPASS ?? "",
@@ -41,10 +37,10 @@ export const serverEnv = {
   revalidateSecret: process.env.REVALIDATE_SECRET ?? "",
 };
 
-// No modelo antigo a loja tem api key própria; no novo, a key é do PARCEIRO. Qualquer uma
-// das duas + user/pass da loja habilita o modo real (sem nenhuma → modo mockup).
+// A key é do PARCEIRO e vale para todas as lojas dele; o user/senha é que diz QUAL loja.
+// As três juntas habilitam o modo real (faltando qualquer uma → modo mockup).
 export const hasUnboxCredentials = Boolean(
-  (serverEnv.apiKey || serverEnv.partnerApiKey) && serverEnv.user && serverEnv.pass,
+  serverEnv.partnerApiKey && serverEnv.user && serverEnv.pass,
 );
 
 /** Decodifica os claims do JWT (sem validar — só para extrair shopId/shopSlug). */

@@ -53,14 +53,13 @@ Adicionar **antes do primeiro deploy** em **Production**, **Preview** e **Develo
 
 | Variável | Obrigatório | Descrição |
 |---|---|---|
-| `UNBOX_PARTNER_API_KEY` | ✅ (recomendado) | Api key única do PARCEIRO (`da2-...`) — modelo atual |
-| `UNBOX_CAPTCHA_BYPASS` | ✅ com a key de parceiro | x-captcha-verification do signIn (pedir à Unbox) |
+| `UNBOX_PARTNER_API_KEY` | ✅ | Api key única do PARCEIRO (`da2-...`) — toda chamada à Unbox passa por ela |
+| `UNBOX_CAPTCHA_BYPASS` | ✅ | x-captcha-verification do signIn, o único ponto que ainda o exige (pedir à Unbox) |
 | `UNBOX_USER` | ✅ | Usuário de acesso à API da loja |
 | `UNBOX_PASS` | ✅ | Senha de acesso à API |
 | `SESSION_SECRET` | ✅ | String aleatória forte (≥ 32 chars). Sem ela, em produção, a posse de pedido é RECUSADA (não é aviso: `/api/checkout` falha e o pedido não vira cookie) |
 | `NEXT_PUBLIC_SITE_URL` | ✅ | URL pública da loja (ex: `https://minhaloja.com.br`) |
 | `NEXT_PUBLIC_SITE_NAME` | ✅ | Nome de exibição (manifest/PWA) |
-| `UNBOX_API_KEY` | — | Modelo ANTIGO (key por loja); só sem a key de parceiro |
 | `UNBOX_SHOP_ID` | — | Extraído do JWT se vazio |
 | `UNBOX_SHOP_SLUG` | — | Extraído do JWT se vazio |
 | `UNBOX_WEBHOOK_SECRET` | — | Secret(s) dos webhooks (vírgula p/ múltiplos) |
@@ -73,12 +72,13 @@ Adicionar **antes do primeiro deploy** em **Production**, **Preview** e **Develo
 | `NEXT_PUBLIC_META_PIXEL_ID` | — | Meta Pixel ID |
 | `META_PIXEL_ID` / `META_CAPI_TOKEN` | — | Meta Conversions API (server) |
 
-> **Sem env vars o build falha** com `UnboxError: signin HTTP 403: Forbidden` durante o prerender.
+> **Sem env vars o build falha** durante o prerender, com o erro de `signIn` da API de parceiros.
 
 ### Via CLI (alternativa)
 
 ```bash
-npx vercel env add UNBOX_API_KEY
+npx vercel env add UNBOX_PARTNER_API_KEY
+npx vercel env add UNBOX_CAPTCHA_BYPASS
 npx vercel env add UNBOX_USER
 npx vercel env add UNBOX_PASS
 npx vercel env add SESSION_SECRET

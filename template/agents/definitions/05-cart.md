@@ -110,7 +110,7 @@ import * as Dialog from "@base-ui-components/react/dialog"
 ## Cupom — regra crítica
 
 ```ts
-// discountCodes(first:) recebe ConnectionLimitInt — máximo 20
+// discountCodes(first:) recebe Int na API de parceiros (sem o teto do ConnectionLimitInt)
 // Ao aplicar: mostrar erro via friendlyError() se falhar
 // Erro de cupom inválido: cartEventLabel("COUPON_NOT_APPLICABLE") → "Cupom não aplicável"
 ```

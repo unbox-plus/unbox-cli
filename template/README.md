@@ -32,15 +32,14 @@ cp .env.example .env.local
 # Editar .env.local com as credenciais da loja Unbox
 ```
 
-Variáveis obrigatórias (modelo RECOMENDADO — api key de parceiro; ver `.env.example`):
+Variáveis obrigatórias (ver `.env.example`):
 ```env
-UNBOX_PARTNER_API_KEY=  # api key única do PARCEIRO (recomendada; da2-...)
-UNBOX_CAPTCHA_BYPASS=   # obrigatória com a key de parceiro (pedir à Unbox)
+UNBOX_PARTNER_API_KEY=  # api key única do PARCEIRO (da2-...)
+UNBOX_CAPTCHA_BYPASS=   # obrigatória: exigida no signIn (pedir à Unbox)
 UNBOX_USER=             # usuário de API da loja
 UNBOX_PASS=             # senha (com # ou $? use aspas: "#senha")
 SESSION_SECRET=         # string aleatória forte
 NEXT_PUBLIC_SITE_URL=https://minhaloja.com.br
-# Modelo antigo (key por loja), ainda suportado: UNBOX_API_KEY=
 ```
 
 ### 3. Configurar a marca
@@ -112,21 +111,32 @@ Resumo rápido:
 2. Env vars em **Production + Preview + Development** antes do primeiro deploy
 3. Framework Preset no Vercel: **Next.js** (não "Other")
 
-## API de Parceiros (nova API pública da Unbox)
+## API de Parceiros (a única API que a loja usa)
 
-O projeto suporta os dois modelos de credencial:
+Tudo passa por `partners.unbox.com.br/graphql`: vitrine, carrinho, checkout, `placeOrder`,
+pedido, área do cliente, assinaturas, cupons, webhooks e inventário.
 
-- **Novo (recomendado):** `UNBOX_PARTNER_API_KEY` — api key **única do parceiro**, vale para
-  todas as lojas dele. A loja específica é autenticada pelo `UNBOX_USER`/`UNBOX_PASS` no
-  signIn (o shopId sai do JWT — pode deixar `UNBOX_SHOP_ID` vazio). Preenchida, o SDK roteia
-  automaticamente para `partners.unbox.com.br`: signIn, **vitrine completa** (catálogo,
-  busca, PDP por slug/id, dados da loja), categorias (tags), cupons, pedido por referenceId,
-  parcelas, inventário (`getSimpleInventory`), webhooks e cart templates.
-- **Antigo:** `UNBOX_API_KEY` (key por loja) — segue funcionando; sem a key de parceiro nada
-  muda. Carrinho/checkout/área do cliente seguem no core em qualquer modo (com o MESMO token
-  do signIn de parceiros), até a Unbox publicar essas escritas na API de parceiros.
+Três cabeçalhos, e cada um responde uma pergunta:
 
-`npm run unbox:test` mostra qual rota está ativa na primeira linha.
+| Header | Responde | Vai em |
+|---|---|---|
+| `x-api-key` | qual PARCEIRO | toda chamada |
+| `Authorization` | qual LOJA (o shopId sai deste JWT) | toda chamada |
+| `x-customer-token` | qual CLIENTE final | só a área do cliente |
+
+Por isso **nenhuma chamada manda shopId nem token de bypass de captcha**: o gateway resolve os
+dois. As duas exceções são campos que o próprio schema declara — o `shopId` de cada
+`fulfillmentGroup` no `placeOrder` e o de `createCartByTemplate`. E `UNBOX_CAPTCHA_BYPASS`
+sobrou num ponto só, o `signIn`, onde a doc oficial da Unbox o exige.
+
+Duas coisas que a API de parceiros não publica, e como a loja resolve:
+
+| Não existe lá | O que a loja faz |
+|---|---|
+| `availablePaymentMethods` | monta a lista a partir do próprio `shopBySlug` (`acceptsCreditCard`, `acceptsBoleto`, provedor UnboxPay) |
+| `catalogItemProductById` | `catalogItems(productIdsOrERPCodes:[id], first:1)`, que devolve o mesmo `CatalogItemProduct` |
+
+`npm run unbox:test` roda o SDK inteiro contra a loja real.
 
 ## MCP da Unbox (Claude Code)
 
@@ -145,8 +155,7 @@ passo 3. Senão:
 
 ## Regras de segurança
 
-- `UNBOX_API_KEY` / `UNBOX_PARTNER_API_KEY` nunca vão ao browser — apenas Route
-  Handlers/Server Actions/RSC
+- `UNBOX_PARTNER_API_KEY` nunca vai ao browser — apenas Route Handlers/Server Actions/RSC
 - Token de cliente (OTP) fica em cookie `httpOnly`
 - `placeOrder` protegido contra duplo envio (`lib/checkout-lock.ts`)
 - Rate-limit nas rotas de OTP e checkout (`lib/ratelimit.ts`)

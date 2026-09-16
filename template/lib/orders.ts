@@ -259,9 +259,13 @@ export async function getOwnedOrder(referenceId: string): Promise<ShapedOrder | 
       console.error(JSON.stringify({ tag: "[api-erro]", rota: "pedido/cliente-logado", referenceId, erro: (e instanceof Error ? e.message : String(e)).slice(0, 500), quando: new Date().toISOString() }));
     }
   }
+  // A POSSE É CONFERIDA AQUI, E SÓ AQUI. `orderByReferenceId` não recebe token de posse: quem
+  // passou desta linha é porque `getOrderToken` achou o cookie httpOnly do pedido E a assinatura
+  // HMAC fechou (lib/session.ts). Sem esta guarda, a consulta seguinte abre QUALQUER pedido só
+  // pelo referenceId, que é curto e adivinhável.
   const token = await getOrderToken(referenceId);
   if (!token) return null;
-  const o = await withStoreClient((c) => c.getOrder(referenceId, token));
+  const o = await withStoreClient((c) => c.getOrder(referenceId));
   return o ? comImagens(shapeOrder(o)) : null;
 }
 

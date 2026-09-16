@@ -70,8 +70,8 @@ export async function clearCustomerToken(): Promise<void> {
 
 // ----------------------------------------------------- posse de pedido (guest)
 // O cookie carrega `<token>.<hmac>`, com hmac = HMAC-SHA256(SESSION_SECRET, referenceId:token).
-// SEM isso a posse era forjável: getOwnedOrder só testava se o cookie EXISTIA, e no modo
-// parceiro o token não chega a ser validado na consulta — qualquer valor de cookie abria qualquer pedido
+// SEM isso a posse era forjável: getOwnedOrder só testava se o cookie EXISTIA, e a consulta não
+// valida token nenhum (`orderByReferenceId` recebe só o id) — qualquer valor de cookie abria qualquer pedido
 // (e-mail, endereço, itens, bandeira do cartão) só com o referenceId, que é curto. Agora o
 // cookie precisa ter sido emitido por este servidor, para este pedido, depois de um
 // placeOrder bem-sucedido neste navegador. Cookie httpOnly impede LER, não impede ENVIAR.
