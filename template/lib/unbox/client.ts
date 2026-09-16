@@ -328,8 +328,7 @@ export class UnboxClient {
   async getShop(_slug?: string): Promise<any> {
     const q = `query{ shopBySlug{
       _id name slug acceptsBoleto acceptsCreditCard
-      providers{payment}
-      settings{maxInstallments allowAnonymousRecurringOrders allowLegalPersonSales showOutOfStockCatalogs unboxPayProviders}
+      settings{maxInstallments allowAnonymousRecurringOrders allowLegalPersonSales showOutOfStockCatalogs}
       shopSales{_id code label description discountMethod enabled createdAt
         calculation{__typename ... on CalculationFreeItemByTier { tiers { cartSubtotalGTE catalogProductVariant { _id title } } }}}
       recurringOrdersPolicy{_id enabled keepOrderPricingPolicy
@@ -341,25 +340,12 @@ export class UnboxClient {
     return d.shopBySlug;
   }
 
-  /**
-   * Métodos de pagamento habilitados, na forma que o checkout lê
-   * (`{name,displayName,isEnabled,canRefund,pluginName}`).
-   *
-   * A API de parceiros NÃO publica `availablePaymentMethods`; o que ela publica sobre pagamento
-   * é a própria loja: `acceptsCreditCard`, `acceptsBoleto` e o provedor UnboxPay configurado.
-   * Cartão e boleto saem das duas chaves. Pix não tem chave própria em lugar nenhum do schema —
-   * ele é o método base do UnboxPay — então entra quando a loja tem provedor de pagamento
-   * configurado. Loja sem provedor não oferece nenhum método, que é o que já acontecia quando
-   * `availablePaymentMethods` voltava vazio.
-   */
+  /** Métodos de pagamento habilitados no checkout desta loja. Sem argumento: a loja sai do JWT,
+   *  e o próprio resolver já filtra por loja, ativação e região. */
   async getPaymentMethods(): Promise<any[]> {
-    const shop = await this.getShop();
-    const temUnboxPay = Boolean(shop?.providers?.payment) || Boolean(shop?.settings?.unboxPayProviders?.length);
-    return [
-      { name: "unboxpay_pix", displayName: "Pix", isEnabled: temUnboxPay, canRefund: true, pluginName: "unboxpay" },
-      { name: "unboxpay_credit", displayName: "Cartão de crédito", isEnabled: Boolean(shop?.acceptsCreditCard), canRefund: true, pluginName: "unboxpay" },
-      { name: "unboxpay_boleto", displayName: "Boleto", isEnabled: Boolean(shop?.acceptsBoleto), canRefund: true, pluginName: "unboxpay" },
-    ];
+    const q = `query{availablePaymentMethods{name displayName isEnabled canRefund pluginName}}`;
+    const d = await this.gql<{ availablePaymentMethods: any[] }>(q);
+    return d.availablePaymentMethods;
   }
 
   // ------------------------------------------------------------------ promoções

@@ -129,11 +129,10 @@ dois. As duas exceções são campos que o próprio schema declara — o `shopId
 `fulfillmentGroup` no `placeOrder` e o de `createCartByTemplate`. E `UNBOX_CAPTCHA_BYPASS`
 sobrou num ponto só, o `signIn`, onde a doc oficial da Unbox o exige.
 
-Duas coisas que a API de parceiros não publica, e como a loja resolve:
+Uma coisa que a API de parceiros não publica, e como a loja resolve:
 
 | Não existe lá | O que a loja faz |
 |---|---|
-| `availablePaymentMethods` | monta a lista a partir do próprio `shopBySlug` (`acceptsCreditCard`, `acceptsBoleto`, provedor UnboxPay) |
 | `catalogItemProductById` | `catalogItems(productIdsOrERPCodes:[id], first:1)`, que devolve o mesmo `CatalogItemProduct` |
 
 `npm run unbox:test` roda o SDK inteiro contra a loja real.
