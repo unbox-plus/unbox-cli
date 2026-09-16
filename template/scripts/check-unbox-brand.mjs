@@ -287,6 +287,20 @@ for (const caminho of arquivosDeCodigo) {
   });
 }
 
+// ── 12. `Money.amount` dentro de `payments` ──────────────────────────────────
+// `Money.amount` é non-null no schema e a Unbox manda null quando o pagamento não tem valor numérico:
+// UM pedido assim apaga a lista inteira da área logada, e a volta para a seleção enxuta não salva se ela
+// pedir o mesmo campo. Medido numa loja no ar: os 14 pedidos eram assim. A tela lê o total de `summary`,
+// e o valor do pagamento pelo `displayAmount`.
+for (const caminho of arquivosDeCodigo) {
+  const rel = path.relative(ROOT, caminho);
+  fs.readFileSync(caminho, "utf8").split("\n").forEach((linha, idx) => {
+    if (/payments\{/.test(linha) && /amount\{[^}]*\bamount\b/.test(linha)) {
+      errors.push(`${rel}:${idx + 1} pede o valor numérico dentro de payments (amount{amount}): Money.amount volta null e derruba a consulta inteira. Peça só displayAmount.`);
+    }
+  });
+}
+
 // ── Avisos NÃO bloqueantes (acabamento de marca) ──────────────────────────────
 const warnings = [];
 if (layout && /description:\s*(undefined|""|process\.env\.NEXT_PUBLIC_SITE_DESCRIPTION \|\| undefined)/.test(layout) && !process.env.NEXT_PUBLIC_SITE_DESCRIPTION) {
