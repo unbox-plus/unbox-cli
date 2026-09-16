@@ -1,5 +1,72 @@
 ## Changelog
 
+### Não lançado — a loja passa a falar com uma API só, a de parceiros
+
+Até aqui a loja conversava com três endereços da Unbox: `core.unbox.com.br/graphql`, o REST de
+`api.unbox.com.br` (só o `/auth/signin`) e `partners.unbox.com.br/graphql`, este último só no que já tinha
+paridade. O `UnboxClient` carregava os dois caminhos e um `usesPartnerApi` decidindo cada método. Agora
+**tudo** passa por `partners.unbox.com.br/graphql`: vitrine, carrinho, checkout, `placeOrder`, pedido, área do
+cliente, assinaturas, cupons, CEP, OTP, webhooks e inventário. O roteamento condicional deixou de existir.
+
+**Três cabeçalhos, e cada um responde uma pergunta.** `x-api-key` diz qual PARCEIRO; `Authorization` leva o
+token da LOJA, e é dele que o gateway extrai o shopId; `x-customer-token` leva o token do CLIENTE final e só
+aparece na área do cliente. Por isso **nenhuma chamada manda shopId nem token de bypass de captcha**. As duas
+exceções são campos que o próprio schema declara: o `shopId` de cada `fulfillmentGroup` no `placeOrder` e o de
+`createCartByTemplate`. E `UNBOX_CAPTCHA_BYPASS` sobrou num ponto só, o `signIn`, onde a doc oficial o exige.
+
+- **`lib/unbox/customer.ts` deixou de ter transporte próprio.** O `UnboxCustomerClient` agora carrega um
+  `UnboxClient` de loja já autenticado e delega a ele, acrescentando o `x-customer-token`. São duas
+  identidades na mesma requisição, e nenhuma das duas é dispensável: sem o token da loja não há contexto de
+  loja, sem o do cliente não há conta. Isso apagou a cópia da lógica de autenticação que vivia ali e fez a
+  área do cliente herdar prazo, formato do `Authorization` e a regra de não repetir mutação.
+- **Diferenças de argumento que a migração fechou**, uma a uma: `createCart` sem `shopId`;
+  `applyDiscountCodeToCart` e `removeDiscountCodeFromCart` sem `shopId`; `OrderInput` sem `shopId`;
+  `getInstallments`, `getAddressByPostalCode`, `customerOTPRequest`, `customerPasswordlessSignIn` e
+  `hasCustomerAccount` sem `shopId`; `orderByReferenceId` só com o id; `first` passou de
+  `ConnectionLimitInt` para `Int`; `updateCustomerAccount` aninha `receiveNewOrderEmail` em `metafields`; e o
+  upsert de endereço virou input PLANO (`UpsertAddressBookInput`), sem o envelope `addressBook`.
+- **`catalogItemProductById` não existe na API de parceiros.** O fallback de PDP por id passa a usar
+  `catalogItems(productIdsOrERPCodes:[id], first:1)`, que devolve o mesmo `CatalogItemProduct`. É a única
+  lacuna que sobrou, e está escrita no README da loja.
+- **Item de Payment Link mudou de forma.** Em parceiros ele é PRODUTO VIRTUAL (`PaymentLinkItemInput`):
+  título, quantidade e preço são do link, e o vínculo com o catálogo, quando existe, é por código de ERP.
+  Mandar `{productId, productVariantId}` ali cria um link sem nome e sem valor, que a página pública mostra
+  vazio; `app/api/payment-link` passa a exigir `title`, `quantity` e `price.amount` antes de chamar a Unbox.
+- **MUTAÇÃO NUNCA REPETE POR ERRO DE AUTENTICAÇÃO.** O cliente tenta o `Authorization` cru (o formato da doc)
+  e, se o gateway recusar, repete uma vez com `Bearer`. Com o `placeOrder` passando pelo mesmo caminho isso
+  vira risco de cobrança dupla: a régua casa por texto, e "not authorized" é também o que a adquirente
+  responde num cartão recusado. Agora só CONSULTA repete; sem formato medido, uma consulta leve mede antes e
+  a mutação vai uma vez. O formato aceito passou a viver no módulo, e não na instância, porque
+  `getStoreClient()` cria um client novo a cada request e o valor nunca chegava a ser memorizado.
+- **A posse do pedido continua sendo do BFF, e agora é só dele.** `orderByReferenceId` de parceiros não
+  recebe token de posse, então quem chama `getOwnedOrder` passa antes pelo cookie httpOnly assinado
+  (`lib/session.ts`). Sem essa guarda, a consulta abre qualquer pedido só pelo `referenceId`, que é curto.
+- **Credenciais**: `UNBOX_API_KEY`, `UNBOX_AUTH_URL` e `UNBOX_GRAPHQL_URL` saíram do código, do
+  `.env.example`, do CLI e da documentação. `UNBOX_PARTNER_API_KEY` passou de recomendada a obrigatória, e
+  `UNBOX_CAPTCHA_BYPASS` deixou de ser condicional no formulário do CLI.
+- **Gate 10 do `prebuild` saiu.** "A variável do id da loja tem de se chamar `shopId`" era regra do core, que
+  descobria a loja procurando esse nome literal nas variables. Nenhuma consulta manda mais shopId, e a regra
+  passaria a reprovar por engano justamente os dois pontos em que o schema declara o campo, onde o nome da
+  variável é livre.
+
+Conferido: `tsc --noEmit` limpo sobre o template inteiro com as dependências instaladas (é ele que cobre as
+mudanças de assinatura espalhadas pelo app), `scripts/check-unbox-brand.mjs` e o gate de neutralidade do
+pacote passando. O gate de marca pegou um erro real durante a migração: a reescrita do `client.ts` tinha
+trazido de volta `payments{amount{amount}}` no pedido, o mesmo campo que derrubou a área logada na v0.21.10.
+Todos os literais GraphQL do arquivo novo foram comparados com os do anterior; fora as mudanças descritas
+acima, são idênticos. **Nada disto foi executado contra a loja real**: antes de publicar, rodar
+`npm run unbox:test`.
+
+Loja já gerada: trocar `lib/unbox/client.ts`, `lib/unbox/customer.ts`, `lib/unbox/types.ts`,
+`lib/unbox/store.ts`, `lib/customer-session.ts`, `lib/config.ts`, `lib/env-check.ts`, `lib/orders.ts`,
+`lib/session.ts`, `app/api/payment-link/route.ts` e `scripts/check-unbox-brand.mjs`. No ambiente, preencher
+`UNBOX_PARTNER_API_KEY` e `UNBOX_CAPTCHA_BYPASS`; `UNBOX_API_KEY`, `UNBOX_AUTH_URL` e `UNBOX_GRAPHQL_URL`
+podem sair. Quem chama `createPaymentLink` com itens de catálogo precisa passar a mandar título, quantidade e
+preço.
+
+Pendente com a Unbox: `UpsertAddressBookInput` não declara `_id`, então editar um endereço do cliente depende
+de o backend casar o registro sozinho. Vale confirmar antes de prometer edição de endereço na conta.
+
 ### v0.21.10 — o valor nulo do pagamento deixa de derrubar a área logada
 
 `Money.amount` é non-null no schema da Unbox e volta null quando o pagamento não tem valor numérico. Como
