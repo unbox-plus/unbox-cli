@@ -1,5 +1,11 @@
 ## Changelog
 
+### Não lançado — "usar esta versão" do editor leva o CSS, o SEO e os dados da loja
+
+O `document.ts` leva um conserto que só o editor usa: o "usar esta versão" (op interna `replace_doc`)
+passa a trazer o CSS, o SEO das páginas e os dados da loja da versão escolhida, em vez de manter os do
+rascunho de hoje. Na loja, nada muda.
+
 ### v0.21.10 — o valor nulo do pagamento deixa de derrubar a área logada
 
 `Money.amount` é non-null no schema da Unbox e volta null quando o pagamento não tem valor numérico. Como
