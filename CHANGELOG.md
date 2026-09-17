@@ -40,6 +40,14 @@ próprio schema declara: o `shopId` de cada `fulfillmentGroup` no `placeOrder` e
   título, quantidade e preço são do link, e o vínculo com o catálogo, quando existe, é por código de ERP.
   Mandar `{productId, productVariantId}` ali cria um link sem nome e sem valor, que a página pública mostra
   vazio; `app/api/payment-link` passa a exigir `title`, `quantity` e `price.amount` antes de chamar a Unbox.
+- **O scalar `AWSJSON` é assimétrico, e o `placeOrder` passou a respeitar isso.** Medido contra a API: na
+  ENTRADA o campo espera o JSON já serializado em string; na SAÍDA ele volta como objeto puro. O único campo
+  `AWSJSON` de input que a loja alcança é `PaymentInput.data` (os outros dois do schema, `calculation` de
+  `DiscountCodeInputCreate`/`Update`, são de mutações que a loja não chama), e ele ia como objeto: os dois
+  ramos de `placeOrder`, Pix e cartão, agora mandam `JSON.stringify(...)`. A recusa acontece na validação da
+  variável, antes de qualquer cobrança, então o sintoma era pedido nenhum, não pedido torto. A leitura não
+  mudou em lugar nenhum: `cartEvents.data`, `UnboxPayPaymentData.paymentRecord` e `installments` continuam
+  sendo lidos como objeto, que é o que a saída entrega.
 - **MUTAÇÃO NUNCA REPETE POR ERRO DE AUTENTICAÇÃO.** O cliente tenta o `Authorization` cru (o formato da doc)
   e, se o gateway recusar, repete uma vez com `Bearer`. Com o `placeOrder` passando pelo mesmo caminho isso
   vira risco de cobrança dupla: a régua casa por texto, e "not authorized" é também o que a adquirente

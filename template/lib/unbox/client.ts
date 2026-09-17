@@ -562,16 +562,19 @@ export class UnboxClient {
   async placeOrder(p: PlaceOrderParams): Promise<any> {
     // country é obrigatório (String!) tanto no shippingAddress quanto no billingAddress.
     const address = { country: "BR", ...p.address };
+    // `PaymentInput.data` é AWSJSON. O scalar é assimétrico: na ENTRADA ele espera o JSON já
+    // serializado em string, e na SAÍDA devolve o objeto puro. Mandar o objeto aqui faz o gateway
+    // recusar o placeOrder na validação da variável, antes de qualquer cobrança.
     const payment = p.payment.type === "pix"
-      ? { amount: p.total, method: "unboxpay_pix", data: { paymentType: "pix" }, billingAddress: address }
+      ? { amount: p.total, method: "unboxpay_pix", data: JSON.stringify({ paymentType: "pix" }), billingAddress: address }
       : {
           amount: p.total, method: "unboxpay_credit", billingAddress: address,
-          data: {
+          data: JSON.stringify({
             cardHolder: p.payment.card.cardHolder, cardNumber: p.payment.card.cardNumber,
             expirationMonth: p.payment.card.expirationMonth, expirationYear: p.payment.card.expirationYear,
             securityCode: p.payment.card.securityCode, installments: p.payment.card.installments ?? 1,
             paymentType: "credit",
-          },
+          }),
         };
     // device (antifraude/3DS) é OBRIGATÓRIO e vai no NÍVEL RAIZ do PlaceOrderInput
     // (irmão de order/payments). Sem navegador (scripts), o fallback é { type: "API" }.
