@@ -75,7 +75,8 @@ Todos os literais GraphQL do arquivo novo foram comparados com os do anterior; f
 acima, são idênticos. **Nada disto foi executado contra a loja real**: antes de publicar, rodar
 `npm run unbox:test`.
 
-Alterada sequência de testes de carrinho (8b) no `scripts/test-live.ts` para não seguir com um carrinho vazio após a remoção do item existente, fazendo com que o `addCartItems` seja chamado apenas no final da sequência.
+Alterada sequência de testes de carrinho (8b) no `scripts/test-live.ts` para não seguir com um carrinho vazio
+após a remoção do item existente, fazendo com que o `addCartItems` seja chamado apenas no final da sequência.
 
 Loja já gerada: trocar `lib/unbox/client.ts`, `lib/unbox/customer.ts`, `lib/unbox/types.ts`,
 `lib/unbox/store.ts`, `lib/customer-session.ts`, `lib/config.ts`, `lib/env-check.ts`, `lib/orders.ts`,
@@ -83,6 +84,10 @@ Loja já gerada: trocar `lib/unbox/client.ts`, `lib/unbox/customer.ts`, `lib/unb
 `scripts/check-unbox-brand.mjs`. No ambiente, preencher `UNBOX_PARTNER_API_KEY`; `UNBOX_API_KEY`,
 `UNBOX_AUTH_URL`, `UNBOX_GRAPHQL_URL` e `UNBOX_CAPTCHA_BYPASS` podem sair. Quem chama `createPaymentLink`
 com itens de catálogo precisa passar a mandar título, quantidade e preço.
+
+O `document.ts` leva um conserto que só o editor usa: o "usar esta versão" (op interna `replace_doc`)
+passa a trazer o CSS, o SEO das páginas e os dados da loja da versão escolhida, em vez de manter os do
+rascunho de hoje. Na loja, nada muda.
 
 ### v0.21.10 — o valor nulo do pagamento deixa de derrubar a área logada
 
