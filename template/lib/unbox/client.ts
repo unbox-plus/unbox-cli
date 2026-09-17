@@ -716,10 +716,12 @@ export class UnboxClient {
     //     (OrderTrackingData { code, url, event }).
     //   · fora displayStatus e payments.data, resolvedores que derrubam a consulta inteira.
     //   · `payments` sempre junto de `summary` (ver customer.ts, orders()).
+    //   · de `payments.amount` só o `displayAmount`: `Money.amount` é non-null e volta null quando o
+    //     pagamento não tem valor numérico, e um pedido assim derruba a consulta (ver customer.ts).
     const selecao = (raiz: string, endereco: string, rica: boolean) => `${raiz}{
           _id referenceId status email${rica ? " createdAt" : ""}
           summary{total{amount displayAmount}${rica ? RESUMO_DETALHADO : ""}}
-          payments{displayName mode processor isCaptured cardBrand captureErrorMessage amount{amount displayAmount}${rica ? " status{status}" : ""}}
+          payments{displayName mode processor isCaptured cardBrand captureErrorMessage amount{displayAmount}${rica ? " status{status}" : ""}}
           fulfillmentGroups{
             status type trackingCode
             ${rica ? ENVIO_E_RASTREIO : ""}

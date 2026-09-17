@@ -1,5 +1,28 @@
 ## Changelog
 
+### v0.21.10 — o valor nulo do pagamento deixa de derrubar a área logada
+
+`Money.amount` é non-null no schema da Unbox e volta null quando o pagamento não tem valor numérico. Como
+`customerOrders` também é non-null, UM pedido assim apaga a resposta inteira: o cliente logado vê "Não
+conseguimos carregar seus pedidos" com os pedidos lá no painel. Medido numa loja no ar: os 14 pedidos eram
+assim, e a volta para a seleção enxuta não salvava, porque ela pedia o mesmo campo.
+
+- As consultas de pedido (lista, detalhe e o pedido de quem comprou sem conta) pedem de `payments.amount` só
+  o `displayAmount`. O número que a tela usa vem de `summary`.
+- O valor do pagamento e o total aceitam o texto já formatado quando o número não vem, conferindo o formato:
+  o `displayAmount` no contexto de cliente já devolveu "R$NaN,undefined", e esse não entra.
+- Gate novo no `prebuild`: pedir o valor numérico dentro de `payments` reprova o build.
+
+Conferido no formato do pedido: pagamento sem número mostra "R$ 157,24" na tela e no total; texto torto some;
+pedido com número continua igual.
+
+Loja já gerada: trocar `lib/unbox/customer.ts`, `lib/unbox/client.ts`, `lib/orders.ts` e
+`scripts/check-unbox-brand.mjs`. A consulta que confere se a loja está no caso está em
+`patch-cli-money-amount-nulo.md`.
+
+Pendente com a Unbox: `Money.amount` non-null voltando null é defeito do backend
+(`bug-unbox-sessao-de-cliente.md`, item 4).
+
 ### v0.21.9 — redirecionamento conferido também decodificado, e JSON-LD sempre por `ldJson`
 
 Duas correções de segurança. Endereço legítimo e JSON-LD que a foundation já gera não mudam.
