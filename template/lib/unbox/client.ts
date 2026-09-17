@@ -599,7 +599,7 @@ export class UnboxClient {
       token orders{_id referenceId status summary{total{amount displayAmount}}
         recurringOrderId generatedNewRecurringOrder
         payments{method{name} status{status} captureErrorMessage
-          data{... on UnboxPayPaymentData{qrCode paymentRecord redirectUrl numberOfInstallments}}}} }}`;
+          data{__typename ... on UnboxPayPaymentData{qrCode paymentRecord redirectUrl numberOfInstallments}}}} }}`;
     const d = await this.gql<{ placeOrder: any }>(q, { i: input }, { timeoutMs: PLACE_ORDER_TIMEOUT_MS });
     return d.placeOrder;
   }

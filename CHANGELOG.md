@@ -47,7 +47,8 @@ próprio schema declara: o `shopId` de cada `fulfillmentGroup` no `placeOrder` e
   ramos de `placeOrder`, Pix e cartão, agora mandam `JSON.stringify(...)`. A recusa acontece na validação da
   variável, antes de qualquer cobrança, então o sintoma era pedido nenhum, não pedido torto. A leitura não
   mudou em lugar nenhum: `cartEvents.data`, `UnboxPayPaymentData.paymentRecord` e `installments` continuam
-  sendo lidos como objeto, que é o que a saída entrega.
+  sendo lidos como objeto, que é o que a saída entrega. Além disso, foi incluído o `__typename` ao campo
+  `Payment.data` para evitar erros de resolução em runtime.
 - **MUTAÇÃO NUNCA REPETE POR ERRO DE AUTENTICAÇÃO.** O cliente tenta o `Authorization` cru (o formato da doc)
   e, se o gateway recusar, repete uma vez com `Bearer`. Com o `placeOrder` passando pelo mesmo caminho isso
   vira risco de cobrança dupla: a régua casa por texto, e "not authorized" é também o que a adquirente
