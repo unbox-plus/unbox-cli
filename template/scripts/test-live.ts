@@ -10,12 +10,9 @@ import { orderStatusLabel } from "../lib/unbox/customer";
 const SHOP = process.env.UNBOX_SHOP_ID!;
 const SLUG = process.env.UNBOX_SHOP_SLUG ?? "minha-loja";
 const client = new UnboxClient({
-  apiKey: process.env.UNBOX_API_KEY ?? "",
+  partnerApiKey: process.env.UNBOX_PARTNER_API_KEY ?? "",
   shopId: SHOP,
-  // API de parceiros: presente = signIn e leituras compativeis roteiam pra ela
-  partnerApiKey: process.env.UNBOX_PARTNER_API_KEY,
   partnerGqlUrl: process.env.UNBOX_PARTNER_GRAPHQL_URL,
-  captchaBypass: process.env.UNBOX_CAPTCHA_BYPASS,
 });
 
 let pass = 0,
@@ -47,13 +44,11 @@ const ADDR = {
 };
 
 (async () => {
-  console.log(client.usesPartnerApi
-    ? `ℹ️  API de PARCEIROS ativa (${client.partnerGqlUrl}) — signIn + leituras compatíveis roteiam por ela`
-    : "ℹ️  Modo core puro (sem UNBOX_PARTNER_API_KEY) — todas as chamadas via core/REST");
+  console.log(`ℹ️  API de PARCEIROS: ${client.partnerGqlUrl}`);
   await step("1. signIn (loja)", async () => {
     const token = await client.signIn(process.env.UNBOX_USER!, process.env.UNBOX_PASS!);
-    // Setup só-parceiro: UNBOX_SHOP_ID pode vir vazio — extrai do JWT (mesmos claims
-    // arn:unbox:shopId que o app usa em lib/unbox/store.ts). Necessário pros passos core.
+    // UNBOX_SHOP_ID pode vir vazio — extrai do JWT (mesmos claims arn:unbox:shopId que o app usa
+    // em lib/unbox/store.ts). Necessário para os dois pontos em que o schema pede o shopId.
     if (!client.shopId) {
       try {
         const payload = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
@@ -119,14 +114,14 @@ const ADDR = {
     return r;
   });
 
-  await step("8b. addCartItems / getCart / update / remove", async () => {
+  await step("8b. getCart / update / remove / addCartItems", async () => {
     if (!cart || !picked) throw new Error("sem carrinho");
-    await client.addCartItems(cart.cartId, cart.cartToken, [{ productId: picked.productId, productVariantId: v._id, price: v.pricing[0].price, quantity: 1 }]);
-    const reloaded = await client.getCart(cart.cartId, cart.cartToken);
-    const itemId = reloaded.items.edges[0].node._id;
+    const itemId = cart.cart.items.edges[0].node._id;
     await client.updateItemQuantity(cart.cartId, cart.cartToken, itemId, 3);
     await client.removeCartItems(cart.cartId, cart.cartToken, [itemId]);
-    console.log(`   getCart itens=${reloaded.items.totalCount}; add/update/remove OK`);
+    await client.addCartItems(cart.cartId, cart.cartToken, [{ productId: picked.productId, productVariantId: v._id, price: v.pricing[0].price, quantity: 1 }]);
+    const reloaded = await client.getCart(cart.cartId, cart.cartToken);
+    console.log(`   getCart itens=${reloaded.items.totalCount}; update/remove/add OK`);
     return true;
   });
 

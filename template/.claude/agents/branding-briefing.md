@@ -388,7 +388,7 @@ O `create-unbox-store` (v0.9.0+) já pergunta, de forma determinística:
 8. **Estilo visual** (select com sugestão automática a partir do objetivo/site/IG):
    essencial, promocional, editorial ou boutique, aplica receita da home, fontes,
    neutros, chrome e radius no scaffold (ver `agents/PADROES.md`)
-9. Tem credenciais Unbox (`UNBOX_PARTNER_API_KEY` ou `UNBOX_API_KEY`, `UNBOX_USER`,
+9. Tem credenciais Unbox (`UNBOX_PARTNER_API_KEY`, `UNBOX_USER`,
    `UNBOX_PASS`)? Se não, sobe em modo mockup.
 10. Checkout customizável (código no projeto) ou padrão hospedado da Unbox
 11. Rodar `npm install`?

@@ -43,12 +43,9 @@ if (!cartId || !cartToken) {
 
 (async () => {
   const client = new UnboxClient({
-    apiKey: process.env.UNBOX_API_KEY ?? "",
+    partnerApiKey: process.env.UNBOX_PARTNER_API_KEY ?? "",
     shopId: process.env.UNBOX_SHOP_ID!,
-    // API de parceiros: presente = signIn e leituras compativeis roteiam pra ela
-    partnerApiKey: process.env.UNBOX_PARTNER_API_KEY,
     partnerGqlUrl: process.env.UNBOX_PARTNER_GRAPHQL_URL,
-    captchaBypass: process.env.UNBOX_CAPTCHA_BYPASS,
   });
   await client.signIn(process.env.UNBOX_USER!, process.env.UNBOX_PASS!);
 

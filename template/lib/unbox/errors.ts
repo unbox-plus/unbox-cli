@@ -42,7 +42,7 @@ export const ERROR_MESSAGES: Record<string, string> = {
   INVALID_CREDENTIALS_ERROR: "Código ou credenciais inválidos.",
   UNBOX_PAY_CUSTOMER_ERROR: "Falha no cadastro de pagamento. Tente novamente.",
   // ---- infra / genéricos ----
-  FORBIDDEN_ERROR: "Ação não autorizada. Recarregue a página e tente novamente.", // ex.: falta x-captcha-verification
+  FORBIDDEN_ERROR: "Ação não autorizada. Recarregue a página e tente novamente.",
   VALIDATION_ERROR: "Alguns dados são inválidos. Revise o formulário.",
   UNEXPECTED_ERROR: "Algo deu errado. Tente novamente em instantes.",
   INTERNAL_SERVER_ERROR: "Algo deu errado. Tente novamente em instantes.",

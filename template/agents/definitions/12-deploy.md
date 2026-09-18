@@ -57,8 +57,7 @@ primeiro build. Sem elas o build falha com `UnboxError: signin HTTP 403`.
 #### Via CLI (recomendado — selecionar todos os 3 ambientes no prompt):
 
 ```bash
-npx vercel env add UNBOX_PARTNER_API_KEY   # modelo recomendado (ou UNBOX_API_KEY, por loja)
-npx vercel env add UNBOX_CAPTCHA_BYPASS    # obrigatório com a key de parceiro (placeOrder/OTP)
+npx vercel env add UNBOX_PARTNER_API_KEY   # toda chamada à Unbox passa por ela
 npx vercel env add UNBOX_USER
 npx vercel env add UNBOX_PASS
 npx vercel env add SESSION_SECRET
@@ -79,9 +78,7 @@ Para cada variável, marcar os checkboxes: **Production ✅ Preview ✅ Developm
 
 | Variável | Obrigatório | Descrição |
 |---|---|---|
-| `UNBOX_PARTNER_API_KEY` | ✅ (recomendado) | Key única do parceiro; dispensa `UNBOX_API_KEY` |
-| `UNBOX_CAPTCHA_BYPASS` | ✅ com key de parceiro | Segredo do header x-captcha-verification (sem ele: CAPTCHA_MALFORMED_ERROR no pagamento) |
-| `UNBOX_API_KEY` | ✅ se não houver key de parceiro | Chave de API da loja (modelo antigo) |
+| `UNBOX_PARTNER_API_KEY` | ✅ | Key única do parceiro; é por ela que a loja fala com a Unbox |
 | `UNBOX_USER` | ✅ | Usuário de API |
 | `UNBOX_PASS` | ✅ | Senha de API |
 | `SESSION_SECRET` | ✅ | String aleatória forte (≥ 32 chars) |
