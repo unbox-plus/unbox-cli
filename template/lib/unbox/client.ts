@@ -50,7 +50,7 @@ const DEFAULTS = {
  *  se o servidor não conseguir resolver, repete sem ele: a loja mostra o endereço onde a API
  *  entrega e a página do pedido nunca deixa de abrir. */
 export const BLOCO_ENDERECO_GRUPO =
-  "data{ ... on ShippingOrderFulfillmentGroupData { shippingAddress{fullName address1 number neighborhood city region postal} } }";
+  "data{__typename ... on ShippingOrderFulfillmentGroupData { shippingAddress{fullName address1 number neighborhood city region postal} } }";
 
 function ehUniaoNaoResolvida(e: unknown): boolean {
   const msgs = e instanceof UnboxError
