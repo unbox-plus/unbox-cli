@@ -102,7 +102,7 @@ Referência do que cada um cobriu, caso precise entender/estender alguma parte e
 | 04 | **PDP** | `app/(loja)/produto/[productSlug]/page.tsx`, `components/product/pdp/*.tsx` |
 | 05 | **Cart** | `app/(loja)/carrinho/page.tsx`, `components/cart/*.tsx`, `app/api/cart/**` (inclui link de recuperação `?id=&token=`) |
 | 06 | **Checkout** | `app/(loja)/checkout/page.tsx`, `components/checkout/checkout-client.tsx`, `app/api/checkout/**` |
-| 07 | **Auth** | `app/(loja)/conta/entrar/page.tsx`, `lib/session.ts`, `app/api/account/{otp,signin,signout}/route.ts` |
+| 07 | **Auth** | `app/(loja)/conta/entrar/page.tsx`, `lib/session.ts`, `app/api/account/{otp,signin,signout}/route.ts` (o signin chama `publicoNoLogin`, de `lib/publico-do-cliente.ts`: o público da conta, com teto de 800 ms; não remova) |
 | 08 | **Customer** | `app/(loja)/conta/**`, `components/account/*.tsx`, `lib/customer-session.ts` |
 | 09 | **Promotions** | `lib/enrichment/combos.ts` (kits), `components/home/combos-*.tsx`, **infra pronta, mas `COMBOS = []` por padrão**, precisa popular |
 | 10 | **Feedback/UX** | `sonner` (toasts), `lib/unbox/errors.ts` (`friendlyError`, `cartEventLabel`), `app/error.tsx`, `app/not-found.tsx` |

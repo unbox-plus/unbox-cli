@@ -4,9 +4,11 @@
 
 O lojista define até cinco PÚBLICOS no editor (quem busca volume, quem chegou pelo anúncio de inverno) e dá a
 cada um a sua versão da home: textos, imagens, vitrines, ordem e seções ocultas. O que o público não mudou
-continua sendo o de Todos. Quem decide quem vê o quê é a borda da loja, por sinais: o link do anúncio
-(`?para=<id>`), a campanha (`utm_*` contém um texto) e os apps da loja (o quiz), que avisam por um evento.
-Um grupo de controle (20% por padrão) cai no público e vê Todos, para medir se a versão vende mais.
+continua sendo o de Todos. Quem decide quem vê o quê é a borda da loja, por sinais FORTES (o link do anúncio
+`?para=<id>`, a campanha `utm_*` contém um texto, os apps da loja como o quiz, e a conta do cliente, conferida no
+login) e FRACOS (o site de onde a pessoa veio e a região dela), que nunca passam por cima de um forte. Um grupo de
+controle (20% por padrão) cai no público e vê Todos, para medir se a versão vende mais. E quem não quer a
+personalização pede a loja padrão na página de privacidade.
 
 - **A home virou `PaginaInicial({ doc })`** (`components/home/pagina-inicial.tsx`). `app/(loja)/page.tsx` é
   casca, e a versão de cada público (`app/(loja)/%5Fpublico/[publico]`) renderiza o mesmo corpo com o
@@ -29,6 +31,21 @@ Um grupo de controle (20% por padrão) cai no público e vê Todos, para medir s
   projeção para o navegador como lista de permissão (campo novo fica no servidor até alguém o permitir), o
   "Ver como" do editor e `EditablePublico`. Detalhe no README da foundation, seção "Personalização por público".
 
+- **Os sinais fracos, na borda**: `seguir` passa a `decidirPublico` o `referer` (site de outro host: Instagram,
+  Google… ou o endereço de outro site, com os subdomínios) e a região que a Vercel põe em todo pedido
+  (`x-vercel-ip-country`, `-country-region`, `-city`; só no Brasil, porque "SC" também é a Carolina do Sul). Sinal
+  fraco grava como fraco, o que guarda o sorteio do visitante, e não regrava quando só repete o gravado.
+- **A conta, no login** (`lib/publico-do-cliente.ts`): `app/api/account/signin` chama `publicoNoLogin` depois de
+  gravar o token. Ele lê as regras de cliente do documento (comprou o produto, assinatura ativa, estado do
+  endereço; elas não saem em `/api/unbox/publicos`), consulta só o que elas perguntam, com teto de 800 ms, e grava o
+  público na mesma resposta. Nunca derruba nem atrasa o login além do teto, e respeita o quiz respondido e a loja
+  padrão. `UnboxCustomerClient.produtosComprados` é a consulta mínima dos pedidos pagos.
+- **A loja padrão** (direito de oposição): a privacidade ganha "Versões da loja por interesse", que só aparece em
+  loja com públicos e lista os sinais que ELA usa, com o botão `<LojaPadrao/>`. Ver a loja padrão grava
+  `todos~<sorteio>~forte~recusa` por 365 dias, e nenhum sinal automático tira a pessoa de lá.
+- O `check-editable` cobra também `publicoNoLogin(` no login e `<LojaPadrao` na privacidade quando o layout declara
+  a personalização.
+
 - Publicar revalida também a LISTA dos públicos (`revalidatePath("/api/unbox/publicos")` com `/`): gerada no build
   antes da primeira publicação, ela não entra no cache com a tag do conteúdo. Publicado, a versão vale em até 1
   minuto (o que a borda leva para renovar a cópia em memória).
@@ -38,7 +55,10 @@ Um grupo de controle (20% por padrão) cai no público e vê Todos, para medir s
 Medido na loja gerada por este CLI (`next build && next start`, lendo um editor de teste): Todos sem cookie é
 a página de sempre, o link e a campanha gravam e servem a versão, o controle vê Todos, 50 pedidos paralelos
 alternando cookie sem mistura, e publicar revalida a home, as versões e a lista. A versão pesa 760 bytes a mais
-que Todos, comprimida (a camada e o caminho do bundle da rota).
+que Todos, comprimida (a camada e o caminho do bundle da rota). Nos sinais novos (29 de 29): Instagram, blog e
+região levam à versão certa e gravam fraco; forte gravado resiste a site e região; a loja padrão resiste a tudo; o
+login (contra uma API de parceiros falsa) grava o público da compra paga e da assinatura, não grava para pedido
+cancelado, respeita quiz e loja padrão, e com a API lenta (2,5 s) responde em 806 ms, sem público.
 
 Loja já gerada: a foundation nova (`lib/editable`) não muda nada sozinha; a personalização liga quando a loja
 tem as três peças e passa `personalizacao` ao provider (o `check-editable` diz o que falta).

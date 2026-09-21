@@ -15,7 +15,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import {
-  COOKIE_DE_PUBLICO, DIAS_DA_ESCOLHA, EVENTO_DEFINIR_PUBLICO, PARAM_DE_PUBLICO, idDePublicoValido, lerCookieDePublico, valorDoCookieDePublico,
+  COOKIE_DE_PUBLICO, DIAS_DA_ESCOLHA, EVENTO_DEFINIR_PUBLICO, PARAM_DE_PUBLICO, cookieDaLojaPadrao, idDePublicoValido, lerCookieDePublico, valorDoCookieDePublico,
   type OrigemDoPublico,
 } from "./document";
 import { useEditableContext } from "./provider";
@@ -23,6 +23,10 @@ import { useEditableContext } from "./provider";
 function cookieAtual(): string | null {
   const m = document.cookie.match(new RegExp(`(?:^|; )${COOKIE_DE_PUBLICO}=([^;]*)`));
   return m ? m[1] : null;
+}
+
+function gravarCookie(valor: string, dias: number): void {
+  document.cookie = `${COOKIE_DE_PUBLICO}=${encodeURIComponent(valor)}; path=/; max-age=${dias * 86_400}; samesite=lax${location.protocol === "https:" ? "; secure" : ""}`;
 }
 
 /** 0 a 99, uma vez por visitante (o mesmo que a borda sorteia quando é ela quem grava primeiro) */
@@ -46,8 +50,7 @@ export function useDefinirPublico(): (id: string, origem?: OrigemDoPublico) => v
     (id: string, origem: OrigemDoPublico = "app") => {
       if (editing || !idDePublicoValido(id)) return;
       const sorteio = lerCookieDePublico(cookieAtual())?.sorteio ?? sortear();
-      const valor = valorDoCookieDePublico({ publico: id, sorteio, forca: "forte", origem });
-      document.cookie = `${COOKIE_DE_PUBLICO}=${encodeURIComponent(valor)}; path=/; max-age=${DIAS_DA_ESCOLHA[origem] * 86_400}; samesite=lax${location.protocol === "https:" ? "; secure" : ""}`;
+      gravarCookie(valorDoCookieDePublico({ publico: id, sorteio, forca: "forte", origem }), DIAS_DA_ESCOLHA[origem]);
       // o link do anúncio que trouxe a pessoa não pode desfazer, numa recarga, a escolha que ela acabou de fazer
       const u = new URL(location.href);
       if (u.searchParams.has(PARAM_DE_PUBLICO)) {
@@ -89,4 +92,35 @@ export function LimparPublico(): null {
     document.cookie = `${COOKIE_DE_PUBLICO}=; path=/; max-age=0; samesite=lax`;
   }, []);
   return null;
+}
+
+/**
+ * A LOJA PADRÃO, o direito de oposição (LGPD): a pessoa pede para não ver versão nenhuma. `recusar` grava o
+ * cookie da recusa (`todos~<sorteio>~forte~recusa`): a borda serve Todos, e nenhum sinal automático (link,
+ * campanha, site, região, login) a tira de lá. `voltar` apaga a recusa. Uma escolha que ela mesma faça depois
+ * num app (o quiz) vale: é ela escolhendo de novo.
+ *
+ * `recusou` começa `null` (o servidor não lê cookie: a página é a mesma para todo mundo) e vira booleano depois
+ * de montar, para o botão não mentir na primeira pintura. Na prévia do editor não grava nada.
+ */
+export function useLojaPadrao(): { recusou: boolean | null; recusar: () => void; voltar: () => void } {
+  const router = useRouter();
+  const { editing } = useEditableContext();
+  const [recusou, setRecusou] = React.useState<boolean | null>(null);
+  React.useEffect(() => {
+    setRecusou(lerCookieDePublico(cookieAtual())?.origem === "recusa");
+  }, []);
+  const recusar = React.useCallback(() => {
+    if (editing) return;
+    gravarCookie(valorDoCookieDePublico(cookieDaLojaPadrao(lerCookieDePublico(cookieAtual())?.sorteio ?? sortear())), DIAS_DA_ESCOLHA.recusa);
+    setRecusou(true);
+    router.refresh();
+  }, [editing, router]);
+  const voltar = React.useCallback(() => {
+    if (editing) return;
+    document.cookie = `${COOKIE_DE_PUBLICO}=; path=/; max-age=0; samesite=lax`;
+    setRecusou(false);
+    router.refresh();
+  }, [editing, router]);
+  return { recusou, recusar, voltar };
 }

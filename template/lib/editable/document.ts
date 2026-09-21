@@ -1864,9 +1864,10 @@ export function proximoHandleLivre(
 // O lojista define até cinco PÚBLICOS (quem busca volume, quem chegou pelo anúncio de inverno) e dá a cada
 // um a SUA versão da home: textos, imagens, vitrines, ordem e seções ocultas próprias. O que o público não
 // mudou continua sendo o de Todos. Quem decide quem vê o quê é a BORDA da loja (`decidirPublico`), por
-// sinais: o link do anúncio (`?para=<id>`), a campanha (UTM) e os apps da loja (o quiz), que gravam a
-// escolha num cookie. Um grupo de controle (`CONTROLE_PADRAO`) cai no público e vê Todos, para a loja medir
-// se a versão vende mais.
+// sinais que gravam a escolha num cookie: os FORTES (o link do anúncio `?para=<id>`, a campanha, os apps da
+// loja como o quiz, e a conta do cliente no login) e os FRACOS (o site de onde a pessoa veio e a região dela),
+// que nunca passam por cima de um forte. Um grupo de controle (`CONTROLE_PADRAO`) cai no público e vê Todos,
+// para a loja medir se a versão vende mais; e quem pede a loja padrão sai de tudo (`cookieDaLojaPadrao`).
 //
 // A CAMADA mora nos mesmos mapas do documento, e é isso que deixa as operações antigas intactas:
 // - o valor (e a declaração de honestidade dele) na chave do caminho com `@<id>` no fim
@@ -1890,6 +1891,8 @@ export const DESCRICAO_DE_PUBLICO_MAX = 300;
 export const CAMPOS_DE_UTM = ["source", "medium", "campaign", "content", "term"] as const;
 export type CampoDeUtm = (typeof CAMPOS_DE_UTM)[number];
 export const REGRAS_DE_UTM_MAX = 10;
+/** o teto de regras de CADA sinal (campanha, site, região, cliente) num público */
+export const REGRAS_POR_SINAL_MAX = REGRAS_DE_UTM_MAX;
 export const TEXTO_DE_REGRA_MAX = 60;
 /** a campanha casa quando o parâmetro `utm_<campo>` CONTÉM o texto (sem diferença de maiúsculas) */
 export interface RegraDeUtm {
@@ -1897,11 +1900,54 @@ export interface RegraDeUtm {
   contem: string;
 }
 /**
- * Como alguém ENTRA neste público pela borda, além do link do anúncio (`?para=<id>`, que vale para todo
- * público sem regra nenhuma) e dos apps da loja (que avisam pelo evento `unbox:definir-publico`).
+ * OS SITES CONHECIDOS pelo nome, com os endereços que cada um usa (`l.instagram.com` é o Instagram; o Google
+ * responde por `google.com`, `google.com.br`…). A regra de site é um destes nomes ou o endereço de outro site
+ * (`blog.parceiro.com.br`), que casa também com os subdomínios dele.
+ */
+export const SITES_DE_ORIGEM = {
+  instagram: /(^|\.)instagram\.com$/,
+  facebook: /(^|\.)(facebook\.com|fb\.com|fb\.me)$/,
+  tiktok: /(^|\.)tiktok\.com$/,
+  youtube: /(^|\.)(youtube\.com|youtu\.be)$/,
+  google: /(^|\.)google(\.co|\.com)?(\.[a-z]{2})?$/,
+  pinterest: /(^|\.)(pinterest(\.com)?(\.[a-z]{2})?|pin\.it)$/,
+  x: /(^|\.)(x\.com|twitter\.com|t\.co)$/,
+  bing: /(^|\.)bing\.com$/,
+} as const satisfies Record<string, RegExp>;
+export type SiteConhecido = keyof typeof SITES_DE_ORIGEM;
+/** o endereço de um site na regra, em formato FECHADO: minúsculas, números, hífen e ao menos um ponto */
+const HOST_DE_SITE = /^(?=.{4,60}$)[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/;
+/** uma UF do Brasil (`UFS`, a lista dos dados da empresa): a região do visitante e o endereço do cliente logado */
+export type Uf = (typeof UFS)[number];
+/** a região do visitante: a UF e, quando a regra é mais estreita que o estado, a cidade */
+export interface RegraDeRegiao {
+  uf: Uf;
+  cidade?: string;
+}
+/** o nome de uma cidade: letras (com acento), espaço, ponto, apóstrofo e hífen. Sem `\p{L}`: a loja compila para ES2017 */
+const CIDADE_DE_REGRA = /^[A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ .'-]{1,59}$/;
+/** o slug de um produto (o fim do endereço dele), em formato fechado */
+const SLUG_DE_PRODUTO = /^[a-z0-9][a-z0-9_-]{0,99}$/;
+/**
+ * CLIENTE LOGADO: casado NO LOGIN, no servidor da loja, pelos dados da conta. `comprou` é o slug do produto (o
+ * fim do endereço dele). Categoria fica de fora: o pedido não a traz, e buscá-la produto a produto estouraria o
+ * tempo do login.
+ */
+export type RegraDeCliente = { tipo: "comprou"; produto: string } | { tipo: "assinante" } | { tipo: "uf"; uf: Uf };
+/**
+ * Como alguém ENTRA neste público, além do link do anúncio (`?para=<id>`, que vale para todo público sem regra
+ * nenhuma) e dos apps da loja (que avisam pelo evento `unbox:definir-publico`):
+ * - `utm`: a campanha do endereço. FORTE: grava a escolha e vale na hora;
+ * - `site`: o site de onde a pessoa veio para a loja. FRACO;
+ * - `regiao`: onde ela está, pelo IP. FRACO, e só no Brasil;
+ * - `cliente`: a conta dela, conferida no login. FORTE. Fica fora da lista da borda: só o servidor da loja lê.
+ * Fraco nunca tira ninguém de um público escolhido por sinal forte (`decidirPublico`).
  */
 export interface EntradaDoPublico {
   utm?: RegraDeUtm[];
+  site?: string[];
+  regiao?: RegraDeRegiao[];
+  cliente?: RegraDeCliente[];
 }
 export interface Publico {
   nome: string;
@@ -2271,12 +2317,19 @@ export const PARAM_DE_PUBLICO = "para";
 export const ROTA_DO_PUBLICO = "/_publico";
 /** o evento que os apps da loja (o quiz do Admin e qualquer outro) disparam para pôr o visitante num público */
 export const EVENTO_DEFINIR_PUBLICO = "unbox:definir-publico";
-export type OrigemDoPublico = "link" | "campanha" | "app";
+/**
+ * De onde veio a escolha gravada. `recusa` é quem pediu a LOJA PADRÃO (direito de oposição): o cookie guarda
+ * `todos` e nenhum sinal automático o tira de lá.
+ */
+export type OrigemDoPublico = "link" | "campanha" | "app" | "cliente" | "site" | "regiao" | "recusa";
 export type ForcaDoSinal = "forte" | "fraco";
 /** quantos dias uma escolha vale, contados do último toque */
-export const DIAS_DA_ESCOLHA: Record<OrigemDoPublico, number> = { link: 30, campanha: 30, app: 90 };
+export const DIAS_DA_ESCOLHA: Record<OrigemDoPublico, number> = { link: 30, campanha: 30, app: 90, cliente: 90, site: 30, regiao: 30, recusa: 365 };
+/** a força de cada origem: sinal fraco (o site de onde a pessoa veio, a região) nunca passa por cima de forte */
+export const FORCA_DA_ORIGEM: Record<OrigemDoPublico, ForcaDoSinal> = { link: "forte", campanha: "forte", app: "forte", cliente: "forte", recusa: "forte", site: "fraco", regiao: "fraco" };
 
 export interface CookieDePublico {
+  /** o id do público; `todos` só no cookie da loja padrão (origem `recusa`) */
   publico: string;
   /** 0 a 99, sorteado UMA vez por visitante e mantido quando ele troca de público: abaixo do % de controle, vê Todos */
   sorteio: number;
@@ -2295,16 +2348,30 @@ export function lerCookieDePublico(valor: string | null | undefined): CookieDePu
   }
   const [publico, sorteio, forca, origem] = cru.split("~");
   const n = Number(sorteio);
-  if (!idDePublicoValido(publico) || !/^\d{1,2}$/.test(sorteio ?? "") || n < 0 || n > 99) return null;
+  if (!/^\d{1,2}$/.test(sorteio ?? "") || n < 0 || n > 99) return null;
   if (forca !== "forte" && forca !== "fraco") return null;
-  if (origem !== "link" && origem !== "campanha" && origem !== "app") return null;
-  return { publico, sorteio: n, forca, origem };
+  if (!Object.prototype.hasOwnProperty.call(DIAS_DA_ESCOLHA, origem ?? "")) return null;
+  // a loja padrão é o único cookie sem público: `todos~<sorteio>~forte~recusa`
+  if (origem === "recusa" ? publico !== PUBLICO_TODOS : !idDePublicoValido(publico)) return null;
+  return { publico, sorteio: n, forca, origem: origem as OrigemDoPublico };
+}
+
+/**
+ * O cookie de quem pediu a LOJA PADRÃO: a borda serve Todos, e nenhum sinal automático (link, campanha, site,
+ * região, login) a tira de lá. Só uma escolha que a própria pessoa faça num app (o quiz) vale depois: é ela
+ * escolhendo de novo.
+ */
+export function cookieDaLojaPadrao(sorteio: number): CookieDePublico {
+  return { publico: PUBLICO_TODOS, sorteio: sorteioValido(sorteio), forca: "forte", origem: "recusa" };
 }
 export function valorDoCookieDePublico(c: CookieDePublico): string {
   return `${c.publico}~${c.sorteio}~${c.forca}~${c.origem}`;
 }
 
-/** o que a borda sabe dos públicos: `GET /api/unbox/publicos` da loja. Sem a descrição, que é do chat. */
+/**
+ * O que a borda sabe dos públicos: `GET /api/unbox/publicos` da loja. Sem a descrição, que é do chat, e sem as
+ * regras de cliente, que só o login lê (no servidor, do documento).
+ */
 export interface PublicosDaBorda {
   controle: number;
   publicos: { id: string; nome: string; entrada?: EntradaDoPublico }[];
@@ -2312,7 +2379,10 @@ export interface PublicosDaBorda {
 export function publicosDaBorda(doc: ContentDocument | null | undefined): PublicosDaBorda {
   return {
     controle: controleDaLoja(doc),
-    publicos: Object.entries(doc?.publicos ?? {}).map(([id, p]) => ({ id, nome: p.nome, ...(p.entrada ? { entrada: clone(p.entrada) } : {}) })),
+    publicos: Object.entries(doc?.publicos ?? {}).map(([id, p]) => {
+      const { cliente: _doLogin, ...daBorda } = p.entrada ?? {};
+      return { id, nome: p.nome, ...(entradaComRegra(daBorda) ? { entrada: clone(daBorda) } : {}) };
+    }),
   };
 }
 
@@ -2329,6 +2399,104 @@ export function publicoDaCampanha(utm: Partial<Record<CampoDeUtm, string | null>
   return null;
 }
 
+/** o host de um endereço http(s), em minúsculas e sem `www.`; null para o resto */
+function hostDoEndereco(url: string | null | undefined): string | null {
+  if (!url) return null;
+  try {
+    const u = new URL(url);
+    return u.protocol === "http:" || u.protocol === "https:" ? u.hostname.toLowerCase().replace(/^www\./, "") : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * O público cujo SITE casa com o `referer` do pedido. Só quando a pessoa chegou de FORA da loja: o referer da
+ * própria loja é navegação interna, não origem. Um site conhecido casa pelos endereços dele
+ * (`SITES_DE_ORIGEM`); outro, pelo endereço e pelos subdomínios. A ordem dos públicos desempata.
+ */
+export function publicoDoSite(referer: string | null | undefined, hostDaLoja: string | null | undefined, borda: PublicosDaBorda): string | null {
+  const de = hostDoEndereco(referer);
+  const loja = (hostDaLoja ?? "").toLowerCase().replace(/:\d+$/, "").replace(/^www\./, "");
+  if (!de || de === loja) return null;
+  const sites = SITES_DE_ORIGEM as Record<string, RegExp>;
+  for (const p of borda.publicos) {
+    for (const s of p.entrada?.site ?? []) {
+      const conhecido = Object.prototype.hasOwnProperty.call(sites, s) ? sites[s] : null;
+      const host = s.replace(/^www\./, "");
+      if (conhecido ? conhecido.test(de) : de === host || de.endsWith(`.${host}`)) return p.id;
+    }
+  }
+  return null;
+}
+
+/** onde o visitante está, pelo IP: os cabeçalhos `x-vercel-ip-country`, `-country-region` e `-city` da Vercel */
+export interface RegiaoDoVisitante {
+  pais?: string | null;
+  uf?: string | null;
+  cidade?: string | null;
+}
+function semAcento(s: string): string {
+  return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+/**
+ * O público cuja REGIÃO casa com a do visitante. Só no Brasil: a sigla da região que a Vercel manda é a do
+ * país de quem acessa, e "SC" também é a Carolina do Sul (de onde o Googlebot rastreia). Regra com cidade casa
+ * só nela; sem cidade, no estado inteiro. A ordem dos públicos desempata.
+ */
+export function publicoDaRegiao(regiao: RegiaoDoVisitante | null | undefined, borda: PublicosDaBorda): string | null {
+  if (!regiao || (regiao.pais ?? "").toUpperCase() !== "BR") return null;
+  const uf = (regiao.uf ?? "").toUpperCase();
+  const cidade = regiao.cidade ? semAcento(regiao.cidade) : "";
+  for (const p of borda.publicos) {
+    for (const r of p.entrada?.regiao ?? []) {
+      if (r.uf === uf && (!r.cidade || semAcento(r.cidade) === cidade)) return p.id;
+    }
+  }
+  return null;
+}
+
+/** o que o login da loja lê da conta do cliente para casar `entrada.cliente` */
+export interface DadosDoCliente {
+  /** os slugs dos produtos dos pedidos pagos (em processamento ou concluídos) */
+  produtos: string[];
+  /** tem assinatura ativa nesta loja */
+  assinante: boolean;
+  /** as UFs dos endereços da conta */
+  ufs: string[];
+}
+
+/** a loja tem alguma regra de cliente? Sem nenhuma, o login não consulta a conta nem gasta o tempo dele */
+export function temRegraDeCliente(doc: ContentDocument | null | undefined): boolean {
+  return Object.values(doc?.publicos ?? {}).some((p) => Boolean(p.entrada?.cliente?.length));
+}
+
+/** o público cuja regra de cliente casa com a conta; a ordem dos públicos desempata */
+export function publicoDoCliente(dados: DadosDoCliente | null | undefined, doc: ContentDocument | null | undefined): string | null {
+  if (!dados) return null;
+  const produtos = new Set(dados.produtos.map((s) => s.trim().toLowerCase()));
+  const ufs = new Set(dados.ufs.map((u) => u.trim().toUpperCase()));
+  for (const [id, p] of Object.entries(doc?.publicos ?? {})) {
+    for (const r of p.entrada?.cliente ?? []) {
+      if ((r.tipo === "comprou" && produtos.has(r.produto)) || (r.tipo === "assinante" && dados.assinante) || (r.tipo === "uf" && ufs.has(r.uf))) return id;
+    }
+  }
+  return null;
+}
+
+/**
+ * A ESCOLHA DO LOGIN: o cookie a gravar quando a conta casa com um público, ou null para não mexer no que a
+ * pessoa tem. O login é sinal forte e vale como último toque, com duas exceções: a escolha que a própria pessoa
+ * fez num app (o quiz diz o que ela quer agora; a compra é inferência) e a loja padrão que ela pediu.
+ */
+export function escolhaDoLogin(publico: string | null, cookie: string | null | undefined, sortear: () => number): CookieDePublico | null {
+  if (!publico || !idDePublicoValido(publico)) return null;
+  const gravado = lerCookieDePublico(cookie);
+  if (gravado?.origem === "app" || gravado?.origem === "recusa") return null;
+  return { publico, sorteio: gravado?.sorteio ?? sorteioValido(sortear()), forca: "forte", origem: "cliente" };
+}
+
 export interface PedidoNaBorda {
   /** `?para=` */
   para?: string | null;
@@ -2336,6 +2504,11 @@ export interface PedidoNaBorda {
   utm?: Partial<Record<CampoDeUtm, string | null>>;
   /** o valor cru do cookie `unbox_publico` */
   cookie?: string | null;
+  /** o `referer` do pedido, e o host da própria loja (referer da loja é navegação interna, não origem) */
+  referer?: string | null;
+  host?: string | null;
+  /** onde o visitante está, pelo IP */
+  regiao?: RegiaoDoVisitante | null;
 }
 export interface DecisaoDaBorda {
   /** a versão a servir: o id do público, ou null (Todos) */
@@ -2350,38 +2523,56 @@ export interface DecisaoDaBorda {
 /**
  * QUAL VERSÃO SERVIR. Pura: o sorteio vem de fora (`sortear` devolve um inteiro de 0 a 99).
  *
- * 1. sinal forte do pedido: o link do anúncio, depois a campanha. Grava a escolha (é o último toque que vale);
- * 2. senão, a escolha gravada no cookie, se o público ainda existe;
- * 3. senão, Todos.
+ * 1. quem pediu a loja padrão (`recusa`) vê Todos, e nenhum sinal do pedido o tira de lá;
+ * 2. sinal FORTE do pedido: o link do anúncio, depois a campanha. Grava a escolha (vale o último toque);
+ * 3. senão, a escolha FORTE gravada (link, campanha, app, login), se o público ainda existe;
+ * 4. senão, sinal FRACO do pedido: o site de onde a pessoa veio, depois a região. Grava como fraco, e é isso
+ *    que guarda o sorteio dela entre uma página e outra;
+ * 5. senão, a escolha FRACA gravada;
+ * 6. senão, Todos.
  *
- * O grupo de controle vale nos três: a escolha é gravada igual, mas quem tem sorteio abaixo do % vê Todos. E
+ * O grupo de controle vale em todos: a escolha é gravada igual, mas quem tem sorteio abaixo do % vê Todos. E
  * público fora da lista da borda é ignorado: a loja nunca reescreve para uma versão que não sabe fazer.
  */
 export function decidirPublico(pedido: PedidoNaBorda, borda: PublicosDaBorda | null | undefined, sortear: () => number): DecisaoDaBorda {
   const nenhum: DecisaoDaBorda = { servir: null, publico: null, controle: false };
   if (!borda?.publicos.length) return nenhum;
-  const existe = (id: string | null | undefined): id is string => Boolean(id) && borda.publicos.some((p) => p.id === id);
   const gravado = lerCookieDePublico(pedido.cookie);
+  if (gravado?.origem === "recusa") return nenhum;
+  const existe = (id: string | null | undefined): id is string => Boolean(id) && borda.publicos.some((p) => p.id === id);
+  const valeOGravado = gravado && existe(gravado.publico) ? gravado : null;
   let publico: string | null = null;
   let origem: OrigemDoPublico | null = null;
   const para = pedido.para?.trim().toLowerCase();
+  const daCampanha = existe(para) ? null : publicoDaCampanha(pedido.utm, borda);
   if (existe(para)) {
     publico = para;
     origem = "link";
+  } else if (daCampanha) {
+    publico = daCampanha;
+    origem = "campanha";
+  } else if (valeOGravado && FORCA_DA_ORIGEM[valeOGravado.origem] === "forte") {
+    publico = valeOGravado.publico;
   } else {
-    const daCampanha = publicoDaCampanha(pedido.utm, borda);
-    if (daCampanha) {
-      publico = daCampanha;
-      origem = "campanha";
-    } else if (gravado && existe(gravado.publico)) {
-      publico = gravado.publico;
+    const doSite = publicoDoSite(pedido.referer, pedido.host, borda);
+    const daRegiao = doSite ? null : publicoDaRegiao(pedido.regiao, borda);
+    if (doSite) {
+      publico = doSite;
+      origem = "site";
+    } else if (daRegiao) {
+      publico = daRegiao;
+      origem = "regiao";
+    } else if (valeOGravado) {
+      publico = valeOGravado.publico;
     }
   }
   if (!publico) return nenhum;
   // o sorteio é do VISITANTE, não da escolha: trocar de público não o tira nem o põe no controle
   const sorteio = gravado?.sorteio ?? sorteioValido(sortear());
   const controle = sorteio < Math.max(0, Math.min(CONTROLE_MAX, borda.controle));
-  return { servir: controle ? null : publico, publico, controle, ...(origem ? { gravar: { publico, sorteio, forca: "forte", origem } } : {}) };
+  // o sinal fraco que só repete o que já está gravado não grava de novo: seria um Set-Cookie em toda página vista
+  const repete = origem !== null && FORCA_DA_ORIGEM[origem] === "fraco" && gravado?.publico === publico && gravado.origem === origem;
+  return { servir: controle ? null : publico, publico, controle, ...(origem && !repete ? { gravar: { publico, sorteio, forca: FORCA_DA_ORIGEM[origem], origem } } : {}) };
 }
 
 function sorteioValido(n: number): number {
@@ -2773,10 +2964,19 @@ function retirarPublico(next: ContentDocument, id: string): { values: Record<str
 
 /** a entrada tem alguma regra? Entrada sem regra não se grava: `{ utm: [] }` seria um campo que não diz nada */
 function entradaComRegra(e: EntradaDoPublico | null | undefined): e is EntradaDoPublico {
-  return Boolean(e?.utm?.length);
+  return Boolean(e?.utm?.length || e?.site?.length || e?.regiao?.length || e?.cliente?.length);
 }
+/** a entrada no formato gravado: texto aparado, site em minúsculas e sem repetição, e só os campos de cada regra */
 function entradaLimpa(e: EntradaDoPublico): EntradaDoPublico {
-  return { ...(e.utm?.length ? { utm: e.utm.map((r) => ({ campo: r.campo, contem: r.contem.trim() })) } : {}) };
+  const sites = [...new Set((e.site ?? []).map((s) => s.trim().toLowerCase()))];
+  return {
+    ...(e.utm?.length ? { utm: e.utm.map((r) => ({ campo: r.campo, contem: r.contem.trim() })) } : {}),
+    ...(sites.length ? { site: sites } : {}),
+    ...(e.regiao?.length ? { regiao: e.regiao.map((r) => ({ uf: r.uf, ...(r.cidade?.trim() ? { cidade: r.cidade.trim() } : {}) })) } : {}),
+    ...(e.cliente?.length
+      ? { cliente: e.cliente.map((r): RegraDeCliente => (r.tipo === "comprou" ? { tipo: "comprou", produto: r.produto.trim().toLowerCase() } : r.tipo === "uf" ? { tipo: "uf", uf: r.uf } : { tipo: "assinante" })) }
+      : {}),
+  };
 }
 
 /** Aplica UMA operação e devolve o documento novo + a operação inversa (pra desfazer). */
@@ -4365,21 +4565,84 @@ function recusaDaDescricaoDePublico(d: unknown): string | null {
   return tamanho(d.trim()) > DESCRICAO_DE_PUBLICO_MAX ? `Descrição longa demais: no máximo ${DESCRICAO_DE_PUBLICO_MAX} letras.` : null;
 }
 
-/** as regras de entrada, campo a campo. `null`/ausente = sem regra (vale o link do anúncio e os apps) */
+/** as regras de entrada, sinal a sinal, em formato FECHADO. `null`/ausente = sem regra (vale o link do anúncio e os apps) */
 export function recusaDaEntrada(e: unknown): string | null {
   if (e === undefined || e === null) return null;
   if (typeof e !== "object" || Array.isArray(e)) return "Regras de entrada inválidas.";
   const o = e as Record<string, unknown>;
-  for (const k of Object.keys(o)) if (k !== "utm") return `Regra de entrada desconhecida: ${k}.`;
-  if (o.utm === undefined) return null;
-  if (!Array.isArray(o.utm)) return "As regras de campanha precisam ser uma lista.";
-  if (o.utm.length > REGRAS_DE_UTM_MAX) return `No máximo ${REGRAS_DE_UTM_MAX} regras de campanha por público.`;
-  for (const r of o.utm) {
+  for (const k of Object.keys(o)) if (k !== "utm" && k !== "site" && k !== "regiao" && k !== "cliente") return `Regra de entrada desconhecida: ${k}.`;
+  return recusaDasCampanhas(o.utm) ?? recusaDosSites(o.site) ?? recusaDasRegioes(o.regiao) ?? recusaDasRegrasDeCliente(o.cliente);
+}
+
+/** a lista de um sinal: ausente passa; o resto tem de ser lista dentro do teto */
+function recusaDaLista(v: unknown, nome: string): string | null {
+  if (!Array.isArray(v)) return `As regras de ${nome} precisam ser uma lista.`;
+  return v.length > REGRAS_POR_SINAL_MAX ? `No máximo ${REGRAS_POR_SINAL_MAX} regras de ${nome} por público.` : null;
+}
+const ehUf = (v: unknown): v is Uf => (UFS as readonly unknown[]).includes(v);
+
+function recusaDasCampanhas(v: unknown): string | null {
+  if (v === undefined) return null;
+  const lista = recusaDaLista(v, "campanha");
+  if (lista) return lista;
+  for (const r of v as unknown[]) {
     if (!r || typeof r !== "object") return "Regra de campanha inválida.";
     const { campo, contem } = r as Record<string, unknown>;
     if (!(CAMPOS_DE_UTM as readonly unknown[]).includes(campo)) return `Parâmetro de campanha desconhecido: ${String(campo)}.`;
     if (typeof contem !== "string" || !contem.trim()) return "Cada regra de campanha precisa de um texto.";
     if (tamanho(contem.trim()) > TEXTO_DE_REGRA_MAX) return `Texto de campanha longo demais: no máximo ${TEXTO_DE_REGRA_MAX} letras.`;
+  }
+  return null;
+}
+
+function recusaDosSites(v: unknown): string | null {
+  if (v === undefined) return null;
+  const lista = recusaDaLista(v, "site");
+  if (lista) return lista;
+  for (const s of v as unknown[]) {
+    if (typeof s !== "string") return "Site inválido.";
+    const site = s.trim().toLowerCase();
+    if (!Object.prototype.hasOwnProperty.call(SITES_DE_ORIGEM, site) && !HOST_DE_SITE.test(site.replace(/^www\./, ""))) {
+      return `Site inválido: "${s.slice(0, 60)}". Use um da lista ou o endereço do site, sem https:// (ex.: blog.parceiro.com.br).`;
+    }
+  }
+  return null;
+}
+
+function recusaDasRegioes(v: unknown): string | null {
+  if (v === undefined) return null;
+  const lista = recusaDaLista(v, "região");
+  if (lista) return lista;
+  for (const r of v as unknown[]) {
+    if (!r || typeof r !== "object") return "Regra de região inválida.";
+    const { uf, cidade } = r as Record<string, unknown>;
+    if (!ehUf(uf)) return `Estado desconhecido: ${String(uf)}.`;
+    if (cidade !== undefined && cidade !== null && (typeof cidade !== "string" || (cidade.trim() !== "" && !CIDADE_DE_REGRA.test(cidade.trim())))) {
+      return `Cidade inválida: "${String(cidade).slice(0, 60)}". Só o nome da cidade, até 60 letras.`;
+    }
+  }
+  return null;
+}
+
+function recusaDasRegrasDeCliente(v: unknown): string | null {
+  if (v === undefined) return null;
+  const lista = recusaDaLista(v, "cliente");
+  if (lista) return lista;
+  for (const r of v as unknown[]) {
+    if (!r || typeof r !== "object") return "Regra de cliente inválida.";
+    const o = r as Record<string, unknown>;
+    if (o.tipo === "assinante") continue;
+    if (o.tipo === "uf") {
+      if (!ehUf(o.uf)) return `Estado desconhecido: ${String(o.uf)}.`;
+      continue;
+    }
+    if (o.tipo === "comprou") {
+      if (typeof o.produto !== "string" || !SLUG_DE_PRODUTO.test(o.produto.trim().toLowerCase())) {
+        return `Produto inválido: "${String(o.produto ?? "").slice(0, 60)}". Use o fim do endereço do produto (ex.: kit-volume-300ml).`;
+      }
+      continue;
+    }
+    return `Tipo de regra de cliente desconhecido: ${String(o.tipo)}.`;
   }
   return null;
 }

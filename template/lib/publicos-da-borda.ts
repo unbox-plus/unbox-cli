@@ -3,8 +3,10 @@
 //
 // O lojista dá à home uma versão por público (quem busca volume, quem chegou pelo anúncio de inverno). Cada
 // versão é OUTRA página pronta em cache (`/_publico/<id>`), e este arquivo só decide qual servir, antes do
-// cache: lê o link do anúncio (`?para=`), a campanha (`utm_*`) e o cookie, e pergunta a `decidirPublico`
-// (lib/editable/document.ts, pura e testada no runner do editor). Nada de conteúdo é trocado no navegador.
+// cache: lê o link do anúncio (`?para=`), a campanha (`utm_*`), o cookie, o site de onde a pessoa veio
+// (`referer`) e a região dela (cabeçalhos da Vercel), e pergunta a `decidirPublico` (lib/editable/document.ts,
+// pura e testada no runner do editor). Nada de conteúdo é trocado no navegador. A conta do cliente entra por
+// outro caminho: o login (`lib/publico-do-cliente.ts`).
 //
 // NENHUM PEDIDO ESPERA BUSCA: a lista dos públicos (`GET /api/unbox/publicos`) fica em memória e se renova
 // em segundo plano a cada minuto. Instância recém-criada, sem lista, serve Todos enquanto busca. A única
@@ -76,6 +78,16 @@ function sortear(): number {
   return a[0] % 100;
 }
 
+/** a cidade vem codificada no cabeçalho (`S%C3%A3o%20Paulo`); codificação quebrada vale como "sem cidade" */
+function decodificar(v: string | null): string | null {
+  if (!v) return null;
+  try {
+    return decodeURIComponent(v);
+  } catch {
+    return null;
+  }
+}
+
 /**
  * O `next()` da loja, com a versão do público quando cabe: reescreve para `/_publico/<id>` (sem a query, que
  * não muda a página e só multiplicaria o cache; o `_rsc` do App Router o próprio Next repassa) e grava a
@@ -90,7 +102,24 @@ export async function seguir(req: NextRequest, event?: NextFetchEvent): Promise<
   if (!copia && pendente && (para || Object.values(utm).some(Boolean))) {
     await Promise.race([pendente, new Promise((r) => setTimeout(r, ESPERA_DO_SINAL_FORTE_MS))]);
   }
-  const decisao = decidirPublico({ para, utm, cookie: req.cookies.get(COOKIE_DE_PUBLICO)?.value }, copia?.dados ?? null, sortear);
+  const decisao = decidirPublico(
+    {
+      para,
+      utm,
+      cookie: req.cookies.get(COOKIE_DE_PUBLICO)?.value,
+      // os sinais FRACOS: o site de onde a pessoa veio (referer de outro host) e onde ela está, pelos cabeçalhos
+      // que a Vercel põe em todo pedido (fora dela eles não vêm, e a região simplesmente não casa)
+      referer: req.headers.get("referer"),
+      host: req.nextUrl.hostname,
+      regiao: {
+        pais: req.headers.get("x-vercel-ip-country"),
+        uf: req.headers.get("x-vercel-ip-country-region"),
+        cidade: decodificar(req.headers.get("x-vercel-ip-city")),
+      },
+    },
+    copia?.dados ?? null,
+    sortear,
+  );
   let res: NextResponse;
   if (decisao.servir) {
     res = NextResponse.rewrite(new URL(`${ROTA_DO_PUBLICO}/${decisao.servir}`, req.url));
