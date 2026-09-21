@@ -1,6 +1,6 @@
 ## Changelog
 
-### Não lançado — a loja passa a falar com uma API só, a de parceiros
+### v0.22.0 — a loja passa a falar com uma API só, a de parceiros
 
 Até aqui a loja conversava com três endereços da Unbox: `core.unbox.com.br/graphql`, o REST de
 `api.unbox.com.br` (só o `/auth/signin`) e `partners.unbox.com.br/graphql`, este último só no que já tinha
