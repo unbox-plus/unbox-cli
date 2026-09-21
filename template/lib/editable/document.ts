@@ -711,7 +711,8 @@ export interface Rastreio {
   /** Pinterest Tag: o ID numérico (13 dígitos) */
   pinterest?: string;
   /**
-   * botão flutuante de WhatsApp: número só dígitos com o código do país, e a mensagem inicial (opcional).
+   * botão flutuante de WhatsApp: número com o código do país (`numeroDoWhatsapp`: só dígitos, e um "+" na
+   * frente só quando é ele que diz que o número é de fora do Brasil), e a mensagem inicial (opcional).
    * `numero` vazio = sem botão; a mensagem fica guardada para quando o número voltar.
    */
   whatsapp?: { numero: string; mensagem?: string };
@@ -764,14 +765,48 @@ function cabeNumaUrl(valor: string): boolean {
 }
 
 /**
+ * UM TELEFONE DO BRASIL ESCRITO SEM O 55: DDD (dois dígitos de 1 a 9) e o número, que é celular (9 e mais
+ * 8 dígitos) ou fixo (de 2 a 5 e mais 7). É como o brasileiro escreve o próprio número: "(11) 99999-8888".
+ */
+const TELEFONE_DO_BRASIL_SEM_55 = /^[1-9]{2}(?:9\d{8}|[2-5]\d{7})$/;
+
+/**
+ * O NÚMERO DO WHATSAPP COMO ELE É GUARDADO: só dígitos, com o código do país.
+ *
+ * O 55 QUE FALTAVA (medido em 21/09/2026): "(11) 99999-8888" virava 11999998888, passava na régua de 10 a
+ * 15 dígitos, e o botão abria wa.me/11999998888, que o WhatsApp lê como +1, outro país. Agora o número com
+ * a forma EXATA de um telefone do Brasil sem o código do país (`TELEFONE_DO_BRASIL_SEM_55`), e sem "+" na
+ * frente, ganha o 55. O resto passa como veio: o código do país já está nos dígitos.
+ *
+ * COM "+" NA FRENTE, o país é o que foi escrito: "+55 11 99999-8888" e "+1 919 555 1234" perdem só a
+ * formatação. E o "+" FICA GUARDADO quando é ele que diz que o número não é do Brasil: o celular do Chile
+ * "+56 9 9999 8888", sem o "+", é "56999998888", que tem a forma de um celular de DDD 56. Esta régua passa
+ * MAIS DE UMA VEZ pelo mesmo valor (o editor normaliza, `validateOp` e `applyOp` normalizam de novo,
+ * desfazer e refazer regravam o valor guardado, a loja normaliza ao ler o publicado), e sem o "+" a segunda
+ * passada punha o 55 na frente do número do Chile (medido: "5556999998888"). Com ele, o que a função
+ * devolve ela devolve igual, e o número guardado com o código do país (o 5511999998888 de sempre) não muda.
+ *
+ * O limite: um número de fora do Brasil guardado ANTES desta régua, sem o "+" e com a forma de um telefone
+ * do Brasil, passa a ser lido como do Brasil (o "+" que diria o contrário já tinha sido jogado fora).
+ */
+export function numeroDoWhatsapp(valor: string): string {
+  const v = valor.trim();
+  const digitos = v.replace(/[\s().+-]/g, "");
+  if (!TELEFONE_DO_BRASIL_SEM_55.test(digitos)) return digitos;
+  // o "+" na frente conta também dentro do parêntese: "(+56) 9 9999 8888"
+  return /^\(?\s*\+/.test(v) ? `+${digitos}` : `55${digitos}`;
+}
+
+/**
  * O valor como ele é GUARDADO: sem espaço em volta; ID do Google e do TikTok em maiúsculas (é como
- * eles são emitidos, e é o que a URL do script espera); telefone sem a formatação que se digita
- * ("+55 (11) 99999-8888" vira "5511999998888"). A mensagem do WhatsApp só perde o espaço em volta.
+ * eles são emitidos, e é o que a URL do script espera); o número do WhatsApp sem a formatação que se
+ * digita e com o código do país (`numeroDoWhatsapp`: "(11) 99999-8888" e "+55 (11) 99999-8888" viram
+ * "5511999998888"). A mensagem do WhatsApp só perde o espaço em volta.
  */
 export function normalizaRastreio(campo: CampoDeRastreio, valor: string): string {
   const v = valor.trim();
   if (campo === "gtm" || campo === "ga4" || campo === "tiktok") return v.toUpperCase();
-  if (campo === "whatsapp.numero") return v.replace(/[\s().+-]/g, "");
+  if (campo === "whatsapp.numero") return numeroDoWhatsapp(v);
   return v;
 }
 
@@ -806,8 +841,9 @@ export function recusaDeRastreio(campo: CampoDeRastreio, valor: string): string 
       return /^C[A-Z0-9]{15,30}$/.test(valor) ? null : "o ID do TikTok Pixel começa com C e tem cerca de 20 letras e números";
     case "pinterest":
       return /^\d{13}$/.test(valor) ? null : "o ID da Pinterest Tag é um número de 13 dígitos";
+    // o "+" é o que `numeroDoWhatsapp` guarda num número de fora do Brasil com forma de telefone daqui
     case "whatsapp.numero":
-      return /^\d{10,15}$/.test(valor) ? null : "o número do WhatsApp é só dígitos, com o código do país na frente (55 para o Brasil), de 10 a 15 dígitos, como 5511999998888";
+      return /^\+?\d{10,15}$/.test(valor) ? null : "o número do WhatsApp tem o código do país na frente (55 para o Brasil; de outro país, com +), de 10 a 15 dígitos, como 5511999998888";
     default:
       return `campo de rastreio desconhecido: ${String(campo)}`;
   }
@@ -955,7 +991,8 @@ function whatsappAceito(numeroBruto: unknown, mensagemBruta: unknown): Rastreio[
  * A régua (`recusaDeRastreio`) já derruba essa mensagem na leitura do publicado; esta é a segunda porta.
  */
 export function linkDoWhatsapp(numero: string, mensagem?: string): string {
-  const base = `https://wa.me/${numero}`;
+  // o wa.me quer só dígitos: o "+" que `numeroDoWhatsapp` guarda num número de fora do Brasil sai aqui
+  const base = `https://wa.me/${numero.replace(/^\+/, "")}`;
   if (!mensagem) return base;
   try {
     return `${base}?text=${encodeURIComponent(mensagem)}`;
