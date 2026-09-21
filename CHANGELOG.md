@@ -1,5 +1,42 @@
 ## Changelog
 
+### v0.23.0 — foundation 18: a home muda para cada público
+
+O lojista define até cinco PÚBLICOS no editor (quem busca volume, quem chegou pelo anúncio de inverno) e dá a
+cada um a sua versão da home: textos, imagens, vitrines, ordem e seções ocultas. O que o público não mudou
+continua sendo o de Todos. Quem decide quem vê o quê é a borda da loja, por sinais: o link do anúncio
+(`?para=<id>`), a campanha (`utm_*` contém um texto) e os apps da loja (o quiz), que avisam por um evento.
+Um grupo de controle (20% por padrão) cai no público e vê Todos, para medir se a versão vende mais.
+
+- **A home virou `PaginaInicial({ doc })`** (`components/home/pagina-inicial.tsx`). `app/(loja)/page.tsx` é
+  casca, e a versão de cada público (`app/(loja)/%5Fpublico/[publico]`) renderiza o mesmo corpo com o
+  documento dela. É o que faz as vitrines saírem por público.
+- **A borda** (`lib/publicos-da-borda.ts`): o middleware passa as saídas que liberam a loja por `seguir`, que
+  reescreve `/` para `/_publico/<id>` (inclusive o RSC da navegação interna, que o Next não deixa o middleware
+  distinguir) e grava o cookie `unbox_publico`. A lista dos públicos fica em memória e se renova em segundo
+  plano: nenhum pedido espera busca. Acesso direto a `/_publico/…` responde 404.
+- `GET /api/unbox/publicos`: `{ controle, publicos: [{ id, nome, entrada }] }`, pública como a de páginas, sem
+  a descrição (que é do chat do editor).
+- **O contrato dos apps**: `window.dispatchEvent(new CustomEvent("unbox:definir-publico", { detail: { id } }))`.
+  `<PontoDePublico/>`, no layout, grava a escolha e troca a versão sem recarregar.
+- **A medição**: `scriptDaMedicaoDoPublico` empurra `publico`, `publico_grupo` (versão ou controle) e
+  `publico_origem` para o dataLayer antes do GTM. Não vai para Meta, TikTok nem CAPI.
+- `app/api/revalidate` revalida as versões junto com `/`; `lib/rotas-editaveis.ts` lê a pasta `%5Fx` como a
+  rota `/_x` (e a do público é interna); o gate de marca cobra o `dataLayerReady` na `PaginaInicial`; e o
+  `check-editable` cobra o par da personalização (a página do público com `<EditablePublico>` e o `seguir` no
+  middleware) quando o layout a declara.
+- **A foundation (`lib/editable`)**: públicos e camada no documento, as operações com desfazer exato, a
+  projeção para o navegador como lista de permissão (campo novo fica no servidor até alguém o permitir), o
+  "Ver como" do editor e `EditablePublico`. Detalhe no README da foundation, seção "Personalização por público".
+
+Medido na loja gerada por este CLI (`next build && next start`, lendo um editor de teste): Todos sem cookie é
+a página de sempre, o link e a campanha gravam e servem a versão, o controle vê Todos, 50 pedidos paralelos
+alternando cookie sem mistura, e publicar revalida a home, as versões e a lista. A versão pesa 760 bytes a mais
+que Todos, comprimida (a camada e o caminho do bundle da rota).
+
+Loja já gerada: a foundation nova (`lib/editable`) não muda nada sozinha; a personalização liga quando a loja
+tem as três peças e passa `personalizacao` ao provider (o `check-editable` diz o que falta).
+
 ### v0.22.1 — o WhatsApp do Brasil escrito sem o 55 ganha o 55
 
 "(11) 99999-8888" digitado na aba Apps do painel virava `11999998888`, passava na régua (10 a 15 dígitos), e

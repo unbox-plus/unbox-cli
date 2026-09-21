@@ -541,6 +541,13 @@ export interface SectionState {
    *  para re-derivar caminho por caminho a partir dela), a criada NÃO tem — ela nasce com os literais
    *  do componente e nada é escrito em `values`. O id começa sempre em `novo-` (ver `PREFIXO_CRIADA`). */
   criadas?: Record<string, string>;
+  /**
+   * A CAMADA DE CADA PÚBLICO sobre este container (foundation 18): a ordem que substitui a de Todos e as
+   * marcas de ocultar e mostrar em DELTA (ver `CamadaDeSecoes`). Mora DENTRO do estado do container, e não
+   * numa chave própria em `sections`, para renomear, duplicar, remover e restaurar seção levarem a camada
+   * junto sem aprender nada de públicos: todas elas movem o estado inteiro do container.
+   */
+  publicos?: Record<string, CamadaDeSecoes>;
 }
 
 /**
@@ -1852,6 +1859,106 @@ export function proximoHandleLivre(
   }
 }
 
+// ── PÚBLICOS (foundation 18) ─────────────────────────────────────────────────────────────────────
+//
+// O lojista define até cinco PÚBLICOS (quem busca volume, quem chegou pelo anúncio de inverno) e dá a cada
+// um a SUA versão da home: textos, imagens, vitrines, ordem e seções ocultas próprias. O que o público não
+// mudou continua sendo o de Todos. Quem decide quem vê o quê é a BORDA da loja (`decidirPublico`), por
+// sinais: o link do anúncio (`?para=<id>`), a campanha (UTM) e os apps da loja (o quiz), que gravam a
+// escolha num cookie. Um grupo de controle (`CONTROLE_PADRAO`) cai no público e vê Todos, para a loja medir
+// se a versão vende mais.
+//
+// A CAMADA mora nos mesmos mapas do documento, e é isso que deixa as operações antigas intactas:
+// - o valor (e a declaração de honestidade dele) na chave do caminho com `@<id>` no fim
+//   (`home.banner.titulo@volume`). Renomear, remover, restaurar e duplicar seção movem por PREFIXO do
+//   caminho, e o sufixo vai junto sem que nenhuma delas saiba de públicos;
+// - a ordem e as seções ocultas dentro do estado do container (`SectionState.publicos`).
+// A loja nunca lê a camada crua: `aplicarPublico` devolve o documento EFETIVO de um público, que os
+// primitivos leem como leem o de sempre, e a camada não viaja no HTML de Todos (`projetarDocumento`).
+
+export const PUBLICOS_MAX = 5;
+export const PUBLICO_ID_MAX = 32;
+/** o nome da página padrão no painel, no cookie e nas métricas: nunca é id de público */
+export const PUBLICO_TODOS = "todos";
+/** o que separa o caminho do público na chave da camada (`home.banner.titulo@volume`) */
+export const SEPARADOR_DE_PUBLICO = "@";
+/** % de quem cai num público e ainda assim vê Todos (o grupo de controle): o padrão e o teto */
+export const CONTROLE_PADRAO = 20;
+export const CONTROLE_MAX = 50;
+export const NOME_DE_PUBLICO_MAX = 40;
+export const DESCRICAO_DE_PUBLICO_MAX = 300;
+export const CAMPOS_DE_UTM = ["source", "medium", "campaign", "content", "term"] as const;
+export type CampoDeUtm = (typeof CAMPOS_DE_UTM)[number];
+export const REGRAS_DE_UTM_MAX = 10;
+export const TEXTO_DE_REGRA_MAX = 60;
+/** a campanha casa quando o parâmetro `utm_<campo>` CONTÉM o texto (sem diferença de maiúsculas) */
+export interface RegraDeUtm {
+  campo: CampoDeUtm;
+  contem: string;
+}
+/**
+ * Como alguém ENTRA neste público pela borda, além do link do anúncio (`?para=<id>`, que vale para todo
+ * público sem regra nenhuma) e dos apps da loja (que avisam pelo evento `unbox:definir-publico`).
+ */
+export interface EntradaDoPublico {
+  utm?: RegraDeUtm[];
+}
+export interface Publico {
+  nome: string;
+  /** para quem é e o que busca. Vai para o chat do editor e para mais nenhum lugar: nem loja, nem navegador */
+  descricao?: string;
+  entrada?: EntradaDoPublico;
+  criadoEm?: string;
+}
+export interface Personalizacao {
+  /** % do grupo de controle, de 0 (desligado) a `CONTROLE_MAX` */
+  controle: number;
+}
+/**
+ * A camada de um público sobre um container. A ordem SUBSTITUI a de Todos. Ocultar é DELTA: ocultas no
+ * público = (as de Todos − `mostrar`) ∪ `ocultar`, para uma seção que Todos ocultar depois sumir também no
+ * público, a menos que ele a tenha mostrado de propósito.
+ */
+export interface CamadaDeSecoes {
+  order?: string[];
+  ocultar?: string[];
+  mostrar?: string[];
+}
+/** os campos editáveis de um público (`update_publico`): `null` apaga o campo */
+export interface CamposDoPublico {
+  nome?: string;
+  descricao?: string | null;
+  entrada?: EntradaDoPublico | null;
+}
+
+/** o caminho sem a marca de público: `home.banner.titulo@volume` → `home.banner.titulo` */
+export function caminhoBase(chave: string): string {
+  const i = chave.indexOf(SEPARADOR_DE_PUBLICO);
+  return i < 0 ? chave : chave.slice(0, i);
+}
+/** o público de uma chave da camada, ou null (chave de Todos) */
+export function publicoDaChave(chave: string): string | null {
+  const i = chave.indexOf(SEPARADOR_DE_PUBLICO);
+  return i < 0 ? null : chave.slice(i + 1);
+}
+/** a chave de um caminho num público; sem público, o próprio caminho */
+export function chaveNoPublico(caminho: string, publico?: string | null): string {
+  return publico ? caminho + SEPARADOR_DE_PUBLICO + publico : caminho;
+}
+/**
+ * Id de público: minúsculas, números e hífen, COMEÇANDO POR LETRA. A ordem das chaves de `publicos` é a
+ * precedência entre eles, e o JavaScript põe chave numérica ("2024") na frente das outras, sozinho.
+ */
+export const ID_DE_PUBLICO = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/;
+export function idDePublicoValido(id: unknown): id is string {
+  return typeof id === "string" && id.length >= 2 && id.length <= PUBLICO_ID_MAX && ID_DE_PUBLICO.test(id) && id !== PUBLICO_TODOS;
+}
+/** o % do grupo de controle desta loja (o padrão quando o lojista nunca mexeu) */
+export function controleDaLoja(doc: ContentDocument | null | undefined): number {
+  const c = doc?.personalizacao?.controle;
+  return typeof c === "number" && Number.isInteger(c) && c >= 0 && c <= CONTROLE_MAX ? c : CONTROLE_PADRAO;
+}
+
 export interface ContentDocument {
   schema: 1;
   shop: string;
@@ -1911,6 +2018,13 @@ export interface ContentDocument {
    * escreve reaponta as entradas antigas para o destino final (`applyOp`). A loja responde 308 por ele.
    */
   redirecionamentos?: Record<string, string>;
+  /**
+   * PÚBLICOS (foundation 18): id → nome, descrição e regras de entrada. A ORDEM das chaves é a precedência
+   * (uma regra que casa dois públicos fica com o primeiro). Opcional e nunca vazio.
+   */
+  publicos?: Record<string, Publico>;
+  /** o grupo de controle da personalização; ausente = `CONTROLE_PADRAO` */
+  personalizacao?: Personalizacao;
 }
 
 export function emptyDocument(shop: string): ContentDocument {
@@ -1957,18 +2071,26 @@ function sobOAlvo(chave: string, alvo: string): boolean {
  */
 function projetarDocumento(doc: ContentDocument, mantem: (chave: string) => boolean): ContentDocument {
   const values: Record<string, EditableValue> = {};
-  for (const [k, v] of Object.entries(doc.values)) if (mantem(k)) values[k] = v;
+  // a CAMADA dos públicos (foundation 18) não viaja com o documento de Todos: a página de um público
+  // acrescenta a dela (`camadaDoPublico`), e a de Todos não carrega as cinco à toa
+  for (const [k, v] of Object.entries(doc.values)) if (mantem(k) && !k.includes(SEPARADOR_DE_PUBLICO)) values[k] = v;
   const sections: ContentDocument["sections"] = {};
-  for (const [k, v] of Object.entries(doc.sections)) if (mantem(k)) sections[k] = v;
-  const projetado: ContentDocument = { ...doc, values, sections };
-  delete projetado.declared;
-  delete projetado.paginas;
-  delete projetado.colecoes;
-  delete projetado.redirecionamentos;
-  // o SEO das páginas do código é lido pelo servidor, no `generateMetadata`: ninguém no navegador o usa
-  delete projetado.seoDasRotas;
-  // os dados da loja (empresa, redes, favicon) também: rodapé, termos e metadados são renderizados no servidor
-  delete projetado.loja;
+  for (const [k, v] of Object.entries(doc.sections)) {
+    if (!mantem(k)) continue;
+    if (!v.publicos) sections[k] = v;
+    else {
+      const { publicos: _camadas, ...deTodos } = v;
+      sections[k] = deTodos;
+    }
+  }
+  // LISTA DE PERMISSÃO (foundation 18): só o que o navegador LÊ. Até a 17 isto era uma lista de exclusão, e
+  // campo novo no documento viajava no HTML de toda página por padrão, até alguém lembrar de tirá-lo. Saem
+  // assim, e ficam no servidor: `declared` (quem declarou cada promessa), os mapas de página, o SEO das
+  // rotas, os dados da loja e os públicos (a descrição de cada um é do chat; as regras, da borda).
+  const projetado: ContentDocument = { schema: doc.schema, shop: doc.shop, values, sections, tokens: doc.tokens };
+  if (doc.updatedAt !== undefined) projetado.updatedAt = doc.updatedAt;
+  if (doc.css !== undefined) projetado.css = doc.css;
+  if (doc.apps !== undefined) projetado.apps = doc.apps;
   return projetado;
 }
 
@@ -2036,6 +2158,265 @@ export function juntarFatia(doc: ContentDocument, fatia: ContentDocument | null 
 }
 
 /**
+ * O DOCUMENTO EFETIVO DE UM PÚBLICO (foundation 18): o de Todos com a camada dele por cima. É o que a página
+ * do público renderiza no servidor e o que a prévia mostra em "Ver como". Público desconhecido (ou nenhum)
+ * devolve o MESMO documento, por referência.
+ *
+ * - o valor da camada vence o de Todos, e a declaração de honestidade que vale é a DELE: a de Todos era
+ *   sobre outro texto;
+ * - a ordem da camada SUBSTITUI a de Todos;
+ * - ocultas = (as de Todos − `mostrar`) ∪ `ocultar` (ver `CamadaDeSecoes`).
+ *
+ * O efetivo sai sem camada nenhuma (nem a de outros públicos): para quem o lê, é um documento comum.
+ */
+export function aplicarPublico(doc: ContentDocument, id: string | null | undefined): ContentDocument {
+  if (!id || !doc.publicos?.[id]) return doc;
+  const sufixo = SEPARADOR_DE_PUBLICO + id;
+  const values: Record<string, EditableValue> = {};
+  const daCamada: string[] = [];
+  for (const [k, v] of Object.entries(doc.values)) {
+    const i = k.indexOf(SEPARADOR_DE_PUBLICO);
+    if (i < 0) values[k] = v;
+    else if (k.slice(i) === sufixo) daCamada.push(k);
+  }
+  for (const k of daCamada) values[caminhoBase(k)] = doc.values[k];
+  let declared: ContentDocument["declared"];
+  if (doc.declared) {
+    declared = {};
+    for (const [k, d] of Object.entries(doc.declared)) if (!k.includes(SEPARADOR_DE_PUBLICO)) declared[k] = d;
+    for (const k of daCamada) {
+      const base = caminhoBase(k);
+      delete declared[base];
+      if (doc.declared[k]) declared[base] = doc.declared[k];
+    }
+  }
+  const sections: ContentDocument["sections"] = {};
+  for (const [c, st] of Object.entries(doc.sections)) {
+    if (!st.publicos) {
+      sections[c] = st;
+      continue;
+    }
+    const { publicos, ...deTodos } = st;
+    const camada = publicos[id];
+    if (!camada) {
+      sections[c] = deTodos;
+      continue;
+    }
+    const efetivo: SectionState = { ...deTodos };
+    if (camada.order) efetivo.order = [...camada.order];
+    if (camada.ocultar?.length || camada.mostrar?.length) {
+      const ocultas = new Set(deTodos.hidden ?? []);
+      for (const x of camada.mostrar ?? []) ocultas.delete(x);
+      for (const x of camada.ocultar ?? []) ocultas.add(x);
+      efetivo.hidden = [...ocultas];
+    }
+    sections[c] = efetivo;
+  }
+  const efetivo: ContentDocument = { ...doc, values, sections };
+  if (declared) efetivo.declared = declared;
+  return efetivo;
+}
+
+/** o que a página de um público acrescenta ao documento de Todos: os valores trocados e os containers mexidos */
+export interface CamadaDoPublico {
+  values: Record<string, EditableValue>;
+  sections: ContentDocument["sections"];
+}
+
+/**
+ * A CAMADA DE UM PÚBLICO PRONTA PARA O NAVEGADOR: só o que o efetivo tem de diferente do documento de Todos.
+ * É o que a rota do público entrega a `<EditablePublico>`, e o que faz o HTML da versão ser o de Todos mais
+ * a camada, e não dois documentos inteiros. Sai com a mesma régua de `documentoSemPaginas`: nada de página
+ * do lojista. Público desconhecido: null.
+ */
+export function camadaDoPublico(doc: ContentDocument | null | undefined, id: string | null | undefined): CamadaDoPublico | null {
+  if (!doc || !id || !doc.publicos?.[id]) return null;
+  const efetivo = aplicarPublico(doc, id);
+  const sufixo = SEPARADOR_DE_PUBLICO + id;
+  const values: Record<string, EditableValue> = {};
+  for (const k of Object.keys(doc.values)) {
+    if (!k.endsWith(sufixo) || k.indexOf(SEPARADOR_DE_PUBLICO) !== k.length - sufixo.length) continue;
+    const base = caminhoBase(k);
+    if (!ehContainerDoLojista(base)) values[base] = efetivo.values[base];
+  }
+  const sections: ContentDocument["sections"] = {};
+  for (const [c, st] of Object.entries(doc.sections)) if (st.publicos?.[id] && !ehContainerDoLojista(c)) sections[c] = efetivo.sections[c];
+  return { values, sections };
+}
+
+/**
+ * O DOCUMENTO QUE A PÁGINA DE UM PÚBLICO MOSTRA: o que o layout mandou (Todos) com a camada POR CIMA. É o
+ * contrário da fatia, onde o contexto vence: aqui a camada existe justamente para trocar o que Todos diz.
+ *
+ * `rascunhoChegou` desliga a camada pelo mesmo motivo que desliga a fatia: dali em diante o rascunho inteiro
+ * está no contexto, já com o público em vista aplicado pelo provider, e a camada do PUBLICADO por cima
+ * ressuscitaria um valor que o lojista acabou de apagar. Devolve o mesmo documento quando não há o que juntar.
+ */
+export function juntarCamada(doc: ContentDocument, camada: CamadaDoPublico | null | undefined, rascunhoChegou: boolean): ContentDocument {
+  if (!camada || rascunhoChegou || (!Object.keys(camada.values).length && !Object.keys(camada.sections).length)) return doc;
+  return { ...doc, values: { ...doc.values, ...camada.values }, sections: { ...doc.sections, ...camada.sections } };
+}
+
+// ── A DECISÃO DA BORDA (foundation 18) ───────────────────────────────────────────────────────────
+//
+// Qual versão da home servir é decidido no middleware da loja, ANTES do cache: a página de cada público é
+// outra página pronta em cache, e a borda só escolhe qual entregar. Nada é trocado no navegador depois de
+// carregar (piscaria, e pioraria o LCP). A decisão é pura e mora aqui para ser testada no runner do editor;
+// o middleware só lê o pedido, chama `decidirPublico` e reescreve.
+
+export const COOKIE_DE_PUBLICO = "unbox_publico";
+/** o parâmetro do link do anúncio: `https://<loja>/?para=<id>` */
+export const PARAM_DE_PUBLICO = "para";
+/** a rota interna que renderiza a versão de um público (`/_publico/<id>`); a borda recusa acesso direto */
+export const ROTA_DO_PUBLICO = "/_publico";
+/** o evento que os apps da loja (o quiz do Admin e qualquer outro) disparam para pôr o visitante num público */
+export const EVENTO_DEFINIR_PUBLICO = "unbox:definir-publico";
+export type OrigemDoPublico = "link" | "campanha" | "app";
+export type ForcaDoSinal = "forte" | "fraco";
+/** quantos dias uma escolha vale, contados do último toque */
+export const DIAS_DA_ESCOLHA: Record<OrigemDoPublico, number> = { link: 30, campanha: 30, app: 90 };
+
+export interface CookieDePublico {
+  publico: string;
+  /** 0 a 99, sorteado UMA vez por visitante e mantido quando ele troca de público: abaixo do % de controle, vê Todos */
+  sorteio: number;
+  forca: ForcaDoSinal;
+  origem: OrigemDoPublico;
+}
+
+/** o cookie `unbox_publico` (`<id>~<sorteio>~<força>~<origem>`), ou null se estiver fora do formato */
+export function lerCookieDePublico(valor: string | null | undefined): CookieDePublico | null {
+  if (!valor) return null;
+  let cru = valor;
+  try {
+    cru = decodeURIComponent(valor);
+  } catch {
+    return null;
+  }
+  const [publico, sorteio, forca, origem] = cru.split("~");
+  const n = Number(sorteio);
+  if (!idDePublicoValido(publico) || !/^\d{1,2}$/.test(sorteio ?? "") || n < 0 || n > 99) return null;
+  if (forca !== "forte" && forca !== "fraco") return null;
+  if (origem !== "link" && origem !== "campanha" && origem !== "app") return null;
+  return { publico, sorteio: n, forca, origem };
+}
+export function valorDoCookieDePublico(c: CookieDePublico): string {
+  return `${c.publico}~${c.sorteio}~${c.forca}~${c.origem}`;
+}
+
+/** o que a borda sabe dos públicos: `GET /api/unbox/publicos` da loja. Sem a descrição, que é do chat. */
+export interface PublicosDaBorda {
+  controle: number;
+  publicos: { id: string; nome: string; entrada?: EntradaDoPublico }[];
+}
+export function publicosDaBorda(doc: ContentDocument | null | undefined): PublicosDaBorda {
+  return {
+    controle: controleDaLoja(doc),
+    publicos: Object.entries(doc?.publicos ?? {}).map(([id, p]) => ({ id, nome: p.nome, ...(p.entrada ? { entrada: clone(p.entrada) } : {}) })),
+  };
+}
+
+/** o público cuja regra de campanha casa com os `utm_*` do pedido; a ordem dos públicos desempata */
+export function publicoDaCampanha(utm: Partial<Record<CampoDeUtm, string | null>> | undefined, borda: PublicosDaBorda): string | null {
+  if (!utm) return null;
+  for (const p of borda.publicos) {
+    for (const r of p.entrada?.utm ?? []) {
+      const v = utm[r.campo];
+      const texto = r.contem.trim().toLowerCase();
+      if (v && texto && v.toLowerCase().includes(texto)) return p.id;
+    }
+  }
+  return null;
+}
+
+export interface PedidoNaBorda {
+  /** `?para=` */
+  para?: string | null;
+  /** os `utm_*` do endereço, sem o prefixo (`campaign`, `source`…) */
+  utm?: Partial<Record<CampoDeUtm, string | null>>;
+  /** o valor cru do cookie `unbox_publico` */
+  cookie?: string | null;
+}
+export interface DecisaoDaBorda {
+  /** a versão a servir: o id do público, ou null (Todos) */
+  servir: string | null;
+  /** o público do visitante, mesmo quando ele é do controle e vê Todos: é o que as métricas separam */
+  publico: string | null;
+  controle: boolean;
+  /** o cookie a gravar nesta resposta; ausente = não mexer no que ele tem */
+  gravar?: CookieDePublico;
+}
+
+/**
+ * QUAL VERSÃO SERVIR. Pura: o sorteio vem de fora (`sortear` devolve um inteiro de 0 a 99).
+ *
+ * 1. sinal forte do pedido: o link do anúncio, depois a campanha. Grava a escolha (é o último toque que vale);
+ * 2. senão, a escolha gravada no cookie, se o público ainda existe;
+ * 3. senão, Todos.
+ *
+ * O grupo de controle vale nos três: a escolha é gravada igual, mas quem tem sorteio abaixo do % vê Todos. E
+ * público fora da lista da borda é ignorado: a loja nunca reescreve para uma versão que não sabe fazer.
+ */
+export function decidirPublico(pedido: PedidoNaBorda, borda: PublicosDaBorda | null | undefined, sortear: () => number): DecisaoDaBorda {
+  const nenhum: DecisaoDaBorda = { servir: null, publico: null, controle: false };
+  if (!borda?.publicos.length) return nenhum;
+  const existe = (id: string | null | undefined): id is string => Boolean(id) && borda.publicos.some((p) => p.id === id);
+  const gravado = lerCookieDePublico(pedido.cookie);
+  let publico: string | null = null;
+  let origem: OrigemDoPublico | null = null;
+  const para = pedido.para?.trim().toLowerCase();
+  if (existe(para)) {
+    publico = para;
+    origem = "link";
+  } else {
+    const daCampanha = publicoDaCampanha(pedido.utm, borda);
+    if (daCampanha) {
+      publico = daCampanha;
+      origem = "campanha";
+    } else if (gravado && existe(gravado.publico)) {
+      publico = gravado.publico;
+    }
+  }
+  if (!publico) return nenhum;
+  // o sorteio é do VISITANTE, não da escolha: trocar de público não o tira nem o põe no controle
+  const sorteio = gravado?.sorteio ?? sorteioValido(sortear());
+  const controle = sorteio < Math.max(0, Math.min(CONTROLE_MAX, borda.controle));
+  return { servir: controle ? null : publico, publico, controle, ...(origem ? { gravar: { publico, sorteio, forca: "forte", origem } } : {}) };
+}
+
+function sorteioValido(n: number): number {
+  const i = Math.floor(n);
+  return Number.isInteger(i) && i >= 0 && i <= 99 ? i : 0;
+}
+
+/**
+ * A MEDIÇÃO, ANTES DO GTM: um script em linha para o layout, que lê o cookie e empurra `publico`,
+ * `publico_grupo` ("versao" ou "controle") e `publico_origem` para o dataLayer. O container central e o GA4
+ * leem as três como dimensões de todo evento da página, e é isso que separa a venda da versão da venda do
+ * controle.
+ *
+ * Por que o % e a lista vão NA PÁGINA: a de Todos é a mesma para todo mundo (cache), então ela não sabe se
+ * quem a vê é do controle; o cookie guarda só o sorteio. Os dois já são públicos (`/api/unbox/publicos`), e
+ * público excluído não conta: o visitante que ainda tem o cookie dele não é de grupo nenhum.
+ *
+ * Sem públicos, texto vazio, e o layout não imprime nada. O público NÃO vai para Meta, TikTok nem CAPI
+ * (cabelo, queda, pele podem ser dado sensível): fica no dataLayer, e o container decide.
+ */
+export function scriptDaMedicaoDoPublico(doc: ContentDocument | null | undefined): string {
+  const borda = publicosDaBorda(doc);
+  if (!borda.publicos.length) return "";
+  // sem `<` nenhum no script (nem na comparação): nada ali dentro fecha a tag em que ele vai
+  const dados = JSON.stringify({ c: borda.controle, p: borda.publicos.map((p) => p.id) }).replace(/</g, "\\u003c");
+  return (
+    `(function(){try{var d=${dados};window.__unboxPublicos=d;` +
+    `var m=document.cookie.match(/(?:^|; )${COOKIE_DE_PUBLICO}=([^;]*)/);if(!m)return;` +
+    `var v=decodeURIComponent(m[1]).split("~");if(d.p.indexOf(v[0])===-1)return;var s=parseInt(v[1],10);` +
+    `(window.dataLayer=window.dataLayer||[]).push({publico:v[0],publico_grupo:d.c>s?"controle":"versao",publico_origem:v[3]})` +
+    `}catch(e){}})();`
+  );
+}
+
+/**
  * Os campos EDITÁVEIS do registro de uma página (`update_page`): merge raso, chave a chave; `null` = remover
  * o campo. `colecao` só em artigo, e mover de coleção troca o id do container (é um renomear interno).
  */
@@ -2060,8 +2441,10 @@ export interface CamposDaColecao {
 export type RedirecionamentosAnteriores = Record<string, string | null>;
 
 type OpDoDocumento =
-  | { op: "set"; path: string; value: EditableValue; /** interno (inverso de desfazer): declaração anterior a devolver */ declaredAnterior?: DeclaredEntry | null }
-  | { op: "unset"; path: string; declaredAnterior?: DeclaredEntry | null }
+  // `publico` (foundation 18): a MESMA operação, dita para a camada de um público (ver o bloco PÚBLICOS). Vai
+  // dentro da operação, como o `em`, para o inverso carregá-lo: desfazer e refazer reaplicam só o gravado.
+  | { op: "set"; path: string; value: EditableValue; /** interno (inverso de desfazer): declaração anterior a devolver */ declaredAnterior?: DeclaredEntry | null; publico?: string }
+  | { op: "unset"; path: string; declaredAnterior?: DeclaredEntry | null; publico?: string }
   | { op: "set_css"; css: string | null }
   /** `seo: null` apaga o SEO da rota, e a página volta a emitir o que o código dela emite */
   | { op: "set_seo_da_rota"; rota: string; seo: SeoDaRota | null }
@@ -2071,10 +2454,16 @@ type OpDoDocumento =
   | { op: "add_redirect"; de: string; para: string }
   | { op: "set_token"; token: string; value: string }
   | { op: "unset_token"; token: string }
-  | { op: "set_order"; container: string; order: string[] }
-  | { op: "unset_order"; container: string }
-  | { op: "hide_section"; container: string; id: string }
-  | { op: "show_section"; container: string; id: string }
+  | { op: "set_order"; container: string; order: string[]; publico?: string }
+  | { op: "unset_order"; container: string; publico?: string }
+  | { op: "hide_section"; container: string; id: string; publico?: string }
+  | { op: "show_section"; container: string; id: string; publico?: string }
+  /**
+   * interno (inverso de ocultar e mostrar numa camada): as DUAS marcas exatas de uma seção na camada. Ocultar e
+   * mostrar não se desfazem um pelo outro ali, porque a camada é delta sobre Todos: "ocultar" numa seção que
+   * Todos já oculta, desfeito por "mostrar", deixaria a seção visível no público.
+   */
+  | { op: "marcar_na_camada"; container: string; id: string; publico: string; ocultar: boolean; mostrar: boolean }
   /** `ordemSemeada` (interno): a cópia entra logo abaixo da origem, então quem duplica num container SEM ordem
    *  gravada manda a ordem atual junto — e o inverso devolve a ausência dela (Astra v3.14, achado 2). */
   | { op: "duplicate_section"; container: string; id: string; cloneId: string; ordemSemeada?: string[] }
@@ -2107,7 +2496,9 @@ type OpDoDocumento =
       /** PÁGINAS (foundation 13): a mesma regra de `apps`, campo a campo: presente troca (`null` = a versão não tinha); ausente mantém */
       paginas?: ContentDocument["paginas"] | null; colecoes?: ContentDocument["colecoes"] | null; redirecionamentos?: ContentDocument["redirecionamentos"] | null;
       /** CSS (15), SEO das páginas do código (16) e dados da loja (17), pela mesma regra */
-      css?: string | null; seoDasRotas?: ContentDocument["seoDasRotas"] | null; loja?: ContentDocument["loja"] | null }
+      css?: string | null; seoDasRotas?: ContentDocument["seoDasRotas"] | null; loja?: ContentDocument["loja"] | null;
+      /** os públicos e o grupo de controle (18), pela mesma regra */
+      publicos?: ContentDocument["publicos"] | null; personalizacao?: ContentDocument["personalizacao"] | null }
   // ── PÁGINAS DO LOJISTA (foundation 13). Campos internos, que só o inverso de desfazer (ou o servidor)
   // carrega e que `validateOp` RECUSA vindos do cliente: `redirecionamentosAnteriores`, `registroAnterior`,
   // `prefixoDePaginas`, `visivelNoPublicado`, `artigosVisiveisNoPublicado` e o `em` comum a todas.
@@ -2161,7 +2552,18 @@ type OpDoDocumento =
   /** apaga UMA entrada do mapa; inverso `set_redirect` (interno). Não há criação manual no v1. */
   | { op: "unset_redirect"; de: string }
   /** interno (inverso de `unset_redirect`) */
-  | { op: "set_redirect"; de: string; para: string };
+  | { op: "set_redirect"; de: string; para: string }
+  // ── PÚBLICOS (foundation 18) ──────────────────────────────────────────────────────────────────────
+  /** cria o registro no FIM da lista (a ordem é a precedência); o inverso é `delete_publico` */
+  | { op: "create_publico"; id: string; nome: string; descricao?: string; entrada?: EntradaDoPublico }
+  /** merge raso dos campos (`null` apaga); o inverso é o mesmo `update_publico` com os valores de antes */
+  | { op: "update_publico"; id: string; campos: CamposDoPublico }
+  /** apaga o registro E a camada inteira dele; o inverso é `restore_publico`, que devolve tudo no mesmo lugar */
+  | { op: "delete_publico"; id: string }
+  /** interno (inverso de `delete_publico`): o registro na mesma posição da lista, os valores, as declarações e a camada das seções */
+  | { op: "restore_publico"; id: string; registro: Publico; indice: number; values: Record<string, EditableValue>; declared?: Record<string, DeclaredEntry>; camadas?: Record<string, CamadaDeSecoes> }
+  /** o % do grupo de controle; `null` volta ao padrão */
+  | { op: "set_personalizacao"; controle: number | null };
 
 /**
  * `em` (interno, em toda operação): o instante ISO que o SERVIDOR carimba nas operações que criam ou
@@ -2290,6 +2692,7 @@ function devolverRedirecionamentos(next: ContentDocument, anteriores: Redirecion
 
 /** os três mapas nunca existem vazios: `{}` seria uma diferença inventada entre rascunho e publicado */
 function semMapasVazios(next: ContentDocument): void {
+  if (next.publicos && !Object.keys(next.publicos).length) delete next.publicos;
   if (next.paginas && !Object.keys(next.paginas).length) delete next.paginas;
   if (next.colecoes && !Object.keys(next.colecoes).length) delete next.colecoes;
   if (next.redirecionamentos && !Object.keys(next.redirecionamentos).length) delete next.redirecionamentos;
@@ -2300,6 +2703,82 @@ function seHouver(anteriores: RedirecionamentosAnteriores): { redirecionamentosA
   return Object.keys(anteriores).length ? { redirecionamentosAnteriores: anteriores } : {};
 }
 
+// ── A CAMADA NO applyOp (foundation 18) ─────────────────────────────────────────────────────────
+
+/**
+ * Mexe na camada de UM público num container e arruma o que sobrar: marca vazia, camada vazia e estado de
+ * container vazio somem. `{}` e `[]` esquecidos seriam diferença inventada entre rascunho e publicado, e a
+ * barra diria "não publicado" depois de desfazer.
+ */
+function mexerNaCamada(next: ContentDocument, container: string, publico: string, mexe: (camada: CamadaDeSecoes) => void): void {
+  const estado: SectionState = { ...(next.sections[container] ?? {}) };
+  const publicos = { ...(estado.publicos ?? {}) };
+  const camada: CamadaDeSecoes = { ...(publicos[publico] ?? {}) };
+  mexe(camada);
+  if (camada.ocultar && !camada.ocultar.length) delete camada.ocultar;
+  if (camada.mostrar && !camada.mostrar.length) delete camada.mostrar;
+  if (camada.order === undefined) delete camada.order;
+  if (Object.keys(camada).length) publicos[publico] = camada;
+  else delete publicos[publico];
+  if (Object.keys(publicos).length) estado.publicos = publicos;
+  else delete estado.publicos;
+  if (Object.keys(estado).length) next.sections[container] = estado;
+  else delete next.sections[container];
+}
+
+/** as duas marcas de uma seção na camada de um público */
+function marcasNaCamada(doc: ContentDocument, container: string, publico: string, id: string): { ocultar: boolean; mostrar: boolean } {
+  const camada = doc.sections[container]?.publicos?.[publico];
+  return { ocultar: Boolean(camada?.ocultar?.includes(id)), mostrar: Boolean(camada?.mostrar?.includes(id)) };
+}
+
+function marcarNaCamada(next: ContentDocument, container: string, publico: string, id: string, marcas: { ocultar: boolean; mostrar: boolean }): void {
+  mexerNaCamada(next, container, publico, (camada) => {
+    const ocultar = (camada.ocultar ?? []).filter((x) => x !== id);
+    const mostrar = (camada.mostrar ?? []).filter((x) => x !== id);
+    if (marcas.ocultar) ocultar.push(id);
+    if (marcas.mostrar) mostrar.push(id);
+    camada.ocultar = ocultar;
+    camada.mostrar = mostrar;
+  });
+}
+
+/** tira do documento a camada inteira de um público, devolvendo o que saiu (é o que `restore_publico` devolve) */
+function retirarPublico(next: ContentDocument, id: string): { values: Record<string, EditableValue>; declared: Record<string, DeclaredEntry>; camadas: Record<string, CamadaDeSecoes> } {
+  const sufixo = SEPARADOR_DE_PUBLICO + id;
+  const daCamada = (k: string) => publicoDaChave(k) === id && k.endsWith(sufixo);
+  const values: Record<string, EditableValue> = {};
+  for (const k of Object.keys(next.values)) if (daCamada(k)) {
+    values[k] = clone(next.values[k]);
+    delete next.values[k];
+  }
+  const declared: Record<string, DeclaredEntry> = {};
+  for (const k of Object.keys(next.declared ?? {})) if (daCamada(k)) {
+    declared[k] = { ...next.declared![k] };
+    delete next.declared![k];
+  }
+  const camadas: Record<string, CamadaDeSecoes> = {};
+  for (const c of Object.keys(next.sections)) {
+    const camada = next.sections[c].publicos?.[id];
+    if (!camada) continue;
+    camadas[c] = clone(camada);
+    mexerNaCamada(next, c, id, (cam) => {
+      delete cam.order;
+      delete cam.ocultar;
+      delete cam.mostrar;
+    });
+  }
+  return { values, declared, camadas };
+}
+
+/** a entrada tem alguma regra? Entrada sem regra não se grava: `{ utm: [] }` seria um campo que não diz nada */
+function entradaComRegra(e: EntradaDoPublico | null | undefined): e is EntradaDoPublico {
+  return Boolean(e?.utm?.length);
+}
+function entradaLimpa(e: EntradaDoPublico): EntradaDoPublico {
+  return { ...(e.utm?.length ? { utm: e.utm.map((r) => ({ campo: r.campo, contem: r.contem.trim() })) } : {}) };
+}
+
 /** Aplica UMA operação e devolve o documento novo + a operação inversa (pra desfazer). */
 export function applyOp(doc: ContentDocument, op: PatchOp): { doc: ContentDocument; inverse: PatchOp } {
   const next = clone(doc);
@@ -2308,22 +2787,27 @@ export function applyOp(doc: ContentDocument, op: PatchOp): { doc: ContentDocume
     // a declaração de honestidade é DO VALOR: valor novo (ou removido) apaga a declaração antiga;
     // quem grava um valor declarado registra a declaração de novo depois de aplicar
     case "set": {
-      const prev = doc.values[op.path];
-      const declPrev = doc.declared?.[op.path] ?? null;
+      // na camada de um público a chave é a do caminho com `@<id>`; o resto é igual, inclusive a proveniência
+      const chave = chaveNoPublico(op.path, op.publico);
+      const pub = op.publico ? { publico: op.publico } : {};
+      const prev = doc.values[chave];
+      const declPrev = doc.declared?.[chave] ?? null;
       // o inverso leva a declaração anterior: desfazer devolve valor E proveniência
-      inverse = prev === undefined ? { op: "unset", path: op.path, declaredAnterior: declPrev } : { op: "set", path: op.path, value: prev, declaredAnterior: declPrev };
-      next.values[op.path] = op.value;
-      if (next.declared) delete next.declared[op.path];
-      if (op.declaredAnterior) next.declared = { ...(next.declared ?? {}), [op.path]: op.declaredAnterior };
+      inverse = prev === undefined ? { op: "unset", path: op.path, declaredAnterior: declPrev, ...pub } : { op: "set", path: op.path, value: prev, declaredAnterior: declPrev, ...pub };
+      next.values[chave] = op.value;
+      if (next.declared) delete next.declared[chave];
+      if (op.declaredAnterior) next.declared = { ...(next.declared ?? {}), [chave]: op.declaredAnterior };
       break;
     }
     case "unset": {
-      const prev = doc.values[op.path];
-      const declPrev = doc.declared?.[op.path] ?? null;
-      inverse = prev === undefined ? { op: "unset", path: op.path, declaredAnterior: declPrev } : { op: "set", path: op.path, value: prev, declaredAnterior: declPrev };
-      delete next.values[op.path];
-      if (next.declared) delete next.declared[op.path];
-      if (op.declaredAnterior) next.declared = { ...(next.declared ?? {}), [op.path]: op.declaredAnterior };
+      const chave = chaveNoPublico(op.path, op.publico);
+      const pub = op.publico ? { publico: op.publico } : {};
+      const prev = doc.values[chave];
+      const declPrev = doc.declared?.[chave] ?? null;
+      inverse = prev === undefined ? { op: "unset", path: op.path, declaredAnterior: declPrev, ...pub } : { op: "set", path: op.path, value: prev, declaredAnterior: declPrev, ...pub };
+      delete next.values[chave];
+      if (next.declared) delete next.declared[chave];
+      if (op.declaredAnterior) next.declared = { ...(next.declared ?? {}), [chave]: op.declaredAnterior };
       break;
     }
     case "set_dados_da_loja": {
@@ -2378,18 +2862,42 @@ export function applyOp(doc: ContentDocument, op: PatchOp): { doc: ContentDocume
       break;
     }
     case "set_order": {
+      if (op.publico) {
+        const publico = op.publico;
+        const prev = doc.sections[op.container]?.publicos?.[publico]?.order;
+        inverse = prev ? { op: "set_order", container: op.container, order: prev, publico } : { op: "unset_order", container: op.container, publico };
+        mexerNaCamada(next, op.container, publico, (camada) => {
+          camada.order = [...op.order];
+        });
+        break;
+      }
       const prev = doc.sections[op.container]?.order;
       inverse = prev ? { op: "set_order", container: op.container, order: prev } : { op: "unset_order", container: op.container };
       next.sections[op.container] = { ...(next.sections[op.container] ?? {}), order: [...op.order] };
       break;
     }
     case "unset_order": {
+      if (op.publico) {
+        const publico = op.publico;
+        const prev = doc.sections[op.container]?.publicos?.[publico]?.order;
+        inverse = prev ? { op: "set_order", container: op.container, order: prev, publico } : { op: "unset_order", container: op.container, publico };
+        mexerNaCamada(next, op.container, publico, (camada) => {
+          delete camada.order;
+        });
+        break;
+      }
       const prev = doc.sections[op.container]?.order;
       inverse = prev ? { op: "set_order", container: op.container, order: prev } : { op: "unset_order", container: op.container };
       if (next.sections[op.container]) delete next.sections[op.container].order;
       break;
     }
     case "hide_section": {
+      if (op.publico) {
+        // oculta NESTE público, mesmo que Todos mostre: marca em `ocultar`, e tira de `mostrar`
+        inverse = { op: "marcar_na_camada", container: op.container, id: op.id, publico: op.publico, ...marcasNaCamada(doc, op.container, op.publico, op.id) };
+        marcarNaCamada(next, op.container, op.publico, op.id, { ocultar: true, mostrar: false });
+        break;
+      }
       const hidden = new Set(doc.sections[op.container]?.hidden ?? []);
       inverse = hidden.has(op.id) ? { op: "hide_section", container: op.container, id: op.id } : { op: "show_section", container: op.container, id: op.id };
       hidden.add(op.id);
@@ -2397,6 +2905,14 @@ export function applyOp(doc: ContentDocument, op: PatchOp): { doc: ContentDocume
       break;
     }
     case "show_section": {
+      if (op.publico) {
+        // mostra NESTE público: tira de `ocultar`, e só marca `mostrar` quando é Todos que a oculta (senão a
+        // marca sobraria, e a seção continuaria aparecendo no público depois de Todos ocultá-la)
+        const todosOculta = (doc.sections[op.container]?.hidden ?? []).includes(op.id);
+        inverse = { op: "marcar_na_camada", container: op.container, id: op.id, publico: op.publico, ...marcasNaCamada(doc, op.container, op.publico, op.id) };
+        marcarNaCamada(next, op.container, op.publico, op.id, { ocultar: false, mostrar: todosOculta });
+        break;
+      }
       const hidden = new Set(doc.sections[op.container]?.hidden ?? []);
       inverse = hidden.has(op.id) ? { op: "hide_section", container: op.container, id: op.id } : { op: "show_section", container: op.container, id: op.id };
       hidden.delete(op.id);
@@ -2522,6 +3038,7 @@ export function applyOp(doc: ContentDocument, op: PatchOp): { doc: ContentDocume
         op: "replace_doc", values: clone(doc.values), sections: clone(doc.sections), tokens: clone(doc.tokens), declared: doc.declared ? clone(doc.declared) : undefined, apps: doc.apps ? clone(doc.apps) : null,
         paginas: doc.paginas ? clone(doc.paginas) : null, colecoes: doc.colecoes ? clone(doc.colecoes) : null, redirecionamentos: doc.redirecionamentos ? clone(doc.redirecionamentos) : null,
         css: doc.css ?? null, seoDasRotas: doc.seoDasRotas ? clone(doc.seoDasRotas) : null, loja: doc.loja ? clone(doc.loja) : null,
+        publicos: doc.publicos ? clone(doc.publicos) : null, personalizacao: doc.personalizacao ? clone(doc.personalizacao) : null,
       };
       next.values = clone(op.values);
       next.sections = clone(op.sections);
@@ -2558,6 +3075,94 @@ export function applyOp(doc: ContentDocument, op: PatchOp): { doc: ContentDocume
         if (op.loja) next.loja = clone(op.loja);
         else delete next.loja;
       }
+      // "usar esta versão" traz a versão com os públicos DELA: a camada está em `values` e `sections`, e sem o
+      // registro ela ficaria órfã (ou o registro de hoje ficaria sem a camada que a versão tinha)
+      if (op.publicos !== undefined) {
+        if (op.publicos) next.publicos = clone(op.publicos);
+        else delete next.publicos;
+      }
+      if (op.personalizacao !== undefined) {
+        if (op.personalizacao) next.personalizacao = clone(op.personalizacao);
+        else delete next.personalizacao;
+      }
+      break;
+    }
+    // ── PÚBLICOS (foundation 18) ───────────────────────────────────────────────────────────────────
+    case "marcar_na_camada": {
+      inverse = { op: "marcar_na_camada", container: op.container, id: op.id, publico: op.publico, ...marcasNaCamada(doc, op.container, op.publico, op.id) };
+      marcarNaCamada(next, op.container, op.publico, op.id, { ocultar: op.ocultar, mostrar: op.mostrar });
+      break;
+    }
+    case "create_publico": {
+      const registro: Publico = { nome: op.nome.trim() };
+      if (op.descricao?.trim()) registro.descricao = op.descricao.trim();
+      if (entradaComRegra(op.entrada)) registro.entrada = entradaLimpa(op.entrada);
+      registro.criadoEm = instanteDa(op);
+      next.publicos = { ...(next.publicos ?? {}), [op.id]: registro };
+      inverse = { op: "delete_publico", id: op.id };
+      break;
+    }
+    case "update_publico": {
+      const atual = doc.publicos?.[op.id];
+      if (!atual) {
+        inverse = { op: "update_publico", id: op.id, campos: {} };
+        break;
+      }
+      const antes: CamposDoPublico = {};
+      const novo: Publico = clone(atual);
+      if (op.campos.nome !== undefined) {
+        antes.nome = atual.nome;
+        novo.nome = op.campos.nome.trim();
+      }
+      if (op.campos.descricao !== undefined) {
+        antes.descricao = atual.descricao ?? null;
+        if (op.campos.descricao?.trim()) novo.descricao = op.campos.descricao.trim();
+        else delete novo.descricao;
+      }
+      if (op.campos.entrada !== undefined) {
+        antes.entrada = atual.entrada ? clone(atual.entrada) : null;
+        if (entradaComRegra(op.campos.entrada)) novo.entrada = entradaLimpa(op.campos.entrada);
+        else delete novo.entrada;
+      }
+      // chave que já existe fica no mesmo lugar: a precedência não muda por editar
+      next.publicos = { ...next.publicos, [op.id]: novo };
+      inverse = { op: "update_publico", id: op.id, campos: antes };
+      break;
+    }
+    case "delete_publico": {
+      const registro = doc.publicos?.[op.id];
+      if (!registro) {
+        inverse = { op: "delete_publico", id: op.id };
+        break;
+      }
+      const indice = Object.keys(doc.publicos!).indexOf(op.id);
+      const { values, declared, camadas } = retirarPublico(next, op.id);
+      const publicos = { ...next.publicos };
+      delete publicos[op.id];
+      next.publicos = publicos;
+      inverse = { op: "restore_publico", id: op.id, registro: clone(registro), indice, values, ...(Object.keys(declared).length ? { declared } : {}), ...(Object.keys(camadas).length ? { camadas } : {}) };
+      break;
+    }
+    case "restore_publico": {
+      // de volta ao MESMO lugar da lista, porque a ordem é a precedência entre as regras
+      const lista = Object.entries(next.publicos ?? {}).filter(([id]) => id !== op.id);
+      const pos = Math.max(0, Math.min(op.indice, lista.length));
+      lista.splice(pos, 0, [op.id, clone(op.registro)]);
+      next.publicos = Object.fromEntries(lista);
+      for (const [k, v] of Object.entries(op.values)) next.values[k] = clone(v);
+      if (op.declared && Object.keys(op.declared).length) next.declared = { ...(next.declared ?? {}), ...op.declared };
+      for (const [c, camada] of Object.entries(op.camadas ?? {})) {
+        mexerNaCamada(next, c, op.id, (cam) => {
+          Object.assign(cam, clone(camada));
+        });
+      }
+      inverse = { op: "delete_publico", id: op.id };
+      break;
+    }
+    case "set_personalizacao": {
+      inverse = { op: "set_personalizacao", controle: doc.personalizacao ? doc.personalizacao.controle : null };
+      if (op.controle === null) delete next.personalizacao;
+      else next.personalizacao = { controle: op.controle };
       break;
     }
     // ── PÁGINAS DO LOJISTA (foundation 13) ─────────────────────────────────────────────────────────
@@ -2803,8 +3408,10 @@ export function applyOp(doc: ContentDocument, op: PatchOp): { doc: ContentDocume
   // gravar o MESMO valor não é mudança: o painel manda um `set` sempre que o campo perde o foco, e carimbar
   // ali faria o `lastmod` do sitemap dizer que a página mudou. O Google só usa `lastmod` enquanto ele for
   // verdadeiro; uma data que anda sozinha é uma data que ele passa a ignorar.
-  const semEfeito = (op.op === "set" || op.op === "unset") && JSON.stringify(doc.values[op.path] ?? null) === JSON.stringify((op.op === "set" ? op.value : undefined) ?? null);
-  if (raiz && ehContainerDoLojista(raiz) && !semEfeito) {
+  const semEfeito = (op.op === "set" || op.op === "unset") && JSON.stringify(doc.values[chaveNoPublico(op.path, op.publico)] ?? null) === JSON.stringify((op.op === "set" ? op.value : undefined) ?? null);
+  // edição só de CAMADA não carimba: o `lastmod` do sitemap fala da página de Todos, que não mudou
+  const deCamada = "publico" in op && Boolean(op.publico);
+  if (raiz && ehContainerDoLojista(raiz) && !semEfeito && !deCamada) {
     const em = instanteDa(op);
     const pagina = next.paginas?.[raiz];
     const colecao = raiz.startsWith("colecao-") ? next.colecoes?.[raiz.slice("colecao-".length)] : undefined;
@@ -3153,6 +3760,23 @@ export interface Manifest {
    * com a cor: perguntar ao render em vez de acreditar no código.
    */
   letraDaLoja?: boolean;
+  /**
+   * PERSONALIZAÇÃO POR PÚBLICO (foundation 18): os containers que a loja RENDERIZA por público. Ausente =
+   * nenhum: o painel não oferece públicos e `validateOp` recusa toda operação deles. Como `paginasDoLojista`,
+   * quem libera é a declaração, não o número da versão: loja que copiou a lib nova sem a rota do público
+   * ofereceria versões que ninguém nunca veria.
+   */
+  personalizacao?: ManifestPersonalizacao;
+  /**
+   * A VISÃO em que a prévia estava ao capturar ("Ver como", foundation 18): o id do público, ausente = Todos.
+   * Linhas e seções são as mesmas nas duas visões; o que muda é `current` e `hidden`, que falam da visão.
+   */
+  publico?: string;
+}
+export interface ManifestPersonalizacao {
+  foundation: 18;
+  /** a fase 1 é a home (`["home"]`); cabeçalho, rodapé e faixa moram no layout, acima da rota, e são de Todos */
+  containers: string[];
 }
 export interface ManifestPaginasDoLojista {
   foundation: 13;
@@ -3459,6 +4083,19 @@ export function validateOp(op: PatchOp, manifest: Manifest, doc?: ContentDocumen
   // contra um manifesto de loja antiga que ainda os liste. Seção sem container é a mesma porta.
   if ((op.op === "set" || op.op === "unset") && caminhoNaRaiz(op.path)) return { ok: false, reason: `este campo está fora de qualquer seção e não pode ser gravado: ${op.path}` };
   if ("container" in op && !op.container) return { ok: false, reason: "operação de seção sem container" };
+  // o `@` é a marca da camada de um público (foundation 18): no caminho que vem do cliente, é chave forjada
+  if ((op.op === "set" || op.op === "unset") && op.path.includes(SEPARADOR_DE_PUBLICO)) return { ok: false, reason: `caminho inválido: ${op.path}` };
+  if ("container" in op && typeof op.container === "string" && op.container.includes(SEPARADOR_DE_PUBLICO)) return { ok: false, reason: `container inválido: ${op.container}` };
+  // A CAMADA DE UM PÚBLICO é a operação de Todos dita para um público: a régua do público (ele existe, o
+  // container varia, a operação pode variar) e depois a MESMA régua de Todos (o caminho existe, o valor
+  // serve, a seção não é fixa)
+  const publicoDaOp = (op as { publico?: unknown }).publico;
+  if (publicoDaOp !== undefined && op.op !== "marcar_na_camada") {
+    const recusa = recusaDaCamada(op, publicoDaOp, manifest, doc);
+    if (recusa) return { ok: false, reason: recusa };
+    const { publico: _publico, ...deTodos } = op as PatchOp & { publico?: string };
+    return validateOp(deTodos as PatchOp, manifest, doc, publicado);
+  }
   switch (op.op) {
     case "set": {
       // estilo por elemento: `<caminho>.estilo` existe se o caminho base existe; e por SEÇÃO:
@@ -3668,7 +4305,14 @@ export function validateOp(op: PatchOp, manifest: Manifest, doc?: ContentDocumen
     case "restore_page":
     case "restore_collection":
     case "set_redirect":
+    case "marcar_na_camada":
+    case "restore_publico":
       return { ok: false, reason: "operação interna (só como inverso de desfazer)" };
+    case "create_publico":
+    case "update_publico":
+    case "delete_publico":
+    case "set_personalizacao":
+      return validarOpDePublico(op, manifest, doc);
     case "create_page":
     case "delete_page":
     case "update_page":
@@ -3685,6 +4329,90 @@ export function validateOp(op: PatchOp, manifest: Manifest, doc?: ContentDocumen
         return typeof op.de === "string" && doc?.redirecionamentos?.[normalizarPagina(op.de)] !== undefined ? SIM : { ok: false, reason: "Esse redirecionamento não existe." };
       }
       return validarOpDePagina(op, manifest, doc ?? emptyDocument(manifest.shop), publicado);
+    }
+  }
+}
+
+// ── VALIDAÇÃO DOS PÚBLICOS (foundation 18) ───────────────────────────────────────────────────────
+
+export const FRASE_SEM_PUBLICOS = "Nesta loja ainda não dá para ter versões por público. Fale com a Unbox para liberar.";
+export const FRASE_VALE_PARA_TODOS = "Esta parte vale para todos os públicos: mude na visão de Todos.";
+/** o que uma camada pode fazer: trocar valor e mexer na ordem e na visibilidade das seções */
+const OPS_DA_CAMADA = new Set<string>(["set", "unset", "set_order", "unset_order", "hide_section", "show_section"]);
+
+function lojaTemPublicos(manifest: Manifest): boolean {
+  return (manifest.foundation ?? 1) >= 18 && Boolean(manifest.personalizacao?.containers?.length);
+}
+
+function recusaDaCamada(op: PatchOp, publico: unknown, manifest: Manifest, doc: ContentDocument | undefined): string | null {
+  if (!lojaTemPublicos(manifest)) return FRASE_SEM_PUBLICOS;
+  if (typeof publico !== "string" || !doc?.publicos?.[publico]) return "Esse público não existe mais.";
+  if (!OPS_DA_CAMADA.has(op.op)) return FRASE_VALE_PARA_TODOS;
+  const raiz = op.op === "set" || op.op === "unset" ? op.path.split(".")[0] : "container" in op && typeof op.container === "string" ? op.container.split(".")[0] : "";
+  return manifest.personalizacao!.containers.includes(raiz) ? null : FRASE_VALE_PARA_TODOS;
+}
+
+function recusaDoNomeDePublico(nome: unknown, doc: ContentDocument | undefined, id?: string): string | null {
+  if (typeof nome !== "string" || !nome.trim()) return "O público precisa de um nome.";
+  if (tamanho(nome.trim()) > NOME_DE_PUBLICO_MAX) return `Nome longo demais: no máximo ${NOME_DE_PUBLICO_MAX} letras.`;
+  const igual = Object.entries(doc?.publicos ?? {}).find(([outro, p]) => outro !== id && p.nome.trim().toLowerCase() === nome.trim().toLowerCase());
+  return igual ? `Já existe um público chamado "${igual[1].nome}".` : null;
+}
+
+function recusaDaDescricaoDePublico(d: unknown): string | null {
+  if (d === undefined || d === null) return null;
+  if (typeof d !== "string") return "A descrição precisa ser um texto.";
+  return tamanho(d.trim()) > DESCRICAO_DE_PUBLICO_MAX ? `Descrição longa demais: no máximo ${DESCRICAO_DE_PUBLICO_MAX} letras.` : null;
+}
+
+/** as regras de entrada, campo a campo. `null`/ausente = sem regra (vale o link do anúncio e os apps) */
+export function recusaDaEntrada(e: unknown): string | null {
+  if (e === undefined || e === null) return null;
+  if (typeof e !== "object" || Array.isArray(e)) return "Regras de entrada inválidas.";
+  const o = e as Record<string, unknown>;
+  for (const k of Object.keys(o)) if (k !== "utm") return `Regra de entrada desconhecida: ${k}.`;
+  if (o.utm === undefined) return null;
+  if (!Array.isArray(o.utm)) return "As regras de campanha precisam ser uma lista.";
+  if (o.utm.length > REGRAS_DE_UTM_MAX) return `No máximo ${REGRAS_DE_UTM_MAX} regras de campanha por público.`;
+  for (const r of o.utm) {
+    if (!r || typeof r !== "object") return "Regra de campanha inválida.";
+    const { campo, contem } = r as Record<string, unknown>;
+    if (!(CAMPOS_DE_UTM as readonly unknown[]).includes(campo)) return `Parâmetro de campanha desconhecido: ${String(campo)}.`;
+    if (typeof contem !== "string" || !contem.trim()) return "Cada regra de campanha precisa de um texto.";
+    if (tamanho(contem.trim()) > TEXTO_DE_REGRA_MAX) return `Texto de campanha longo demais: no máximo ${TEXTO_DE_REGRA_MAX} letras.`;
+  }
+  return null;
+}
+
+function validarOpDePublico(op: Extract<PatchOp, { op: "create_publico" | "update_publico" | "delete_publico" | "set_personalizacao" }>, manifest: Manifest, doc: ContentDocument | undefined): Resultado {
+  switch (op.op) {
+    case "create_publico": {
+      if (!lojaTemPublicos(manifest)) return nao(FRASE_SEM_PUBLICOS);
+      if (!idDePublicoValido(op.id)) return nao(`Identificador inválido: letras minúsculas, números e hífen, começando por letra, até ${PUBLICO_ID_MAX} caracteres ("${PUBLICO_TODOS}" é reservado).`);
+      const atuais = doc?.publicos ?? {};
+      if (atuais[op.id]) return nao(`Já existe um público com o identificador "${op.id}".`);
+      if (Object.keys(atuais).length >= PUBLICOS_MAX) return nao(`Esta loja já tem ${PUBLICOS_MAX} públicos, o máximo. Exclua um para criar outro.`);
+      const r = recusaDoNomeDePublico(op.nome, doc) ?? recusaDaDescricaoDePublico(op.descricao) ?? recusaDaEntrada(op.entrada);
+      return r ? nao(r) : SIM;
+    }
+    case "update_publico": {
+      if (!lojaTemPublicos(manifest)) return nao(FRASE_SEM_PUBLICOS);
+      if (!doc?.publicos?.[op.id]) return nao("Esse público não existe mais.");
+      if (!op.campos || typeof op.campos !== "object") return nao("Campos inválidos.");
+      for (const k of Object.keys(op.campos)) if (!["nome", "descricao", "entrada"].includes(k)) return nao(`Campo desconhecido: ${k}.`);
+      const r =
+        (op.campos.nome !== undefined ? recusaDoNomeDePublico(op.campos.nome, doc, op.id) : null) ??
+        recusaDaDescricaoDePublico(op.campos.descricao) ??
+        recusaDaEntrada(op.campos.entrada);
+      return r ? nao(r) : SIM;
+    }
+    case "delete_publico":
+      // excluir não depende da loja ainda declarar públicos: é o caminho de limpar uma camada que ficou para trás
+      return doc?.publicos?.[op.id] ? SIM : nao("Esse público não existe mais.");
+    case "set_personalizacao": {
+      if (!lojaTemPublicos(manifest)) return nao(FRASE_SEM_PUBLICOS);
+      if (op.controle === null) return SIM;
+      return Number.isInteger(op.controle) && op.controle >= 0 && op.controle <= CONTROLE_MAX ? SIM : nao(`O grupo de controle vai de 0% a ${CONTROLE_MAX}%.`);
     }
   }
 }

@@ -97,7 +97,7 @@ Referência do que cada um cobriu, caso precise entender/estender alguma parte e
 |---|--------|----------------------|
 | 00 | **Scaffold** | `package.json`, `next.config.ts`, `app/globals.css`, `lib/unbox/*`, `lib/config.ts` |
 | 01 | **Layout** | `app/layout.tsx`, `components/site-header.tsx`, `site-footer.tsx`, `mobile-nav.tsx` |
-| 02 | **Homepage** | `app/(loja)/page.tsx`, `components/home/*.tsx` |
+| 02 | **Homepage** | `components/home/pagina-inicial.tsx` (o corpo, que recebe o documento), `components/home/*.tsx`; `app/(loja)/page.tsx` e a versão por público (`app/(loja)/%5Fpublico/[publico]`) são cascas |
 | 03 | **Catalog** | `app/(loja)/produtos/page.tsx`, `app/(loja)/categoria/[tagSlug]/page.tsx`, `app/(loja)/busca/page.tsx`, `components/catalog/*.tsx` |
 | 04 | **PDP** | `app/(loja)/produto/[productSlug]/page.tsx`, `components/product/pdp/*.tsx` |
 | 05 | **Cart** | `app/(loja)/carrinho/page.tsx`, `components/cart/*.tsx`, `app/api/cart/**` (inclui link de recuperação `?id=&token=`) |

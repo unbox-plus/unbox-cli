@@ -35,6 +35,9 @@ export async function POST(req: Request) {
     try {
       if (p.includes("[")) revalidatePath(p, "page");
       else revalidatePath(p);
+      // A VERSÃO DE CADA PÚBLICO (foundation 18) é outra página em cache da mesma home: publicar a home sem
+      // ela deixaria o público vendo a versão antiga até o ISR vencer
+      if (p === "/") revalidatePath("/_publico/[publico]", "page");
       revalidados.push(p);
     } catch (err) {
       falhas.push(`${p}: ${err instanceof Error ? err.message : String(err)}`);

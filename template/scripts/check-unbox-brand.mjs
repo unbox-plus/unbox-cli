@@ -95,7 +95,9 @@ for (const [arquivo, rotulo] of [
   ["app/(loja)/produto/[productSlug]/page.tsx", "PDP"],
   ["app/(loja)/carrinho/page.tsx", "carrinho"],
 ]) {
-  const src = read(arquivo);
+  // a home (foundation 18) é casca: o corpo, com o dataLayerReady, mora em PaginaInicial, que a rota da
+  // versão de cada público também renderiza
+  const src = arquivo === "app/(loja)/page.tsx" && /PaginaInicial/.test(read(arquivo) ?? "") ? read("components/home/pagina-inicial.tsx") : read(arquivo);
   if (src && !/DataLayerReady|trackPageType/.test(src)) {
     errors.push(`${arquivo} (${rotulo}) não emite dataLayerReady — o GTM central perde o tipo de página e o remarketing.`);
   }
