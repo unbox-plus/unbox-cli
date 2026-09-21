@@ -29,6 +29,12 @@ Um grupo de controle (20% por padrão) cai no público e vê Todos, para medir s
   projeção para o navegador como lista de permissão (campo novo fica no servidor até alguém o permitir), o
   "Ver como" do editor e `EditablePublico`. Detalhe no README da foundation, seção "Personalização por público".
 
+- Publicar revalida também a LISTA dos públicos (`revalidatePath("/api/unbox/publicos")` com `/`): gerada no build
+  antes da primeira publicação, ela não entra no cache com a tag do conteúdo. Publicado, a versão vale em até 1
+  minuto (o que a borda leva para renovar a cópia em memória).
+- Texto editado na própria prévia do editor (`contentEditable`) remonta com o documento seguinte: antes, desfazer
+  ou trocar a visão deixava o texto velho na prévia até recarregar.
+
 Medido na loja gerada por este CLI (`next build && next start`, lendo um editor de teste): Todos sem cookie é
 a página de sempre, o link e a campanha gravam e servem a versão, o controle vê Todos, 50 pedidos paralelos
 alternando cookie sem mistura, e publicar revalida a home, as versões e a lista. A versão pesa 760 bytes a mais

@@ -133,6 +133,14 @@ interface Ctx {
    * lojista veria "não autorizado" sem ter feito nada errado.
    */
   renovarToken: () => void;
+  /**
+   * A GERAÇÃO DE CADA CAMINHO EDITADO NA PRÓPRIA PRÉVIA. O `contentEditable` escreve no DOM por fora do React:
+   * o navegador troca os nós de texto que o React guardava, e dali em diante uma mudança do valor (desfazer, a
+   * troca de visão do "Ver como", outra aba) ia para nós que já não estavam na tela, e a prévia mostrava o texto
+   * velho. O `Text` usa a geração como `key`: quando ela anda, o elemento REMONTA e o React volta a ser dono do
+   * que está na tela. Anda uma vez por edição, junto com o documento seguinte (então não pisca).
+   */
+  geracaoDoInline: Record<string, number>;
 }
 
 const noop = () => () => {};
@@ -151,6 +159,7 @@ const EditableContext = React.createContext<Ctx>({
   foraDeContainer: noop,
   previewToken: null,
   renovarToken: () => {},
+  geracaoDoInline: {},
 });
 
 export function useEditableContext() {
@@ -530,6 +539,9 @@ export function EditableProvider({
   // `unbox-editor:publico`, e só existe em edição: fora dela o documento do layout já é o de Todos, e a página
   // de um público junta a camada por `<EditablePublico>`.
   const [publicoEmVista, setPublicoEmVista] = React.useState<string | null>(null);
+  // os caminhos que a edição na prévia mexeu por fora do React, e a geração de cada um (ver `geracaoDoInline`)
+  const [geracaoDoInline, setGeracaoDoInline] = React.useState<Record<string, number>>({});
+  const inlineSujos = React.useRef(new Set<string>());
   const registry = React.useRef(new Map<string, Registration>());
   // um caminho pode ter VÁRIAS instâncias montadas (ícone absoluto compartilhado pelos itens de uma lista):
   // o registro só some quando a última desmonta; até lá outra instância viva responde (Astra v3, achado 9)
@@ -547,6 +559,18 @@ export function EditableProvider({
   const docEfetivo = React.useMemo(() => aplicarPublico(doc, publicoEmVista), [doc, publicoEmVista]);
   const docRef = React.useRef(docEfetivo);
   docRef.current = docEfetivo;
+  // chegou documento novo (ou outra visão): o que a edição na prévia mexeu por fora do React remonta, já com o
+  // valor novo
+  React.useEffect(() => {
+    if (!inlineSujos.current.size) return;
+    const sujos = [...inlineSujos.current];
+    inlineSujos.current.clear();
+    setGeracaoDoInline((g) => {
+      const n = { ...g };
+      for (const p of sujos) n[p] = (n[p] ?? 0) + 1;
+      return n;
+    });
+  }, [docEfetivo]);
 
   // publicado mudou (revalidação ISR + navegação) → segue o servidor, fora do modo edição
   React.useEffect(() => {
@@ -728,6 +752,14 @@ export function EditableProvider({
       conjunto.add(r);
       instancias.current.set(r.path, conjunto);
       registry.current.set(r.path, r);
+      // o elemento REMONTADO (a geração da edição na prévia) é o mesmo campo: se era o selecionado, a marca vai para ele
+      if (selectedEl.current && !selectedEl.current.isConnected && selectedEl.current.getAttribute("data-editor-path") === r.path) {
+        const novo = r.el();
+        if (novo) {
+          selectedEl.current = novo;
+          novo.setAttribute("data-editor-selected", "1");
+        }
+      }
       scheduleManifest();
       return () => {
         conjunto.delete(r);
@@ -869,6 +901,7 @@ export function EditableProvider({
               const reg = registry.current.get(u.path);
               const atual = reg ? resolveValue(docRef.current, u.path, reg.fallback) : undefined;
               u.el.innerText = typeof atual === "string" ? atual : u.original;
+              inlineSujos.current.add(u.path);
             }
             pend.delete(id!);
           }
@@ -922,6 +955,8 @@ export function EditableProvider({
       const novo = e.el.innerText.replace(/\u00a0/g, " ").replace(/\n{3,}/g, "\n\n").trim();
       e.el.removeAttribute("contenteditable");
       e.el.removeAttribute("data-editor-editing");
+      // o texto deste caminho foi escrito por fora do React: remonta com o próximo documento (`geracaoDoInline`)
+      inlineSujos.current.add(e.path);
       if (confirmar && novo && novo !== e.original) {
         const inlineId = ++inlineSeq.current;
         inlinePendentes.current.set(inlineId, e);
@@ -1001,8 +1036,8 @@ export function EditableProvider({
   const value = React.useMemo<Ctx>(
     // `container: undefined` de propósito: a raiz do provider não é a home. Quem quer editar declara
     // o container da sua página (`Editable.Sections container="sobre"`); quem não declara não edita.
-    () => ({ doc: docEfetivo, editing, rascunhoChegou, selectMode, scope: [], container: undefined, layout: true, register, registerSection, registerTipos, select, foraDeContainer, previewToken, renovarToken }),
-    [docEfetivo, editing, rascunhoChegou, selectMode, register, registerSection, registerTipos, select, foraDeContainer, previewToken, renovarToken],
+    () => ({ doc: docEfetivo, editing, rascunhoChegou, selectMode, scope: [], container: undefined, layout: true, register, registerSection, registerTipos, select, foraDeContainer, previewToken, renovarToken, geracaoDoInline }),
+    [docEfetivo, editing, rascunhoChegou, selectMode, register, registerSection, registerTipos, select, foraDeContainer, previewToken, renovarToken, geracaoDoInline],
   );
 
   // tokens editados → :root. Só os da allowlist da loja.
