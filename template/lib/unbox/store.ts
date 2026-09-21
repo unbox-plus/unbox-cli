@@ -23,17 +23,13 @@ const RENEW_BUFFER_MS = 60 * 60 * 1000; // renova 1h antes de expirar
 async function doSignIn(): Promise<CachedToken> {
   if (!hasUnboxCredentials) {
     throw new Error(
-      "[unbox] credenciais ausentes (UNBOX_API_KEY/UNBOX_USER/UNBOX_PASS) — preencha .env.local. Rodando em modo mockup."
+      "[unbox] credenciais ausentes (UNBOX_PARTNER_API_KEY/UNBOX_USER/UNBOX_PASS) — preencha .env.local. Rodando em modo mockup."
     );
   }
   const client = new UnboxClient({
-    apiKey: serverEnv.apiKey,
-    shopId: serverEnv.shopId,
-    apiBaseUrl: serverEnv.authUrl,
-    gqlUrl: serverEnv.gqlUrl,
     partnerApiKey: serverEnv.partnerApiKey,
     partnerGqlUrl: serverEnv.partnerGqlUrl,
-    captchaBypass: serverEnv.captchaBypass,
+    shopId: serverEnv.shopId,
   });
   const token = await client.signIn(serverEnv.user, serverEnv.pass);
   const claims = decodeJwtClaims(token);
@@ -73,13 +69,9 @@ export async function getShopContext(): Promise<{ shopId: string; shopSlug: stri
 export async function getStoreClient(): Promise<UnboxClient> {
   const c = await getCachedToken();
   const client = new UnboxClient({
-    apiKey: serverEnv.apiKey,
-    shopId: c.shopId,
-    apiBaseUrl: serverEnv.authUrl,
-    gqlUrl: serverEnv.gqlUrl,
     partnerApiKey: serverEnv.partnerApiKey,
     partnerGqlUrl: serverEnv.partnerGqlUrl,
-    captchaBypass: serverEnv.captchaBypass,
+    shopId: c.shopId,
   });
   client.setToken(c.token);
   return client;

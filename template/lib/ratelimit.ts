@@ -1,6 +1,7 @@
 // Rate-limit em memória (token-bucket simples por chave). Protege OTP, signin, checkout e
-// verificação de conta contra spam/abuso/enumeração (doc 09 — o x-captcha-verification NÃO é
-// um captcha real).
+// verificação de conta contra spam/abuso/enumeração. É a ÚNICA defesa desse tipo que a loja tem:
+// o captcha das operações sensíveis é da Unbox e vive na borda do gateway de parceiros, fora do
+// alcance deste código.
 //
 // PROD: substituir por @upstash/ratelimit + Vercel KV (compartilhado entre lambdas). Em dev /
 // single-instance, este mapa em memória é suficiente.

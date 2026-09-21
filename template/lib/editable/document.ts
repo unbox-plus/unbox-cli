@@ -2068,7 +2068,9 @@ type OpDoDocumento =
    */
   | { op: "replace_doc"; values: ContentDocument["values"]; sections: ContentDocument["sections"]; tokens: ContentDocument["tokens"]; declared?: ContentDocument["declared"]; apps?: Apps | null;
       /** PÁGINAS (foundation 13): a mesma regra de `apps`, campo a campo: presente troca (`null` = a versão não tinha); ausente mantém */
-      paginas?: ContentDocument["paginas"] | null; colecoes?: ContentDocument["colecoes"] | null; redirecionamentos?: ContentDocument["redirecionamentos"] | null }
+      paginas?: ContentDocument["paginas"] | null; colecoes?: ContentDocument["colecoes"] | null; redirecionamentos?: ContentDocument["redirecionamentos"] | null;
+      /** CSS (15), SEO das páginas do código (16) e dados da loja (17), pela mesma regra */
+      css?: string | null; seoDasRotas?: ContentDocument["seoDasRotas"] | null; loja?: ContentDocument["loja"] | null }
   // ── PÁGINAS DO LOJISTA (foundation 13). Campos internos, que só o inverso de desfazer (ou o servidor)
   // carrega e que `validateOp` RECUSA vindos do cliente: `redirecionamentosAnteriores`, `registroAnterior`,
   // `prefixoDePaginas`, `visivelNoPublicado`, `artigosVisiveisNoPublicado` e o `em` comum a todas.
@@ -2482,6 +2484,7 @@ export function applyOp(doc: ContentDocument, op: PatchOp): { doc: ContentDocume
       inverse = {
         op: "replace_doc", values: clone(doc.values), sections: clone(doc.sections), tokens: clone(doc.tokens), declared: doc.declared ? clone(doc.declared) : undefined, apps: doc.apps ? clone(doc.apps) : null,
         paginas: doc.paginas ? clone(doc.paginas) : null, colecoes: doc.colecoes ? clone(doc.colecoes) : null, redirecionamentos: doc.redirecionamentos ? clone(doc.redirecionamentos) : null,
+        css: doc.css ?? null, seoDasRotas: doc.seoDasRotas ? clone(doc.seoDasRotas) : null, loja: doc.loja ? clone(doc.loja) : null,
       };
       next.values = clone(op.values);
       next.sections = clone(op.sections);
@@ -2503,6 +2506,20 @@ export function applyOp(doc: ContentDocument, op: PatchOp): { doc: ContentDocume
       if (op.redirecionamentos !== undefined) {
         if (op.redirecionamentos) next.redirecionamentos = clone(op.redirecionamentos);
         else delete next.redirecionamentos;
+      }
+      // sem estes três, "usar esta versão" trazia o conteúdo da versão com o CSS, o SEO e os dados da empresa
+      // do rascunho de hoje por cima
+      if (op.css !== undefined) {
+        if (op.css) next.css = op.css;
+        else delete next.css;
+      }
+      if (op.seoDasRotas !== undefined) {
+        if (op.seoDasRotas) next.seoDasRotas = clone(op.seoDasRotas);
+        else delete next.seoDasRotas;
+      }
+      if (op.loja !== undefined) {
+        if (op.loja) next.loja = clone(op.loja);
+        else delete next.loja;
       }
       break;
     }

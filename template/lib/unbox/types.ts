@@ -7,27 +7,15 @@ export interface Money {
 }
 
 export interface UnboxConfig {
-  /** API key da loja (modelo antigo). Usada no x-api-key (signin REST) e no
-   *  x-captcha-verification (placeOrder, customerOTPRequest, customerPasswordlessSignIn).
-   *  Server-only. Pode ficar vazia quando `partnerApiKey` está configurada. */
-  apiKey: string;
-  /** shopId da loja (ex.: "8EaeSDX99hifhyTQp"). */
-  shopId: string;
-  /** Base REST de auth. Default: https://api.unbox.com.br */
-  apiBaseUrl?: string;
-  /** Endpoint GraphQL do core. Default: https://core.unbox.com.br/graphql */
-  gqlUrl?: string;
-  /** API de PARCEIROS (nova, pública): api key ÚNICA do parceiro, vale para todas as lojas
-   *  dele. Presente → signIn vira mutation GQL na API de parceiros e as leituras com
-   *  paridade (tags, cupons, pedido, parcelas, inventário, webhook, cart template) são
-   *  roteadas para lá. A loja específica é autenticada pelo user/senha no signIn. */
-  partnerApiKey?: string;
+  /** API key do PARCEIRO (x-api-key). Uma só, vale para todas as lojas do parceiro; QUAL loja
+   *  é o user/senha do signIn que diz. Server-only. */
+  partnerApiKey: string;
   /** Endpoint GraphQL da API de parceiros. Default: https://partners.unbox.com.br/graphql */
   partnerGqlUrl?: string;
-  /** x-captcha-verification do signIn na API de parceiros — OBRIGATÓRIO segundo a doc
-   *  oficial (docs.unbox.com.br); fornecido pela Unbox. Sem ele o header é omitido e o
-   *  signIn de parceiros tende a falhar. */
-  captchaBypass?: string;
+  /** shopId da loja (ex.: "8EaeSDX99hifhyTQp"). A API de parceiros resolve a loja pelo JWT que
+   *  vai no Authorization: isto só é usado nos DOIS pontos em que o schema declara o shopId
+   *  explicitamente (fulfillmentGroups do placeOrder e CreateCartByTemplateInput). */
+  shopId?: string;
   /** Idioma de respostas/rótulos. Default: "pt-BR".
    *  ⚠️ displayStatus(language) tem resolver quebrado no live — use status cru + orderStatusLabel(). */
   language?: string;
@@ -192,4 +180,20 @@ export interface SubscriptionFrequency {
 export interface PaymentLinkConstraints {
   expirationDate?: string;
   usageLimit?: number;
+  /** PF, PJ ou ambos. Enum `BuyerTypesEnum` do schema de parceiros. */
+  buyerTypes?: string[];
+}
+
+/** Item de um Payment Link (`PaymentLinkItemInput`). É um PRODUTO VIRTUAL: título, preço e
+ *  quantidade são do link, e o vínculo com o catálogo, quando existe, é por código de ERP —
+ *  não por productId/productVariantId, como no carrinho. */
+export interface PaymentLinkItemInput {
+  title: string;
+  quantity: number;
+  price: { amount: number; currencyCode: string };
+  description?: string;
+  images?: Array<{ file?: string; altText?: string }>;
+  parcel?: { weight: number; height: number; width: number; length: number };
+  productERPCode?: string;
+  variantERPCode?: string;
 }

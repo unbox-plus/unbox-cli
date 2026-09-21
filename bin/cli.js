@@ -282,7 +282,7 @@ async function main() {
       {
         type: "confirm",
         name: "hasCreds",
-        message: "Você já tem as credenciais da Unbox (key de parceiro ou da loja + UNBOX_USER/UNBOX_PASS)?",
+        message: "Você já tem as credenciais da Unbox (key de parceiro + UNBOX_USER/UNBOX_PASS)?",
         initial: false,
       },
       {
@@ -337,19 +337,11 @@ async function main() {
   let credAnswers = {};
   if (hasCreds) {
     credAnswers = await prompts([
-      { type: "text", name: "UNBOX_PARTNER_API_KEY", message: "UNBOX_PARTNER_API_KEY: api key única do PARCEIRO (recomendada; Enter se ainda usa key por loja)" },
-      { type: "text", name: "UNBOX_API_KEY", message: "UNBOX_API_KEY: key da loja, modelo antigo (Enter pra pular se informou a de parceiro)" },
+      { type: "text", name: "UNBOX_PARTNER_API_KEY", message: "UNBOX_PARTNER_API_KEY: api key única do PARCEIRO (é por ela que a loja fala com a Unbox)" },
       { type: "text", name: "UNBOX_USER", message: "UNBOX_USER" },
       { type: "password", name: "UNBOX_PASS", message: "UNBOX_PASS" },
       { type: "text", name: "UNBOX_SHOP_ID", message: "UNBOX_SHOP_ID (opcional, Enter pra deixar em branco)" },
       { type: "text", name: "UNBOX_SHOP_SLUG", message: "UNBOX_SHOP_SLUG (opcional, Enter pra deixar em branco)" },
-      {
-        // Só faz sentido com a key de parceiro: é o segredo que o header x-captcha-verification
-        // espera no placeOrder/OTP (sem ele, a key vai no lugar e o cliente vê CAPTCHA_MALFORMED_ERROR).
-        type: (_prev, values) => (values.UNBOX_PARTNER_API_KEY?.trim() ? "password" : null),
-        name: "UNBOX_CAPTCHA_BYPASS",
-        message: "UNBOX_CAPTCHA_BYPASS: segredo de bypass do reCAPTCHA (pedir à Unbox junto com a key de parceiro; Enter pra pular)",
-      },
       { type: "password", name: "UNBOX_MCP_TOKEN", message: "Token do MCP da Unbox (opcional, habilita o .mcp.json pronto; pedir à Unbox; Enter pra pular)" },
     ], { onCancel });
   } else {
@@ -365,7 +357,7 @@ async function main() {
   if (credAnswers.UNBOX_MCP_TOKEN) {
     const subst = {
       SEU_UNBOX_MCP_TOKEN: credAnswers.UNBOX_MCP_TOKEN,
-      SUA_UNBOX_PARTNER_API_KEY: credAnswers.UNBOX_PARTNER_API_KEY || credAnswers.UNBOX_API_KEY || "",
+      SUA_UNBOX_PARTNER_API_KEY: credAnswers.UNBOX_PARTNER_API_KEY || "",
       SEU_UNBOX_USER: credAnswers.UNBOX_USER || "",
       SUA_UNBOX_PASS: credAnswers.UNBOX_PASS || "",
     };

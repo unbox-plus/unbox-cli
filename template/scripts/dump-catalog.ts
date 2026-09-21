@@ -7,11 +7,9 @@ import "./load-env"; // SEMPRE o primeiro import — parser de env idêntico ao 
 import { UnboxClient } from "../lib/unbox/client";
 
 const client = new UnboxClient({
-  apiKey: process.env.UNBOX_API_KEY ?? "",
+  partnerApiKey: process.env.UNBOX_PARTNER_API_KEY ?? "",
   shopId: process.env.UNBOX_SHOP_ID ?? "",
-  partnerApiKey: process.env.UNBOX_PARTNER_API_KEY,
   partnerGqlUrl: process.env.UNBOX_PARTNER_GRAPHQL_URL,
-  captchaBypass: process.env.UNBOX_CAPTCHA_BYPASS,
 });
 
 const brl = (n: number) => `R$${n.toFixed(2).replace(".", ",")}`;

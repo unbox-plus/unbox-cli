@@ -126,7 +126,7 @@ Referência do que cada um cobriu, caso precise entender/estender alguma parte e
 
 ## Regras de ouro (todos os agentes herdam)
 
-1. **`UNBOX_API_KEY` é server-only**, nunca `NEXT_PUBLIC_`, nunca client component
+1. **`UNBOX_PARTNER_API_KEY` é server-only**, nunca `NEXT_PUBLIC_`, nunca client component
 2. **Dois tokens distintos**: token de loja (catálogo/checkout) ≠ token do cliente (área `/conta`)
 3. **`placeOrder` não é idempotente**, lock por `cartId` no BFF; nunca retentar cegamente
 4. **`customerOTPRequest` manda e-mail real**, jamais em testes/loops/CI
@@ -175,10 +175,8 @@ Nomes reais (confira sempre contra `.env.example` do projeto, já houve doc desa
 
 ```env
 # .env.local (server-only: nunca NEXT_PUBLIC_)
-UNBOX_PARTNER_API_KEY=    # NOVA API pública de parceiros: key única do parceiro (todas as lojas).
-                          # Preenchida → signIn + leituras compatíveis roteiam pra partners.unbox.com.br
-UNBOX_CAPTCHA_BYPASS=     # obrigatória com a key de parceiro: x-captcha-verification do signIn (pedir à Unbox)
-UNBOX_API_KEY=            # chave da loja (modelo antigo; opcional se a de parceiro está preenchida)
+UNBOX_PARTNER_API_KEY=    # API pública de parceiros: key única do parceiro (todas as lojas dele).
+                          # É por ela que TODA chamada à Unbox passa (partners.unbox.com.br)
 UNBOX_USER=               # usuário de API da loja (ex.: api_minhaloja)
 UNBOX_PASS=               # senha do usuário de API
 UNBOX_SHOP_ID=            # opcional: extraído do JWT se vazio

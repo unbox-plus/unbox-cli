@@ -247,11 +247,13 @@ for (const caminho of arquivosDeCopy) {
   });
 }
 
-// ── 10. Variável do id da loja se chama `shopId` ─────────────────────────────
-// O backend descobre a loja da requisição procurando nas variables uma chave com o nome LITERAL
-// `shopId`. `query($s:String!){ currentCustomerAccount(shopId:$s) }` passa o mesmo valor ao mesmo
-// argumento e mesmo assim chega sem contexto de loja: o resolver estoura e a consulta inteira cai. Não
-// há como ver isso pelo schema, então a regra é de nome.
+// ── 10. (vago) ───────────────────────────────────────────────────────────────
+// Aqui morava a regra "a variável do id da loja tem de se chamar `shopId`", que existia porque o
+// core descobria a loja procurando esse nome LITERAL nas variables. Na API de parceiros a loja sai
+// do JWT que vai no Authorization e nenhuma consulta da loja manda shopId, então a regra não tem
+// mais caso — e continuaria reprovando por engano os dois pontos em que o schema declara o campo
+// (o fulfillmentGroup do placeOrder e o createCartByTemplate), onde o nome da variável é livre.
+// A varredura de código segue abaixo: ela alimenta vários gates, não só aquele.
 const arquivosDeCodigo = [...arquivosDeCopy];
 (function varreCodigo(dir) {
   let entradas;
@@ -263,15 +265,6 @@ const arquivosDeCodigo = [...arquivosDeCopy];
     else if (/\.(tsx?|mjs)$/.test(e.name)) arquivosDeCodigo.push(caminho);
   }
 })(path.join(ROOT, "lib"));
-for (const caminho of arquivosDeCodigo) {
-  const rel = path.relative(ROOT, caminho);
-  fs.readFileSync(caminho, "utf8").split("\n").forEach((linha, idx) => {
-    const m = linha.match(/\bshopId:\s*\$(\w+)/);
-    if (m && m[1] !== "shopId") {
-      errors.push(`${rel}:${idx + 1} passa o id da loja na variável $${m[1]}: ela precisa se chamar $shopId, senão o backend não resolve a loja da requisição.`);
-    }
-  });
-}
 
 // ── 11. Data exibida no fuso da loja ─────────────────────────────────────────
 // `toLocaleString("pt-BR")` no servidor usa o fuso do servidor (UTC na Vercel): 20:59 saía 23:59, e o

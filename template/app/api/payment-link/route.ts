@@ -16,10 +16,24 @@ export async function POST(req: Request) {
   }
   try {
     const body = await req.json();
+    // ITEM DE PAYMENT LINK É PRODUTO VIRTUAL, não item de carrinho: título, preço e quantidade
+    // são do link (o vínculo com o catálogo, quando existe, é por código de ERP). Enviar
+    // `{productId, productVariantId}` aqui cria um link sem nome e sem valor, que a página
+    // pública mostra vazio — por isso os três campos são exigidos antes de chamar a Unbox.
     const items = body.items;
-    if (!Array.isArray(items) || !items.length) return fail("Itens inválidos.");
+    const valido = Array.isArray(items) && items.length > 0 && items.every(
+      (i: any) => typeof i?.title === "string" && i.title.trim() && typeof i?.quantity === "number" && typeof i?.price?.amount === "number",
+    );
+    if (!valido) return fail("Itens inválidos: cada item precisa de title, quantity e price.amount.");
+    if (typeof body.title !== "string" || !body.title.trim()) return fail("Informe o título do link.");
     const link = await withStoreClient((c) =>
-      c.createPaymentLink({ items, constraints: body.constraints, customerData: body.customerData }),
+      c.createPaymentLink({
+        title: body.title,
+        description: body.description,
+        items: items.map((i: any) => ({ ...i, price: { currencyCode: "BRL", ...i.price } })),
+        constraints: body.constraints,
+        customerData: body.customerData,
+      }),
     );
     return ok({ paymentLink: link });
   } catch (e) {
