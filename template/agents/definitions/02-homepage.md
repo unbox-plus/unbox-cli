@@ -25,11 +25,11 @@ Página inicial: hero banner, promoções da loja (shopSales), produtos em desta
 ## Dados da API
 
 ```ts
-import { getUnboxClient } from "@/lib/unbox"
+import { getStoreClient } from "@/lib/unbox"
 import { unstable_cache } from "next/cache"
 
 const getHomeData = unstable_cache(async () => {
-  const client = await getUnboxClient()
+  const client = await getStoreClient()
   const [shop, catalog, tags] = await Promise.all([
     client.getShop(),                                        // shopSales
     client.getCatalog({ first: 8, sortBy: "updatedAt", sortOrder: "desc" }),

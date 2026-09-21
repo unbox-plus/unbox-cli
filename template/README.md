@@ -7,7 +7,8 @@ Tailwind CSS v4 e shadcn/ui.
 
 - **Next.js 15** (App Router) + TypeScript
 - **Tailwind CSS v4** + shadcn/ui sobre Base UI
-- **Unbox SDK** em `lib/unbox/`
+- **SDK da Unbox**: o pacote `@unbox-plus/sdk` (atualizar a integração = bump de versão no
+  `package.json`). A fiação com o ambiente desta loja fica em `lib/unbox.ts`
 - Hospedagem recomendada: **Vercel**
 
 ## Setup rápido

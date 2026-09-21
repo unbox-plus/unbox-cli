@@ -1,4 +1,4 @@
-# create-unbox-store — código-fonte (v0.21.3)
+# create-unbox-store — código-fonte (v0.23.0)
 
 Este repositório é o **repositório de trabalho**, não o artefato de uso. Quem só quer gerar loja
 roda o pacote publicado: `npx --package=@unbox-plus/cli create-unbox-store`.
@@ -17,6 +17,31 @@ npm pack             # gera o tarball (o prepack roda o gate de neutralidade ant
 | `src/` | presets de estilo (`presets.js`), aplicação de tokens e receitas (`theme.js`), cor (`colors.js`) |
 | `template/` | **a foundation**: o projeto Next.js que vira a loja. É o grosso do repositório |
 | `tools/` | ferramentas do nosso lado, que NÃO vão para a loja gerada |
+
+E um repositório a mais, fora deste: **[`unbox-sdk`](https://github.com/unbox-plus/unbox-sdk)**, o
+pacote `@unbox-plus/sdk`, que é toda a conversa com a API de parceiros. Da v0.23.0 em diante o
+template não tem mais `lib/unbox/*.ts`: ele declara o pacote como dependência e amarra o ambiente
+a ele em `lib/unbox.ts`, um arquivo só. É o que faz a atualização de uma loja no ar caber num bump
+de versão do `package.json` dela.
+
+## Mexer no template contra um SDK que ainda não foi publicado
+
+O `template/package.json` aponta para a versão publicada (`^0.1.0`), então rodar `npm install`
+dentro de `template/` só funciona depois que o pacote está no registro. Para testar a foundation
+contra um SDK local, enquanto ele ainda está em desenvolvimento:
+
+```bash
+cd template
+npm install @unbox-plus/sdk    # grava @unbox-plus/sdk no package.json
+npm run typecheck && npm run build
+git checkout package.json      # devolve o ^0.1.0 ANTES de commitar
+rm -rf node_modules            # ver abaixo
+```
+
+**Apague o `template/node_modules` antes de empacotar.** O `files` do `package.json` leva
+`template` inteiro, e o npm só ignora o `node_modules` da RAIZ: um install feito ali dentro
+viajaria no tarball público, com as dependências da sua máquina dentro da loja de quem gera. O
+gate do `prepack` recusa dizendo isso, mas é mais barato não chegar lá.
 
 ## `tools/`, que é o que faltava no zip anterior
 

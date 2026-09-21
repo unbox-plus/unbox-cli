@@ -95,7 +95,7 @@ Referência do que cada um cobriu, caso precise entender/estender alguma parte e
 
 | # | Agente | Arquivos principais no seu projeto |
 |---|--------|----------------------|
-| 00 | **Scaffold** | `package.json`, `next.config.ts`, `app/globals.css`, `lib/unbox/*`, `lib/config.ts` |
+| 00 | **Scaffold** | `package.json`, `next.config.ts`, `app/globals.css`, `lib/unbox.ts`, `lib/config.ts` |
 | 01 | **Layout** | `app/layout.tsx`, `components/site-header.tsx`, `site-footer.tsx`, `mobile-nav.tsx` |
 | 02 | **Homepage** | `app/(loja)/page.tsx`, `components/home/*.tsx` |
 | 03 | **Catalog** | `app/(loja)/produtos/page.tsx`, `app/(loja)/categoria/[tagSlug]/page.tsx`, `app/(loja)/busca/page.tsx`, `components/catalog/*.tsx` |
@@ -105,7 +105,7 @@ Referência do que cada um cobriu, caso precise entender/estender alguma parte e
 | 07 | **Auth** | `app/(loja)/conta/entrar/page.tsx`, `lib/session.ts`, `app/api/account/{otp,signin,signout}/route.ts` |
 | 08 | **Customer** | `app/(loja)/conta/**`, `components/account/*.tsx`, `lib/customer-session.ts` |
 | 09 | **Promotions** | `lib/enrichment/combos.ts` (kits), `components/home/combos-*.tsx`, **infra pronta, mas `COMBOS = []` por padrão**, precisa popular |
-| 10 | **Feedback/UX** | `sonner` (toasts), `lib/unbox/errors.ts` (`friendlyError`, `cartEventLabel`), `app/error.tsx`, `app/not-found.tsx` |
+| 10 | **Feedback/UX** | `sonner` (toasts), `friendlyError`/`cartEventLabel` do `@unbox-plus/sdk`, `app/error.tsx`, `app/not-found.tsx` |
 | 11 | **SEO + Infra** | `app/sitemap.ts`, `app/robots.ts`, JSON-LD Product básico na PDP |
 
 ---
@@ -158,10 +158,10 @@ Referência do que cada um cobriu, caso precise entender/estender alguma parte e
 ## Contratos entre módulos (referência real, não a genérica de quando isso foi escrito pra "fase 2")
 
 ```
-lib/unbox/store.ts        → withStoreClient() / getShopContext(), client de LOJA, cache de token em memória
+lib/unbox.ts              → withStoreClient() / getShopContext(), a fiação do @unbox-plus/sdk com o .env desta loja
 lib/customer-session.ts   → getCustomerClient() / requireCustomerClient(), client do CLIENTE (token separado)
 lib/session.ts            → cookies httpOnly: unbox_cart, unbox_customer, unbox_order_<ref>
-lib/unbox/errors.ts       → friendlyError(), cartEventLabel()
+@unbox-plus/sdk           → UnboxClient, UnboxCustomerClient, friendlyError(), cartEventLabel(), rótulos de status
 components/cart/          → CartProvider (useCart hook) + MiniCart, usado pelo Layout inteiro
 components/home/combos-* → consome lib/enrichment/combos.ts (Agente 09)
 ```

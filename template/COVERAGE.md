@@ -7,11 +7,11 @@ smoke test HTTP do BFF (carrinho→endereço→frete) **200** em todas as etapas
 
 | Método | Onde |
 |---|---|
-| `signIn` + cache/re-signin | `lib/unbox/store.ts` (`getStoreClient`/`withStoreClient`) |
-| `gql` (x-api-key + Authorization da loja + `x-customer-token` opcional) | `lib/unbox/client.ts` |
+| `signIn` + cache/re-signin | `@unbox-plus/sdk` (`createUnboxStore`), fiado em `lib/unbox.ts` (`getStoreClient`/`withStoreClient`) |
+| `gql` (x-api-key + Authorization da loja + `x-customer-token` opcional) | `@unbox-plus/sdk` (`UnboxClient`) |
 | `getCatalog` (first/offset/search/tagIds/sort) | `lib/queries.ts` → home, `/produtos`, `/busca`, `/categoria/[tagSlug]` |
 | `getProductBySlug` | `app/(loja)/produto/[productSlug]/page.tsx` |
-| `getProductById` | `lib/unbox/client.ts` (fallback/deep link) |
+| `getProductById` | `@unbox-plus/sdk` (fallback/deep link) |
 | `getTags` | `components/site-header.tsx`, home, categoria |
 | `getShop` (shopSales, política de assinatura, settings) | `lib/queries.ts` → header, home, PDP, checkout |
 | `getPaymentMethods` | `app/(loja)/checkout/page.tsx` |
@@ -25,13 +25,13 @@ smoke test HTTP do BFF (carrinho→endereço→frete) **200** em todas as etapas
 | `applyDiscount` / `findDiscountIdByCode` / `removeDiscount` | `app/api/cart/coupon` |
 | `buildOrderItems` (exclui brindes) | `app/api/checkout` |
 | `placeOrder` (Pix/Cartão + `orderRecurrence` + `device` antifraude no root) | `app/api/checkout` |
-| `getSimpleInventory` (estoque da variante) | `lib/unbox/client.ts` |
+| `getSimpleInventory` (estoque da variante) | `@unbox-plus/sdk` |
 | `getOrder` (posse conferida no BFF, ver `getOwnedOrder`) | `lib/orders.ts`, `app/api/order/[ref]`, `/api/track` |
 | `requestCustomerOtp` / `customerSignIn` / `customerAccountExists` | `app/api/account/{otp,signin,exists}` |
 | `getAddressByPostalCode` | `app/api/cep/[code]`, `AddressFields` |
 | `quoteShippingForProduct` (calcule-o-frete na PDP) | `app/api/shipping/quote` |
 | `createPaymentLink` / `getPublicPaymentLink` | `app/api/payment-link` |
-| `createCartByTemplate` | `lib/unbox/client.ts` (campanhas) |
+| `createCartByTemplate` | `@unbox-plus/sdk` (campanhas) |
 | `subscribeWebhook` | `scripts/subscribe-webhook.ts` |
 
 ## `UnboxCustomerClient` — área do cliente
@@ -57,7 +57,7 @@ smoke test HTTP do BFF (carrinho→endereço→frete) **200** em todas as etapas
 
 ## Documentos (01–11) — recursos cobertos
 
-- **01 Autenticação** — `signIn` de parceiros, cache/renovação do JWT, os três cabeçalhos (`x-api-key`, `Authorization` da loja, `x-customer-token`), shopId/slug do JWT, erros em HTTP 200 → `lib/config.ts`, `lib/unbox/store.ts`, `lib/unbox/client.ts`.
+- **01 Autenticação** — `signIn` de parceiros, cache/renovação do JWT, os três cabeçalhos (`x-api-key`, `Authorization` da loja, `x-customer-token`), shopId/slug do JWT, erros em HTTP 200 → `lib/config.ts` (o ambiente), `lib/unbox.ts` (a fiação) e o `@unbox-plus/sdk` (a chamada).
 - **02 Catálogo** — `catalogItems`, `catalogItemProductBySlug`/`ById`, `tags`, variantes/preço, de/por, badges de estoque, min/max, mídia, HTML sanitizado → catálogo/PDP + `lib/sanitize.ts`.
 - **03 Carrinho & assinatura** — create/add/update/remove/get, brindes, `recurringItemsFrequencyId`, cart templates → `app/api/cart/**`, PDP (assinar), checkout.
 - **04 Promoções** — `shopSales` (banner), `applyDiscountCodeToCart` (antes do frete), `removeDiscountCodeFromCart` (por discountId), brinde automático, `discountCodes` → header/home + `app/api/cart/coupon`.
@@ -67,7 +67,7 @@ smoke test HTTP do BFF (carrinho→endereço→frete) **200** em todas as etapas
 - **08 Feedback/erros** — ordem de sinais (errors→failures→cartEvents), `friendlyError`, rótulos de status, reconciliação de preço → `lib/api.ts`, `cart-provider`, `order-status`.
 - **09 Segurança** — BFF, isolamento de tokens (cookies httpOnly), posse de pedido, rate-limit/anti-enumeração, headers/Referrer-Policy, PCI (PAN só passa pelo BFF) → `lib/session.ts`, `lib/ratelimit.ts`, `next.config.ts`, `app/api/**`.
 - **10 URLs/SEO/carrinho** — `generateMetadata`, canonical (`publishedUrl`), `sitemap.ts` (paginado, só visíveis), `robots.ts`, JSON-LD, ISR, persistência/recuperação de carrinho → PDP, `app/sitemap.ts`, `app/robots.ts`, `lib/crm.ts`, `scripts/abandoned-cart.ts`.
-- **11 Produção/resiliência** — idempotência (lock por cartId, anti-duplo-clique, sem retry cego), N grupos, releitura antes do placeOrder, confirmação de Pix (webhook + polling), cache de token + re-signin, CDC art. 49, a11y → `lib/checkout-lock.ts`, `app/api/checkout`, `/checkout/pix/[ref]`, `lib/unbox/store.ts`, `/devolucoes`.
+- **11 Produção/resiliência** — idempotência (lock por cartId, anti-duplo-clique, sem retry cego), N grupos, releitura antes do placeOrder, confirmação de Pix (webhook + polling), cache de token + re-signin, CDC art. 49, a11y → `lib/checkout-lock.ts`, `app/api/checkout`, `/checkout/pix/[ref]`, `@unbox-plus/sdk` (`createUnboxStore`), `/devolucoes`.
 
 ## Limitações conhecidas (da API, não da implementação)
 

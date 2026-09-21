@@ -5,7 +5,7 @@ Chrome global da loja: header (barra de anúncio + nav + busca + carrinho), foot
 colunas de links + pagamento) e navegação mobile. Usado em toda página via `app/layout.tsx`.
 
 ## Dependências
-- Agente 00 (Scaffold) — `lib/config.ts`, `lib/unbox/*`, tokens de cor em `app/globals.css`
+- Agente 00 (Scaffold) — `lib/config.ts`, `lib/unbox.ts`, tokens de cor em `app/globals.css`
 
 ## Arquivos proprietários
 
@@ -35,7 +35,7 @@ página de dados (catálogo, PDP, checkout) pode mostrar erro, mas o chrome nunc
 layout inteiro.
 
 ## Categorias (nav)
-`NavCategory[]` vem de `getTopTags()` — **sem** filtro `isTopLevel` (ver doc 05-cart/lib/unbox/client.ts:
+`NavCategory[]` vem de `getTopTags()` — **sem** filtro `isTopLevel` (ver `getTags` no `@unbox-plus/sdk`:
 forçar `isTopLevel: true` esconde categorias reais marcadas `false` no admin). Filtra por
 `isVisible !== false` e ordena por `position`. Reusado pelo header desktop e pelo `mobile-nav.tsx`.
 

@@ -80,7 +80,7 @@ isso.
 |---|---|
 | O que o `/llms.txt` diz a agentes de IA | `lib/llms-txt.ts` (formato) + `app/llms.txt/route.ts` (dados). É ROTA, montada do catálogo real: nunca crie `public/llms.txt`, ele esconderia a rota |
 | Credenciais, domínio, IDs de analytics | `.env.local` |
-| Cliente da API Unbox, queries, tipos | `lib/unbox/` e `lib/queries.ts` |
+| Cliente da API Unbox, queries, tipos | o pacote `@unbox-plus/sdk`; nesta loja, `lib/unbox.ts` (fiação com o `.env`) e `lib/queries.ts` (o cache) |
 | Porta de preview (prévia privada) | `middleware.ts` + `app/acesso/` |
 | Recuperação de carrinho abandonado | `lib/cart-recovery.ts` (o link com id e token nasce aí) |
 | Tracking (GA4, GTM, Meta Pixel, CAPI) | `lib/analytics.ts`, a camada ÚNICA; nenhum outro arquivo empurra no dataLayer |
@@ -367,6 +367,16 @@ voltar, inclusive em comentário, porque comentário ensina o agente a escrever 
 
 ## Armadilhas que já custaram caro
 
+- **A integração com a Unbox não mora nesta loja.** Toda chamada à API de parceiros (catálogo,
+  carrinho, checkout, `placeOrder`, pedido, área do cliente, assinaturas, cupons, CEP, OTP,
+  inventário, webhooks) está no pacote `@unbox-plus/sdk`, versionado no `package.json`;
+  `lib/unbox.ts` só amarra o `.env` desta loja a ele, e é o único arquivo com esse papel. Query
+  ou header que precise mudar é **versão nova do pacote** (`npm install @unbox-plus/sdk@latest`),
+  nunca query reescrita dentro da loja: a reescrita conserta uma loja e deixa as outras atrás, que
+  é exatamente o que a externalização encerrou. O que continua sendo da loja e você edita aqui:
+  `lib/queries.ts` (o que cachear e por quanto tempo), `lib/orders.ts` e `lib/cart-normalize.ts`
+  (a forma que a tela lê), `lib/api.ts` (a resposta do BFF), `lib/session.ts` (cookies e posse) e
+  `lib/ratelimit.ts`.
 - **O prompt do briefing já está no seu contexto.** `.claude/settings.json` carrega
   `.claude/agents/branding-briefing.md` como system prompt da sessão. Não abra esse arquivo pra
   "conferir o que fazer": são ~8k tokens do que você já tem.
