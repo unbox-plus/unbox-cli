@@ -1,25 +1,21 @@
 // Factory do UnboxCustomerClient a partir do cookie httpOnly do cliente (área "minha conta").
 // Lança 401 implícito devolvendo null quando não há token.
 import "server-only";
-import { UnboxCustomerClient } from "./unbox/customer";
+import type { UnboxCustomerClient } from "@unbox-plus/sdk";
 import { getCustomerToken } from "./session";
-import { getStoreClient } from "./unbox/store";
-import { decodeJwtClaims } from "./config";
+import { getCustomerClientFor } from "./unbox";
 
-/** Retorna um UnboxCustomerClient autenticado, ou null se o cliente não estiver logado. */
+/**
+ * Retorna um UnboxCustomerClient autenticado, ou null se o cliente não estiver logado.
+ *
+ * O que é DESTA loja é só a leitura do cookie httpOnly. O resto é do SDK: TOKEN VENCIDO VALE COMO
+ * DESLOGADO (o cookie dura o mesmo que o JWT, mas relógio e renovação não são garantia — sem essa
+ * conta, o app se achava logado, toda consulta quebrava com erro opaco do backend e a conta virava
+ * beco sem saída), e as DUAS IDENTIDADES da requisição, o cliente no `x-customer-token` e a loja
+ * no `Authorization`, que é de onde o gateway tira o shopId.
+ */
 export async function getCustomerClient(): Promise<UnboxCustomerClient | null> {
-  const token = await getCustomerToken();
-  if (!token) return null;
-  // TOKEN VENCIDO VALE COMO DESLOGADO. O cookie dura o mesmo que o JWT, mas relógio e renovação não
-  // são garantia: sem esta conta, o app se achava logado, toda consulta quebrava com erro opaco do
-  // backend e a conta virava beco sem saída, sem mostrar pedido e sem mandar para o login.
-  const exp = decodeJwtClaims(token).exp;
-  if (typeof exp === "number" && Date.now() >= exp * 1000) return null;
-  // DUAS IDENTIDADES: o cliente logado vai no `x-customer-token`, mas a requisição continua
-  // precisando do contexto de LOJA no Authorization — é dele que o gateway tira o shopId. Por
-  // isso o client do cliente carrega o client de loja já autenticado (token do cache do signIn).
-  const loja = await getStoreClient();
-  return new UnboxCustomerClient({ customerToken: token, loja });
+  return getCustomerClientFor(await getCustomerToken());
 }
 
 /** Igual ao acima, mas lança um Error 401-like se não logado (para Route Handlers). */

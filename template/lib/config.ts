@@ -1,14 +1,15 @@
 // Configuração central — lê variáveis de ambiente (server-only) e expõe os identificadores
 // públicos da loja. NUNCA exporte segredos para o cliente daqui.
 import "server-only";
+import { hasUnboxCredentials as credentialsCheck } from "@unbox-plus/sdk";
 import { SEGREDO_DA_LOJA } from "./segredo-da-loja";
 import crypto from "node:crypto";
 import { checkEnv } from "./env-check";
 
 // UNBOX_PARTNER_API_KEY/USER/PASS são lidos sem lançar erro aqui — esse módulo é importado
-// pelo layout raiz (toda página), então validar no import quebraria o app inteiro
-// sem credenciais. A validação acontece em lib/unbox/store.ts, só quando uma página
-// de fato tenta buscar dados da API (permite "modo mockup" sem credenciais).
+// pelo layout raiz (toda página), então validar no import quebraria o app inteiro sem
+// credenciais. A recusa acontece no SDK, só quando uma página de fato tenta buscar dados da
+// API (permite "modo mockup" sem credenciais).
 export const serverEnv = {
   user: process.env.UNBOX_USER ?? "",
   pass: process.env.UNBOX_PASS ?? "",
@@ -16,7 +17,7 @@ export const serverEnv = {
   shopSlug: process.env.UNBOX_SHOP_SLUG ?? "",
   // API pública de PARCEIROS (partners.unbox.com.br): uma api key única por parceiro,
   // independente do nº de lojas, e é por ela que TODA chamada à Unbox passa. QUAL loja é o
-  // UNBOX_USER/UNBOX_PASS que diz, no signIn. Ver lib/unbox/client.ts.
+  // UNBOX_USER/UNBOX_PASS que diz, no signIn. Ver o UnboxClient do @unbox-plus/sdk.
   partnerApiKey: process.env.UNBOX_PARTNER_API_KEY ?? "",
   partnerGqlUrl: process.env.UNBOX_PARTNER_GRAPHQL_URL ?? "https://partners.unbox.com.br/graphql",
   webhookSecret: process.env.UNBOX_WEBHOOK_SECRET ?? "",
@@ -37,23 +38,8 @@ export const serverEnv = {
 };
 
 // A key é do PARCEIRO e vale para todas as lojas dele; o user/senha é que diz QUAL loja.
-// As três juntas habilitam o modo real (faltando qualquer uma → modo mockup).
-export const hasUnboxCredentials = Boolean(
-  serverEnv.partnerApiKey && serverEnv.user && serverEnv.pass,
-);
-
-/** Decodifica os claims do JWT (sem validar — só para extrair shopId/shopSlug). */
-export function decodeJwtClaims(jwt: string): Record<string, any> {
-  try {
-    const payload = jwt.split(".")[1];
-    const json = Buffer.from(payload.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf-8");
-    return JSON.parse(json);
-  } catch {
-    return {};
-  }
-}
-
-export const SHOP_ID_CLAIM = "arn:unbox:shopId";
-export const SHOP_SLUG_CLAIM = "arn:unbox:shopSlug";
+// As três juntas habilitam o modo real (faltando qualquer uma → modo mockup). A régua é a do
+// SDK: se ela mudar, muda num lugar só, e não numa cópia por loja gerada.
+export const hasUnboxCredentials = credentialsCheck(serverEnv);
 
 checkEnv();
