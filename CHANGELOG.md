@@ -43,6 +43,28 @@ O que mudou na loja gerada:
   `node:crypto` do webhook mora em `@unbox-plus/sdk/webhooks`). Medido no build de produção: o
   chunk do cliente leva o rótulo e nenhuma query do GraphQL.
 
+### v0.22.1 — o WhatsApp do Brasil escrito sem o 55 ganha o 55
+
+"(11) 99999-8888" digitado na aba Apps do painel virava `11999998888`, passava na régua (10 a 15 dígitos), e
+o botão da loja abria `wa.me/11999998888`, que o WhatsApp lê como +1: outro país. A régua da foundation
+(`lib/editable/document.ts`) passa a pôr o 55, e o chat do editor, que já punha por conta própria, passa a
+usar a mesma régua.
+
+- `numeroDoWhatsapp`: o número com a forma exata de um telefone do Brasil sem o código do país (DDD de 1 a 9
+  nos dois dígitos; celular com 9 e mais 8, ou fixo de 2 a 5 e mais 7) e sem "+" na frente ganha o 55. O
+  resto passa como veio.
+- Com "+" na frente o país é o que foi escrito. O "+" fica guardado só quando é ele que diz que o número é de
+  fora do Brasil ("+56 9 9999 8888" vira "+56999998888"): a régua passa mais de uma vez pelo mesmo valor, e
+  sem ele a segunda passada poria o 55 num celular do Chile. A régua aceita esse "+" e `linkDoWhatsapp` o tira
+  do link.
+- Vale também para `NEXT_PUBLIC_WHATSAPP_NUMERO`: "11 99999-8888" no cadastro da loja passa a abrir o Brasil.
+
+Sem número novo de foundation: a loja anterior lê o número novo com a régua dela (tira o "+" e confere os
+mesmos 10 a 15 dígitos), e a rota pública do editor já entrega com o 55 o número gravado sem ele.
+
+Loja já gerada: o botão sai certo assim que o editor sobe. Trocar `lib/editable/document.ts` (igual byte a
+byte ao do editor) só é preciso para o número do cadastro (`NEXT_PUBLIC_WHATSAPP_NUMERO`) escrito sem o 55.
+
 ### v0.22.0 — a loja passa a falar com uma API só, a de parceiros
 
 Até aqui a loja conversava com três endereços da Unbox: `core.unbox.com.br/graphql`, o REST de
