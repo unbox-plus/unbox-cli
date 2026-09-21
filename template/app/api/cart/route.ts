@@ -1,11 +1,10 @@
 // BFF do carrinho. O browser NUNCA fala com a Unbox direto — só com estas rotas same-origin.
-import { withStoreClient } from "@/lib/unbox/store";
-import { UnboxError } from "@/lib/unbox/client";
+import { withStoreClient } from "@/lib/unbox";
+import { UnboxError, type CartItemInput } from "@unbox-plus/sdk";
 import { getCartRef, setCartRef, clearCartRef, setRecurFreq } from "@/lib/session";
 import { cartResponse } from "@/lib/cart-response";
 import { getShopData } from "@/lib/queries";
 import { ok, fail, failFrom } from "@/lib/api";
-import type { CartItemInput } from "@/lib/unbox/types";
 
 export const dynamic = "force-dynamic";
 

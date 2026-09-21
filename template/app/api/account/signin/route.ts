@@ -1,5 +1,5 @@
 // Troca o OTP pelo token DO CLIENTE e grava em cookie httpOnly. Rate-limit.
-import { withStoreClient } from "@/lib/unbox/store";
+import { withStoreClient } from "@/lib/unbox";
 import { setCustomerToken } from "@/lib/session";
 import { rateLimit, clientIp, LIMITS } from "@/lib/ratelimit";
 import { otpSchema } from "@/lib/schemas";

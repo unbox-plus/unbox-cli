@@ -4,7 +4,7 @@
 //
 //   npm run unbox:dump
 import "./load-env"; // SEMPRE o primeiro import — parser de env idêntico ao do app
-import { UnboxClient } from "../lib/unbox/client";
+import { UnboxClient } from "@unbox-plus/sdk";
 
 const client = new UnboxClient({
   partnerApiKey: process.env.UNBOX_PARTNER_API_KEY ?? "",

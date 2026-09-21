@@ -1,9 +1,9 @@
 // Acesso a pedido COM verificação de posse (doc 09): cliente logado OU token do placeOrder (cookie).
 import "server-only";
-import { withStoreClient } from "./unbox/store";
+import { withStoreClient } from "./unbox";
 import { getOrderToken } from "./session";
 import { getCustomerClient } from "./customer-session";
-import { orderStatusLabel, paymentStatusLabel, paymentSeal, fulfillmentStatusLabel, fulfillmentTypeLabel, trackingStatusLabel } from "./unbox/customer";
+import { orderStatusLabel, paymentStatusLabel, paymentSeal, fulfillmentStatusLabel, fulfillmentTypeLabel, trackingStatusLabel } from "@unbox-plus/sdk";
 import { formatBRL } from "./format";
 import { getCatalog, getProductBySlug } from "./queries";
 
@@ -105,7 +105,7 @@ export function shapeOrderSummary(o: any): ShapedOrderSummary {
 
 /**
  * O TEXTO QUE A API JÁ FORMATOU ("R$ 157,24"), quando o número não vem. A consulta deixou de pedir
- * `payments.amount.amount` (ver lib/unbox/customer.ts), então o valor do pagamento chega só assim. O
+ * `payments.amount.amount` (ver o UnboxCustomerClient do @unbox-plus/sdk), então o valor do pagamento chega só assim. O
  * formato é conferido porque `displayAmount` no contexto de cliente já devolveu "R$NaN,undefined".
  */
 function textoDeDinheiro(v: unknown): string | undefined {

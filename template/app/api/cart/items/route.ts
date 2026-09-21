@@ -1,5 +1,5 @@
 // Alterar quantidade (PATCH) e remover itens (DELETE) do carrinho.
-import { withStoreClient } from "@/lib/unbox/store";
+import { withStoreClient } from "@/lib/unbox";
 import { getCartRef } from "@/lib/session";
 import { cartResponse } from "@/lib/cart-response";
 import { ok, fail, failFrom } from "@/lib/api";

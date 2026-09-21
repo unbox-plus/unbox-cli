@@ -4,7 +4,7 @@
 // É AQUI que o carrinho vira recuperável: com o e-mail gravado, despachamos pro CRM o
 // ponteiro completo (cartId + link pronto com id/token/freq). Sem este evento, o id+token
 // vive só no cookie do cliente e nenhum cron/CRM tem como montar o e-mail de recuperação.
-import { withStoreClient } from "@/lib/unbox/store";
+import { withStoreClient } from "@/lib/unbox";
 import { getCartRef, getRecurFreq } from "@/lib/session";
 import { ok, fail, failFrom } from "@/lib/api";
 import { emailSchema } from "@/lib/schemas";

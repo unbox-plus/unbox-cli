@@ -4,12 +4,12 @@
 //  - PING → 200 imediato (handshake)
 //  - idempotência por event._id
 //  - responde 200 rápido; processamento pesado deve ir para fila (aqui: inline + revalidação)
-import { parseUnboxWebhook } from "@/lib/unbox/webhooks";
+import { parseUnboxWebhook } from "@unbox-plus/sdk/webhooks";
 import { serverEnv } from "@/lib/config";
 import { markIfNew } from "@/lib/webhook-store";
 import { dispatchCrm } from "@/lib/crm";
 import { revalidatePath } from "next/cache";
-import { withStoreClient } from "@/lib/unbox/store";
+import { withStoreClient } from "@/lib/unbox";
 import { sendCapi, sha256, capiConfigured } from "@/lib/capi";
 
 export const dynamic = "force-dynamic";

@@ -1,5 +1,5 @@
 // Autocomplete de endereço por CEP (getAddressByPostalCode). Usado no checkout e address book.
-import { withStoreClient } from "@/lib/unbox/store";
+import { withStoreClient } from "@/lib/unbox";
 import { ok, fail, failFrom } from "@/lib/api";
 
 export const dynamic = "force-dynamic";

@@ -3,9 +3,7 @@
 //
 //   npm run unbox:test
 import "./load-env"; // SEMPRE o primeiro import — parser de env idêntico ao do app
-import { UnboxClient } from "../lib/unbox/client";
-import { friendlyError, cartEventLabel } from "../lib/unbox/errors";
-import { orderStatusLabel } from "../lib/unbox/customer";
+import { UnboxClient, friendlyError, cartEventLabel, orderStatusLabel } from "@unbox-plus/sdk";
 
 const SHOP = process.env.UNBOX_SHOP_ID!;
 const SLUG = process.env.UNBOX_SHOP_SLUG ?? "minha-loja";
@@ -48,7 +46,7 @@ const ADDR = {
   await step("1. signIn (loja)", async () => {
     const token = await client.signIn(process.env.UNBOX_USER!, process.env.UNBOX_PASS!);
     // UNBOX_SHOP_ID pode vir vazio — extrai do JWT (mesmos claims arn:unbox:shopId que o app usa
-    // em lib/unbox/store.ts). Necessário para os dois pontos em que o schema pede o shopId.
+    // em lib/unbox.ts). Necessário para os dois pontos em que o schema pede o shopId.
     if (!client.shopId) {
       try {
         const payload = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");

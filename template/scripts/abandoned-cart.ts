@@ -12,7 +12,7 @@
 // puro ele SEMPRE lança "Cannot find module 'server-only'" e o script nunca chega a executar.
 // Reimplementa o mesmo dispatch aqui lendo process.env direto, igual aos outros scripts.
 import "./load-env"; // SEMPRE o primeiro import — parser de env idêntico ao do app
-import { UnboxClient } from "../lib/unbox/client";
+import { UnboxClient } from "@unbox-plus/sdk";
 import { buildRecoveryUrl } from "../lib/cart-recovery";
 import type { CrmEvent } from "../lib/crm";
 

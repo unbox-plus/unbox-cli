@@ -5,7 +5,7 @@ import { ArrowLeft } from "@phosphor-icons/react/dist/ssr";
 import { getCustomerClient, lerDaConta } from "@/lib/customer-session";
 import { formatarData } from "@/lib/format";
 import { getShopData } from "@/lib/queries";
-import { subscriptionStatusLabel } from "@/lib/unbox/customer";
+import { subscriptionStatusLabel } from "@unbox-plus/sdk";
 import { AccountShell } from "@/components/account/account-shell";
 import { EmptyState } from "@/components/empty-state";
 import { StatusBadge } from "@/components/order-status";
