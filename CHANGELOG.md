@@ -1,5 +1,48 @@
 ## Changelog
 
+### Não lançado (v0.23.0) — a integração com a Unbox saiu do template e virou pacote
+
+Até aqui, toda chamada à API de parceiros vivia dentro do template, em `lib/unbox/*.ts`, e era
+**copiada** para cada loja gerada. Isso fazia com que atualizar a integração, inclusive as
+correções de segurança e as de cobrança, exigisse substituir arquivo a arquivo em cada loja no
+ar, uma por uma, e antes disso descobrir quais lojas estavam atrás de qual versão. Agora essa
+camada é o pacote **[`@unbox-plus/sdk`](https://github.com/unbox-plus/unbox-sdk)**, dependência
+da loja: atualizar é `npm install @unbox-plus/sdk@latest`, e nenhum arquivo da loja muda.
+
+**As chamadas não mudaram de comportamento.** Foram para o pacote como estavam, com as
+peculiaridades do gateway escritas ao lado de cada uma: os três cabeçalhos, a seleção rica com
+volta para a enxuta no pedido, o prazo próprio do `placeOrder`, a regra de não repetir mutação, o
+filtro de produto oculto, a tradução de erro em PT-BR e os rótulos de status.
+
+O que mudou na loja gerada:
+
+- **`lib/unbox/` deixou de existir; no lugar entrou `lib/unbox.ts`**, um arquivo só, com
+  `import "server-only"` na primeira linha, que amarra o `.env` desta instalação ao pacote
+  (`createUnboxStore`) e exporta `withStoreClient`, `getStoreClient`, `getShopContext`,
+  `getCustomerClientFor` e `loadAllCatalogItems`. É o único ponto da loja que conhece credencial
+  da Unbox, e é o que torna a atualização um bump de versão.
+- **`lib/dataloader.ts` foi absorvido.** A paginação por offset do catálogo inteiro (a que não
+  confia num `first` gigante, porque há teto de servidor que trunca em silêncio) é
+  `loadAllCatalogItems` do pacote. `app/sitemap.ts` e `app/llms.txt/route.ts` importam de
+  `@/lib/unbox`.
+- **`lib/config.ts` encolheu.** `decodeJwtClaims` e os dois `SHOP_*_CLAIM` saíram (são do pacote,
+  e a leitura do JWT deixou de usar `Buffer` para rodar no Edge), e `hasUnboxCredentials` passou
+  a usar a régua do pacote. `serverEnv` continua igual: o ambiente é da loja.
+- **`lib/api.ts` deixou de ter a leitura de `invalidAddressFields`.** Dizer QUAL campo do endereço
+  a Unbox recusou é interpretação de erro da API, então virou `invalidAddressMessage` no
+  pacote. A resposta do BFF (`ok`, `fail`, `failFrom` e o log que nunca vaza o corpo da
+  requisição) continua na loja.
+- **`lib/customer-session.ts` virou três linhas**: lê o cookie httpOnly e entrega ao pacote. A
+  regra de "token vencido vale como deslogado" foi com ele.
+- **Imports reapontados** em 30 arquivos: `@/lib/unbox/{client,types,errors,customer}` →
+  `@unbox-plus/sdk`, `@/lib/unbox/webhooks` → `@unbox-plus/sdk/webhooks`, `@/lib/unbox/store` →
+  `@/lib/unbox`. Os cinco scripts de `scripts/` (`unbox:test`, `unbox:dump`, `unbox:order:pix`,
+  `unbox:webhook:subscribe`, `unbox:abandoned`) importam o pacote direto.
+- **O bundle do navegador não engordou.** `components/cart/cart-provider.tsx` importa
+  `cartEventLabel` do pacote, e o índice dele é livre de builtin do Node de propósito (o
+  `node:crypto` do webhook mora em `@unbox-plus/sdk/webhooks`). Medido no build de produção: o
+  chunk do cliente leva o rótulo e nenhuma query do GraphQL.
+
 ### v0.22.0 — a loja passa a falar com uma API só, a de parceiros
 
 Até aqui a loja conversava com três endereços da Unbox: `core.unbox.com.br/graphql`, o REST de
