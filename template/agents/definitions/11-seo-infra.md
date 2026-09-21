@@ -125,7 +125,7 @@ NEXT_PUBLIC_SITE_NAME=Minha Loja
 NEXT_PUBLIC_SITE_URL=https://seudominio.com.br
 
 // PROIBIDOS como NEXT_PUBLIC:
-// NEXT_PUBLIC_UNBOX_API_KEY  ← NUNCA
+// NEXT_PUBLIC_UNBOX_PARTNER_API_KEY  ← NUNCA
 // NEXT_PUBLIC_UNBOX_SHOP_ID  ← evitar (não é credencial mas não precisa ser público)
 ```
 

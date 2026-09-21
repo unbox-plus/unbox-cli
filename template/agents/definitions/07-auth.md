@@ -69,8 +69,7 @@ export async function POST(req: Request) {
   const client = await getUnboxClient()
   await client.gql(
     `mutation($i:CustomerOTPRequestInput!){ customerOTPRequest(input:$i){success} }`,
-    { i: { email, shopId: process.env.UNBOX_SHOP_ID } },
-    { captcha: true }  // ⚠️ obrigatório — SDK envia x-captcha-verification
+    { i: { email } },  // sem shopId: a loja sai do JWT no Authorization
   )
   return Response.json({ success: true })
 }
@@ -88,8 +87,7 @@ export async function POST(req: Request) {
         accessToken firstAccess newShopSignIn
       }
     }`,
-    { i: { email, otpCode: code, shopId: process.env.UNBOX_SHOP_ID } },
-    { captcha: true }
+    { i: { email, otp: code } },
   )
   await setCustomerToken(data.customerPasswordlessSignIn.accessToken)
   return Response.json({ success: true, firstAccess: data.customerPasswordlessSignIn.firstAccess })

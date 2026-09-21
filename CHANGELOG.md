@@ -1,6 +1,89 @@
 ## Changelog
 
-### Não lançado — "usar esta versão" do editor leva o CSS, o SEO e os dados da loja
+### Não lançado — a loja passa a falar com uma API só, a de parceiros
+
+Até aqui a loja conversava com três endereços da Unbox: `core.unbox.com.br/graphql`, o REST de
+`api.unbox.com.br` (só o `/auth/signin`) e `partners.unbox.com.br/graphql`, este último só no que já tinha
+paridade. O `UnboxClient` carregava os dois caminhos e um `usesPartnerApi` decidindo cada método. Agora
+**tudo** passa por `partners.unbox.com.br/graphql`: vitrine, carrinho, checkout, `placeOrder`, pedido, área do
+cliente, assinaturas, cupons, CEP, OTP, webhooks e inventário. O roteamento condicional deixou de existir.
+
+**Três cabeçalhos, e cada um responde uma pergunta.** `x-api-key` diz qual PARCEIRO; `Authorization` leva o
+token da LOJA, e é dele que o gateway extrai o shopId; `x-customer-token` leva o token do CLIENTE final e só
+aparece na área do cliente. Por isso **nenhuma chamada manda shopId**. As duas exceções são campos que o
+próprio schema declara: o `shopId` de cada `fulfillmentGroup` no `placeOrder` e o de `createCartByTemplate`.
+
+- **A loja deixou de guardar segredo de captcha.** As operações protegidas por reCAPTCHA (`signIn`,
+  `customerOTPRequest`, `customerPasswordlessSignIn`, `placeOrder`, `placePaymentLinkOrder` e os dois
+  `setup*3DSTransaction`) recebem o token injetado na BORDA do gateway de parceiros. Some o header
+  `x-captcha-verification`, some o campo `captchaBypass` do client e some a variável
+  `UNBOX_CAPTCHA_BYPASS` do `.env`, do CLI e da documentação. Isso encerra também a armadilha que a v0.20.x
+  teve de consertar: mandar a api key `da2-...` nesse header fazia o backend repassá-la ao reCAPTCHA
+  Enterprise, que respondia MALFORMED, e o cliente via `CAPTCHA_MALFORMED_ERROR` no meio do pagamento. Não há
+  mais header para preencher errado. O que continua protegendo OTP e checkout de abuso do lado da loja é o
+  rate-limit do BFF (`lib/ratelimit.ts`), que sempre foi a defesa real — o header nunca foi um captcha.
+- **`lib/unbox/customer.ts` deixou de ter transporte próprio.** O `UnboxCustomerClient` agora carrega um
+  `UnboxClient` de loja já autenticado e delega a ele, acrescentando o `x-customer-token`. São duas
+  identidades na mesma requisição, e nenhuma das duas é dispensável: sem o token da loja não há contexto de
+  loja, sem o do cliente não há conta. Isso apagou a cópia da lógica de autenticação que vivia ali e fez a
+  área do cliente herdar prazo, formato do `Authorization` e a regra de não repetir mutação.
+- **Diferenças de argumento que a migração fechou**, uma a uma: `createCart` sem `shopId`;
+  `applyDiscountCodeToCart` e `removeDiscountCodeFromCart` sem `shopId`; `OrderInput` sem `shopId`;
+  `getInstallments`, `getAddressByPostalCode`, `customerOTPRequest`, `customerPasswordlessSignIn` e
+  `hasCustomerAccount` sem `shopId`; `orderByReferenceId` só com o id; `first` passou de
+  `ConnectionLimitInt` para `Int`; `updateCustomerAccount` aninha `receiveNewOrderEmail` em `metafields`; e o
+  upsert de endereço virou input PLANO (`UpsertAddressBookInput`), sem o envelope `addressBook`.
+- **`catalogItemProductById` não existe na API de parceiros.** O fallback de PDP por id passa a usar
+  `catalogItems(productIdsOrERPCodes:[id], first:1)`, que devolve o mesmo `CatalogItemProduct`. É a única
+  lacuna que sobrou, e está escrita no README da loja.
+- **Item de Payment Link mudou de forma.** Em parceiros ele é PRODUTO VIRTUAL (`PaymentLinkItemInput`):
+  título, quantidade e preço são do link, e o vínculo com o catálogo, quando existe, é por código de ERP.
+  Mandar `{productId, productVariantId}` ali cria um link sem nome e sem valor, que a página pública mostra
+  vazio; `app/api/payment-link` passa a exigir `title`, `quantity` e `price.amount` antes de chamar a Unbox.
+- **O scalar `AWSJSON` é assimétrico, e o `placeOrder` passou a respeitar isso.** Medido contra a API: na
+  ENTRADA o campo espera o JSON já serializado em string; na SAÍDA ele volta como objeto puro. O único campo
+  `AWSJSON` de input que a loja alcança é `PaymentInput.data` (os outros dois do schema, `calculation` de
+  `DiscountCodeInputCreate`/`Update`, são de mutações que a loja não chama), e ele ia como objeto: os dois
+  ramos de `placeOrder`, Pix e cartão, agora mandam `JSON.stringify(...)`. A recusa acontece na validação da
+  variável, antes de qualquer cobrança, então o sintoma era pedido nenhum, não pedido torto. A leitura não
+  mudou em lugar nenhum: `cartEvents.data`, `UnboxPayPaymentData.paymentRecord` e `installments` continuam
+  sendo lidos como objeto, que é o que a saída entrega. Além disso, foi incluído o `__typename` ao campo
+  `Payment.data` para evitar erros de resolução em runtime.
+- **MUTAÇÃO NUNCA REPETE POR ERRO DE AUTENTICAÇÃO.** O cliente tenta o `Authorization` cru (o formato da doc)
+  e, se o gateway recusar, repete uma vez com `Bearer`. Com o `placeOrder` passando pelo mesmo caminho isso
+  vira risco de cobrança dupla: a régua casa por texto, e "not authorized" é também o que a adquirente
+  responde num cartão recusado. Agora só CONSULTA repete; sem formato medido, uma consulta leve mede antes e
+  a mutação vai uma vez. O formato aceito passou a viver no módulo, e não na instância, porque
+  `getStoreClient()` cria um client novo a cada request e o valor nunca chegava a ser memorizado.
+- **A posse do pedido continua sendo do BFF, e agora é só dele.** `orderByReferenceId` de parceiros não
+  recebe token de posse, então quem chama `getOwnedOrder` passa antes pelo cookie httpOnly assinado
+  (`lib/session.ts`). Sem essa guarda, a consulta abre qualquer pedido só pelo `referenceId`, que é curto.
+- **Credenciais**: `UNBOX_API_KEY`, `UNBOX_AUTH_URL`, `UNBOX_GRAPHQL_URL` e `UNBOX_CAPTCHA_BYPASS` saíram do
+  código, do `.env.example`, do CLI e da documentação. Sobraram três obrigatórias:
+  `UNBOX_PARTNER_API_KEY`, `UNBOX_USER` e `UNBOX_PASS`. O formulário do CLI passou a fazer uma pergunta a
+  menos.
+- **Gate 10 do `prebuild` saiu.** "A variável do id da loja tem de se chamar `shopId`" era regra do core, que
+  descobria a loja procurando esse nome literal nas variables. Nenhuma consulta manda mais shopId, e a regra
+  passaria a reprovar por engano justamente os dois pontos em que o schema declara o campo, onde o nome da
+  variável é livre.
+
+Conferido: `tsc --noEmit` limpo sobre o template inteiro com as dependências instaladas (é ele que cobre as
+mudanças de assinatura espalhadas pelo app), `scripts/check-unbox-brand.mjs` e o gate de neutralidade do
+pacote passando. O gate de marca pegou um erro real durante a migração: a reescrita do `client.ts` tinha
+trazido de volta `payments{amount{amount}}` no pedido, o mesmo campo que derrubou a área logada na v0.21.10.
+Todos os literais GraphQL do arquivo novo foram comparados com os do anterior; fora as mudanças descritas
+acima, são idênticos. **Nada disto foi executado contra a loja real**: antes de publicar, rodar
+`npm run unbox:test`.
+
+Alterada sequência de testes de carrinho (8b) no `scripts/test-live.ts` para não seguir com um carrinho vazio
+após a remoção do item existente, fazendo com que o `addCartItems` seja chamado apenas no final da sequência.
+
+Loja já gerada: trocar `lib/unbox/client.ts`, `lib/unbox/customer.ts`, `lib/unbox/types.ts`,
+`lib/unbox/store.ts`, `lib/customer-session.ts`, `lib/config.ts`, `lib/env-check.ts`, `lib/orders.ts`,
+`lib/session.ts`, `lib/ratelimit.ts`, `app/api/payment-link/route.ts`, `app/api/account/otp/route.ts` e
+`scripts/check-unbox-brand.mjs`. No ambiente, preencher `UNBOX_PARTNER_API_KEY`; `UNBOX_API_KEY`,
+`UNBOX_AUTH_URL`, `UNBOX_GRAPHQL_URL` e `UNBOX_CAPTCHA_BYPASS` podem sair. Quem chama `createPaymentLink`
+com itens de catálogo precisa passar a mandar título, quantidade e preço.
 
 O `document.ts` leva um conserto que só o editor usa: o "usar esta versão" (op interna `replace_doc`)
 passa a trazer o CSS, o SEO das páginas e os dados da loja da versão escolhida, em vez de manter os do

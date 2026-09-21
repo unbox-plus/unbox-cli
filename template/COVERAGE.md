@@ -8,7 +8,7 @@ smoke test HTTP do BFF (carrinho→endereço→frete) **200** em todas as etapas
 | Método | Onde |
 |---|---|
 | `signIn` + cache/re-signin | `lib/unbox/store.ts` (`getStoreClient`/`withStoreClient`) |
-| `gql` (checa `errors` em HTTP 200, `x-captcha`) | `lib/unbox/client.ts` |
+| `gql` (x-api-key + Authorization da loja + `x-customer-token` opcional) | `lib/unbox/client.ts` |
 | `getCatalog` (first/offset/search/tagIds/sort) | `lib/queries.ts` → home, `/produtos`, `/busca`, `/categoria/[tagSlug]` |
 | `getProductBySlug` | `app/(loja)/produto/[productSlug]/page.tsx` |
 | `getProductById` | `lib/unbox/client.ts` (fallback/deep link) |
@@ -25,8 +25,8 @@ smoke test HTTP do BFF (carrinho→endereço→frete) **200** em todas as etapas
 | `applyDiscount` / `findDiscountIdByCode` / `removeDiscount` | `app/api/cart/coupon` |
 | `buildOrderItems` (exclui brindes) | `app/api/checkout` |
 | `placeOrder` (Pix/Cartão + `orderRecurrence` + `device` antifraude no root) | `app/api/checkout` |
-| API de PARCEIROS (nova): signIn GQL, tags, cupons, pedido, parcelas, `simpleInventory`, webhook, cart template — roteados via `UNBOX_PARTNER_API_KEY` | `lib/unbox/client.ts` (`usesPartnerApi`) |
-| `getOrder` (com token de posse) | `lib/orders.ts`, `app/api/order/[ref]`, `/api/track` |
+| `getSimpleInventory` (estoque da variante) | `lib/unbox/client.ts` |
+| `getOrder` (posse conferida no BFF, ver `getOwnedOrder`) | `lib/orders.ts`, `app/api/order/[ref]`, `/api/track` |
 | `requestCustomerOtp` / `customerSignIn` / `customerAccountExists` | `app/api/account/{otp,signin,exists}` |
 | `getAddressByPostalCode` | `app/api/cep/[code]`, `AddressFields` |
 | `quoteShippingForProduct` (calcule-o-frete na PDP) | `app/api/shipping/quote` |
@@ -57,7 +57,7 @@ smoke test HTTP do BFF (carrinho→endereço→frete) **200** em todas as etapas
 
 ## Documentos (01–11) — recursos cobertos
 
-- **01 Autenticação** — signin REST, JWT Bearer, cache/renovação, `x-captcha-verification`, dois contextos de auth, shopId/slug do JWT, erros em HTTP 200 → `lib/config.ts`, `lib/unbox/store.ts`, `lib/unbox/client.ts`.
+- **01 Autenticação** — `signIn` de parceiros, cache/renovação do JWT, os três cabeçalhos (`x-api-key`, `Authorization` da loja, `x-customer-token`), shopId/slug do JWT, erros em HTTP 200 → `lib/config.ts`, `lib/unbox/store.ts`, `lib/unbox/client.ts`.
 - **02 Catálogo** — `catalogItems`, `catalogItemProductBySlug`/`ById`, `tags`, variantes/preço, de/por, badges de estoque, min/max, mídia, HTML sanitizado → catálogo/PDP + `lib/sanitize.ts`.
 - **03 Carrinho & assinatura** — create/add/update/remove/get, brindes, `recurringItemsFrequencyId`, cart templates → `app/api/cart/**`, PDP (assinar), checkout.
 - **04 Promoções** — `shopSales` (banner), `applyDiscountCodeToCart` (antes do frete), `removeDiscountCodeFromCart` (por discountId), brinde automático, `discountCodes` → header/home + `app/api/cart/coupon`.

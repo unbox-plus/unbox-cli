@@ -133,7 +133,7 @@ npx --package=@unbox-plus/cli create-unbox-store
 	Use sempre a forma com \`--package=\` para detecção correta do pacote.
 </callout>
 
-O CLI pergunta 12 coisas: nome do projeto e da loja, cor primária e de CTA, site e Instagram da marca, objetivo em uma frase, **estilo visual** (Essencial, Promocional, Editorial ou Boutique), credenciais da Unbox, tipo de checkout, o segredo de captcha (só com key de parceiro) e se roda \`npm install\`. Tudo menos as credenciais fica em \`marca/briefing.json\`, para o agente de marca não reperguntar.
+O CLI pergunta 11 coisas: nome do projeto e da loja, cor primária e de CTA, site e Instagram da marca, objetivo em uma frase, **estilo visual** (Essencial, Promocional, Editorial ou Boutique), credenciais da Unbox, tipo de checkout e se roda \`npm install\`. Tudo menos as credenciais fica em \`marca/briefing.json\`, para o agente de marca não reperguntar.
 
 Sem credenciais em mãos, responda "não": o projeto sobe em **modo mockup** com o layout completo e sem dados reais. Preenche o \`.env.local\` depois.
 

@@ -1,33 +1,41 @@
 // UnboxClient — SDK headless da Unbox para Next.js / Vercel (server-side).
 // Zero dependências: usa fetch nativo (Node 18+, Edge Runtime).
 //
-// ⚠️ Este client guarda a API key e o token de loja — use APENAS no servidor
+// ⚠️ Este client guarda a api key do parceiro e o token da loja — use APENAS no servidor
 //    (Route Handlers, Server Actions, RSC). Nunca instancie no browser.
 //
-// DOIS ENDPOINTS (transição para a API pública de PARCEIROS):
-// - partners.unbox.com.br/graphql — nova API pública. Uma api key por PARCEIRO (vale para
-//   todas as lojas dele); a loja específica autentica por user/senha no signIn. Com
-//   `partnerApiKey` configurada, vão para cá: signIn, VITRINE COMPLETA (catalogItems,
-//   catalogItemProductBySlug, byId via productIdsOrERPCodes, shopBySlug), tags, cupons
-//   (leitura), pedido por referenceId, parcelas, inventário (simpleInventory),
-//   subscribeWebhook e createCartByTemplate — tudo validado ao vivo contra o gateway.
-// - core.unbox.com.br/graphql — segue atendendo o que a API de parceiros ainda não expõe:
-//   carrinho/checkout/placeOrder, CEP, OTP, área do cliente e availablePaymentMethods.
-//   Conforme a Unbox publicar as escritas, cada método ganha o mesmo roteamento condicional.
-// Peculiaridades do gateway (validadas ao vivo): args opcionais não aceitam null (montar
-// query só com args presentes); unions exigem __typename; Authorization aceita token puro
-// E Bearer (a doc pública diz só puro — na prática ambos passam).
+// UM ENDPOINT SÓ: partners.unbox.com.br/graphql, a API pública de PARCEIROS. Uma api key por
+// PARCEIRO (vale para todas as lojas dele); a loja específica autentica por user/senha no
+// `signIn`, e o JWT devolvido é o que identifica a loja em toda chamada seguinte.
+//
+// OS TRÊS CABEÇALHOS, e o que cada um resolve:
+//   · x-api-key        → a api key do PARCEIRO. Vai em toda chamada, sem exceção.
+//   · Authorization    → o token da LOJA (o do signIn). É dele que o gateway extrai o shopId.
+//   · x-customer-token → o token do CLIENTE final (o do customerPasswordlessSignIn), só nas
+//                        operações da área do cliente. Ver UnboxCustomerClient (customer.ts).
+// É por isso que NENHUMA operação daqui manda shopId. As únicas exceções são os campos que o
+// próprio schema de parceiros declara explicitamente (o `shopId` de CreateCartByTemplateInput e o
+// de cada fulfillmentGroup no placeOrder) — esses continuam indo porque são argumentos do contrato.
+//
+// CAPTCHA NÃO EXISTE MAIS AQUI. As operações protegidas por reCAPTCHA (`signIn`,
+// `customerOTPRequest`, `customerPasswordlessSignIn`, `placeOrder`, `placePaymentLinkOrder` e os
+// dois `setup*3DSTransaction`) recebem o token injetado na BORDA do gateway de parceiros. A loja
+// não tem segredo de captcha para guardar nem header para montar. Ver lib/ratelimit.ts: o que
+// protege OTP e checkout de abuso é o rate-limit do BFF, e sempre foi — o header nunca foi um
+// captcha de verdade.
+//
+// Peculiaridades do gateway (validadas ao vivo): args opcionais não aceitam null (montar query
+// só com args presentes); unions exigem __typename; Authorization aceita token puro E Bearer
+// (a doc pública diz só puro — na prática ambos passam).
 
 import type {
   UnboxConfig, AddressInput, CartItemInput, CartResult,
   PlaceOrderParams, FulfillmentOption, CatalogProduct, Connection,
-  PaymentLinkConstraints, DeviceInput, SimpleInventoryInfo,
+  PaymentLinkConstraints, PaymentLinkItemInput, DeviceInput, SimpleInventoryInfo,
 } from "./types";
 import { comSelecaoEnxuta, normalizarMiniaturas, IMAGENS_DO_ITEM, RESUMO_DETALHADO, ENVIO_E_RASTREIO } from "./pedido";
 
 const DEFAULTS = {
-  apiBaseUrl: "https://api.unbox.com.br",
-  gqlUrl: "https://core.unbox.com.br/graphql",
   // API pública de PARCEIROS — gateway na frente do core. Uma api key por parceiro
   // (vale p/ todas as lojas dele); a loja é autenticada pelo user/senha no signIn.
   partnerGqlUrl: "https://partners.unbox.com.br/graphql",
@@ -42,7 +50,7 @@ const DEFAULTS = {
  *  se o servidor não conseguir resolver, repete sem ele: a loja mostra o endereço onde a API
  *  entrega e a página do pedido nunca deixa de abrir. */
 export const BLOCO_ENDERECO_GRUPO =
-  "data{ ... on ShippingOrderFulfillmentGroupData { shippingAddress{fullName address1 number neighborhood city region postal} } }";
+  "data{__typename ... on ShippingOrderFulfillmentGroupData { shippingAddress{fullName address1 number neighborhood city region postal} } }";
 
 function ehUniaoNaoResolvida(e: unknown): boolean {
   const msgs = e instanceof UnboxError
@@ -110,84 +118,50 @@ function isAuthSchemeError(errors: any[]): boolean {
   return /UNAUTHORIZED|NOT AUTHORIZED|ACCESS_DENIED|UNAUTHENTICATED|INVALID TOKEN|401|403/.test(msg);
 }
 
+/** Formato do Authorization que o gateway aceitou. É propriedade da API, não da instância, e
+ *  `getStoreClient()` cria um UnboxClient NOVO a cada request: guardado no módulo, o formato é
+ *  medido uma vez por processo em vez de nunca chegar a ser memorizado. */
+let esquemaAceito: "bearer" | "raw" | null = null;
+
 export class UnboxClient {
-  apiKey: string;
-  shopId: string;
-  apiBaseUrl: string;
-  gqlUrl: string;
   partnerApiKey: string;
   partnerGqlUrl: string;
-  captchaBypass: string;
+  shopId: string;
   language: string;
   timeoutMs: number;
   token: string | null = null;
-  /** Formato do Authorization no gateway de parceiros. A doc oficial (docs.unbox.com.br)
-   *  manda o token PURO, sem "Bearer " ("prefixá-lo quebra a autenticação") — por isso o
-   *  default é "raw". O fallback pra "bearer" fica só como defesa se o gateway mudar. */
-  private partnerAuthScheme: "bearer" | "raw" = "raw";
 
   constructor(cfg: UnboxConfig) {
-    this.apiKey = cfg.apiKey;
-    this.shopId = cfg.shopId;
-    this.apiBaseUrl = cfg.apiBaseUrl ?? DEFAULTS.apiBaseUrl;
-    this.gqlUrl = cfg.gqlUrl ?? DEFAULTS.gqlUrl;
-    this.partnerApiKey = cfg.partnerApiKey ?? "";
+    this.partnerApiKey = cfg.partnerApiKey;
     this.partnerGqlUrl = cfg.partnerGqlUrl ?? DEFAULTS.partnerGqlUrl;
-    this.captchaBypass = cfg.captchaBypass ?? "";
+    this.shopId = cfg.shopId ?? "";
     this.language = cfg.language ?? DEFAULTS.language;
     this.timeoutMs = cfg.timeoutMs ?? 15000;
   }
 
-  /** true = api key de PARCEIRO configurada → signIn e leituras com paridade vão pra
-   *  API de parceiros; carrinho/checkout/cliente seguem no core (escritas ainda não
-   *  existem lá). Sem a key, comportamento 100% igual ao anterior (só core). */
-  get usesPartnerApi(): boolean { return Boolean(this.partnerApiKey); }
-
   // -------------------------------------------------------------------- auth
   /**
-   * Autentica com user/senha DA LOJA e guarda o access_token (JWT, ~24h).
-   * - Modo parceiro: mutation `signIn` na API de parceiros (x-api-key do parceiro +
-   *   x-captcha-verification opcional). O token retornado é o mesmo JWT do core — o
-   *   gateway de parceiros é um proxy do core — e vale nos dois endpoints.
-   * - Modo antigo: REST /auth/signin com a api key da loja.
+   * Autentica com user/senha DA LOJA (mutation `signIn`) e guarda o access_token (JWT, ~24h).
+   * Único header: a x-api-key do parceiro — ainda não existe token de loja para o Authorization,
+   * e o captcha é injetado na borda do gateway.
    */
   async signIn(username: string, password: string): Promise<string> {
-    if (this.usesPartnerApi) return this.signInPartner(username, password);
-    const res = await fetch(`${this.apiBaseUrl}/auth/signin`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-api-key": this.apiKey },
-      body: JSON.stringify({ username, password }),
-      signal: AbortSignal.timeout(this.timeoutMs),
-    });
-    if (!res.ok) throw new UnboxError(`signin HTTP ${res.status}: ${await res.text()}`);
-    const data = await res.json();
-    if (!data.access_token) throw new UnboxError("signin sem access_token");
-    this.token = data.access_token;
-    return data.access_token as string;
-  }
-
-  /** signIn via API de parceiros (mutation GQL). Não exige token prévio.
-   *  Doc oficial: o signIn EXIGE x-captcha-verification (UNBOX_CAPTCHA_BYPASS). */
-  private async signInPartner(username: string, password: string): Promise<string> {
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-      "x-api-key": this.partnerApiKey,
-    };
-    if (this.captchaBypass) headers["x-captcha-verification"] = this.captchaBypass;
     const q = `mutation($i:SignInInput!){ signIn(input:$i){ access_token id_token } }`;
     const res = await fetch(this.partnerGqlUrl, {
       method: "POST",
-      headers,
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": this.partnerApiKey,
+      },
       body: JSON.stringify({ query: q, variables: { i: { username, password } } }),
       signal: AbortSignal.timeout(this.timeoutMs),
     });
     const json = await res.json();
     if (json.errors?.length) {
-      const hint = this.captchaBypass ? "" : " (x-captcha-verification ausente — preencha UNBOX_CAPTCHA_BYPASS, obrigatório no signIn de parceiros)";
-      throw new UnboxError(`signIn (partner): ${json.errors.map((e: any) => e.message).join(" | ")}${hint}`, json.errors);
+      throw new UnboxError(`signIn: ${json.errors.map((e: any) => e.message).join(" | ")}`, json.errors);
     }
     const token = json.data?.signIn?.access_token;
-    if (!token) throw new UnboxError("signIn (partner) sem access_token");
+    if (!token) throw new UnboxError("signIn sem access_token");
     this.token = token;
     return token as string;
   }
@@ -195,75 +169,71 @@ export class UnboxClient {
   setToken(token: string) { this.token = token; }
 
   // ------------------------------------------------------------- GraphQL (low)
+  /**
+   * Chamada à API de PARCEIROS.
+   *
+   * `Authorization` leva SEMPRE o token da LOJA — é dele que o gateway extrai o shopId, e por
+   * isso nenhuma consulta precisa passá-lo. `opts.customerToken` acrescenta `x-customer-token`,
+   * que é como as operações da área do cliente dizem DE QUEM é a conta. Os dois convivem na mesma
+   * requisição: a loja no Authorization, o cliente no header próprio (ver customer.ts).
+   *
+   * FORMATO DO AUTHORIZATION. A doc oficial manda o token PURO, sem "Bearer ", e é por ele que
+   * começamos; o outro formato fica como defesa se o gateway mudar. Enquanto o formato não foi
+   * medido, uma CONSULTA que falhar por auth é repetida no outro formato, e o que funcionar fica
+   * memorizado no módulo.
+   *
+   * MUTAÇÃO NUNCA REPETE. `isAuthSchemeError` casa por texto, e "not authorized" também é o que
+   * a adquirente responde num cartão recusado: repetir um `placeOrder` por causa disso seria
+   * criar o segundo pedido e cobrar duas vezes. Sem formato medido, uma consulta leve mede antes,
+   * e só então a mutação vai, uma vez.
+   */
   async gql<T = any>(
     query: string,
     variables: Record<string, any> = {},
-    opts: { token?: string; captcha?: boolean; timeoutMs?: number } = {},
+    opts: { token?: string; customerToken?: string; timeoutMs?: number } = {},
   ): Promise<T> {
     const token = opts.token ?? this.token;
-    if (!token) throw new UnboxError("sem token: chame signIn() ou passe opts.token");
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    };
-    // placeOrder, customerOTPRequest, customerPasswordlessSignIn.
-    // ⚠️ ORDEM IMPORTA: o header x-captcha-verification foi feito pro UNBOX_CAPTCHA_BYPASS
-    // (segredo de 64 chars). Mandar a api key (da2-...) no lugar faz o backend repassá-la ao
-    // reCAPTCHA Enterprise, que devolve MALFORMED → o cliente vê CAPTCHA_MALFORMED_ERROR no
-    // meio do pagamento (caso real em produção). A key só entra como último recurso se não houver bypass.
-    if (opts.captcha) headers["x-captcha-verification"] = this.captchaBypass || this.apiKey;
-    let res: Response;
-    try {
-      res = await fetch(this.gqlUrl, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ query, variables }),
-        signal: AbortSignal.timeout(opts.timeoutMs ?? this.timeoutMs),
-      });
-    } catch (e: any) {
-      // Timeout vira um UnboxError reconhecível (código TIMEOUT). Quem chama decide o que fazer:
-      // em leitura, tanto faz; em placeOrder, é a diferença entre "tente de novo" e "NÃO pague de novo".
-      if (e?.name === "TimeoutError" || e?.name === "AbortError") throw new UnboxError(UNBOX_TIMEOUT, [{ message: UNBOX_TIMEOUT }]);
-      throw e;
+    if (!token) throw new UnboxError("sem token da loja: chame signIn() ou setToken()");
+    const mutacao = /^\s*mutation\b/.test(query);
+    if (mutacao && !esquemaAceito) {
+      await this.gql(`query{ shopBySlug{ _id } }`, {}, { token }).catch(() => null);
     }
-    const json = await res.json();
-    if (json.errors?.length) {
-      throw new UnboxError(json.errors.map((e: any) => e.message).join(" | "), json.errors);
-    }
-    return json.data as T;
-  }
-
-  // ------------------------------------------------------ GraphQL (partner, low)
-  /**
-   * Chamada à API de PARCEIROS. Headers: x-api-key (key do parceiro) + Authorization
-   * (token do signIn — o gateway repassa ao core, que resolve a loja pelo JWT; por isso
-   * nenhuma query de parceiro pede shopId). O formato do Authorization não é documentado:
-   * tentamos `Bearer <jwt>` e, se vier erro de auth, refazemos UMA vez com o token cru,
-   * memorizando o formato que funcionou para as próximas chamadas.
-   */
-  async gqlPartner<T = any>(query: string, variables: Record<string, any> = {}): Promise<T> {
-    if (!this.token) throw new UnboxError("sem token: chame signIn() ou passe setToken()");
     const attempt = async (scheme: "bearer" | "raw"): Promise<{ json: any }> => {
-      const res = await fetch(this.partnerGqlUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": this.partnerApiKey,
-          // Doc oficial: token PURO no Authorization (sem "Bearer ").
-          Authorization: scheme === "raw" ? String(this.token) : `Bearer ${this.token}`,
-        },
-        body: JSON.stringify({ query, variables }),
-        signal: AbortSignal.timeout(this.timeoutMs),
-      });
-      return { json: await res.json() };
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        "x-api-key": this.partnerApiKey,
+        // Doc oficial: token PURO no Authorization (sem "Bearer ").
+        Authorization: scheme === "raw" ? String(token) : `Bearer ${token}`,
+      };
+      if (opts.customerToken) headers["x-customer-token"] = opts.customerToken;
+      let res: Response;
+      try {
+        res = await fetch(this.partnerGqlUrl, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ query, variables }),
+          signal: AbortSignal.timeout(opts.timeoutMs ?? this.timeoutMs),
+        });
+      } catch (e: any) {
+        // Timeout vira um UnboxError reconhecível (código TIMEOUT). Quem chama decide o que fazer:
+        // em leitura, tanto faz; em placeOrder, é a diferença entre "tente de novo" e "NÃO pague de novo".
+        if (e?.name === "TimeoutError" || e?.name === "AbortError") throw new UnboxError(UNBOX_TIMEOUT, [{ message: UNBOX_TIMEOUT }]);
+        throw e;
+      }
+      const json = await res.json().catch(() => ({ errors: [{ message: `resposta que não é JSON (HTTP ${res.status})` }] }));
+      return { json };
     };
-    let { json } = await attempt(this.partnerAuthScheme);
-    if (json.errors?.length && isAuthSchemeError(json.errors)) {
-      const other = this.partnerAuthScheme === "raw" ? "bearer" : "raw";
-      const retry = await attempt(other);
-      if (!retry.json.errors?.length || !isAuthSchemeError(retry.json.errors)) {
-        this.partnerAuthScheme = other; // memoriza o formato aceito
-        json = retry.json;
+    const primeiro = esquemaAceito ?? "raw";
+    let { json } = await attempt(primeiro);
+    if (!json.errors?.length) {
+      esquemaAceito = primeiro;
+    } else if (!esquemaAceito && !mutacao && isAuthSchemeError(json.errors)) {
+      const outro = primeiro === "raw" ? "bearer" : "raw";
+      const segunda = await attempt(outro);
+      if (!segunda.json.errors?.length) {
+        esquemaAceito = outro;
+        console.warn(`[unbox] o gateway aceitou o Authorization no formato "${outro}", e ele fica memorizado`);
+        json = segunda.json;
       }
     }
     if (json.errors?.length) {
@@ -273,7 +243,6 @@ export class UnboxClient {
   }
 
   // ------------------------------------------------------------------- catálogo
-  /** Seleção de produto compartilhada entre core e partner (schemas idênticos aqui). */
   private static CATALOG_PRODUCT_FIELDS = `
           _id productId title slug productType isVisible isSoldOut isBackorder isLowQuantity recurrenceAllowed imageUrls
           minOrderQuantity maxOrderQuantity tagIds
@@ -284,42 +253,28 @@ export class UnboxClient {
     first?: number; offset?: number; searchText?: string; tagIds?: string[];
     sortBy?: string; sortOrder?: "asc" | "desc";
   } = {}): Promise<Connection<{ product: CatalogProduct }>> {
-    // Partner: sem shopIds (loja vem do JWT). Diferenças do gateway (validadas ao vivo):
-    // 1) args opcionais NÃO podem ir nulos (o resolver rejeita sortOrder:null, que o core
-    //    tolerava) → montamos a query só com os args realmente presentes;
+    // Sem shopIds (a loja vem do JWT). Diferenças do gateway (validadas ao vivo):
+    // 1) args opcionais NÃO podem ir nulos (o resolver rejeita sortOrder:null) → montamos a
+    //    query só com os args realmente presentes;
     // 2) o union CatalogItem exige __typename na seleção pra resolver o tipo.
-    if (this.usesPartnerApi) {
-      const decl = ["$first:Int", "$offset:Int"];
-      const args = ["first:$first", "offset:$offset"];
-      const vars: Record<string, any> = { first: opts.first ?? 24, offset: opts.offset ?? 0 };
-      const opt = (name: string, type: string, value: any) => {
-        if (value === undefined || value === null) return;
-        decl.push(`$${name}:${type}`); args.push(`${name}:$${name}`); vars[name] = value;
-      };
-      opt("searchText", "String", opts.searchText);
-      opt("tagIds", "[ID]", opts.tagIds);
-      opt("sortBy", "CatalogItemSortByField", opts.sortBy);
-      opt("sortOrder", "SortOrder", opts.sortOrder);
-      const q = `query(${decl.join(",")}){
-        catalogItems(${args.join(",")}){
-          totalCount pageInfo{hasNextPage endCursor}
-          nodes{__typename ... on CatalogItemProduct{ _id shortDescription product{${UnboxClient.CATALOG_PRODUCT_FIELDS}
-          }}}
-        }}`;
-      const d = await this.gqlPartner<{ catalogItems: any }>(q, vars);
-      return semOcultos(d.catalogItems);
-    }
-    const q = `query($shopIds:[ID]!,$first:Int,$offset:Int,$searchText:String,$tagIds:[ID],$sortBy:CatalogItemSortByField,$sortOrder:SortOrder){
-      catalogItems(shopIds:$shopIds,first:$first,offset:$offset,searchText:$searchText,tagIds:$tagIds,sortBy:$sortBy,sortOrder:$sortOrder){
+    const decl = ["$first:Int", "$offset:Int"];
+    const args = ["first:$first", "offset:$offset"];
+    const vars: Record<string, any> = { first: opts.first ?? 24, offset: opts.offset ?? 0 };
+    const opt = (name: string, type: string, value: any) => {
+      if (value === undefined || value === null) return;
+      decl.push(`$${name}:${type}`); args.push(`${name}:$${name}`); vars[name] = value;
+    };
+    opt("searchText", "String", opts.searchText);
+    opt("tagIds", "[ID]", opts.tagIds);
+    opt("sortBy", "CatalogItemSortByField", opts.sortBy);
+    opt("sortOrder", "SortOrder", opts.sortOrder);
+    const q = `query(${decl.join(",")}){
+      catalogItems(${args.join(",")}){
         totalCount pageInfo{hasNextPage endCursor}
-        nodes{... on CatalogItemProduct{ _id shortDescription product{${UnboxClient.CATALOG_PRODUCT_FIELDS}
+        nodes{__typename ... on CatalogItemProduct{ _id shortDescription product{${UnboxClient.CATALOG_PRODUCT_FIELDS}
         }}}
       }}`;
-    const d = await this.gql<{ catalogItems: any }>(q, {
-      shopIds: [this.shopId], first: opts.first ?? 24, offset: opts.offset ?? 0,
-      searchText: opts.searchText, tagIds: opts.tagIds,
-      sortBy: opts.sortBy, sortOrder: opts.sortOrder,
-    });
+    const d = await this.gql<{ catalogItems: any }>(q, vars);
     return semOcultos(d.catalogItems);
   }
 
@@ -330,87 +285,45 @@ export class UnboxClient {
           variants{_id title sku pricing{price displayPrice compareAtPrice{displayAmount}}}`;
 
   async getProductBySlug(productSlug: string): Promise<any> {
-    // Partner: mesma query sem shopId (loja vem do JWT). Validado ao vivo no gateway.
-    if (this.usesPartnerApi) {
-      const q = `query($productSlug:String!){
-        catalogItemProductBySlug(productSlug:$productSlug,filterSoldOutVariants:false){
-          _id shortDescription cardDescription publishedUrl
-          product{ ${UnboxClient.PDP_PRODUCT_FIELDS} }}}`;
-      const d = await this.gqlPartner<{ catalogItemProductBySlug: any }>(q, { productSlug });
-      return d.catalogItemProductBySlug;
-    }
-    const q = `query($shopId:ID!,$productSlug:String!){
-      catalogItemProductBySlug(shopId:$shopId,productSlug:$productSlug,filterSoldOutVariants:false){
+    const q = `query($productSlug:String!){
+      catalogItemProductBySlug(productSlug:$productSlug,filterSoldOutVariants:false){
         _id shortDescription cardDescription publishedUrl
         product{ ${UnboxClient.PDP_PRODUCT_FIELDS} }}}`;
-    const d = await this.gql<{ catalogItemProductBySlug: any }>(q, { shopId: this.shopId, productSlug });
+    const d = await this.gql<{ catalogItemProductBySlug: any }>(q, { productSlug });
     return d.catalogItemProductBySlug;
   }
 
-  /** PDP por productId — fallback/deep link (catalogItemProductById). */
+  /** PDP por productId — fallback/deep link.
+   *  `catalogItemProductById` não existe na API de parceiros; o equivalente validado ao vivo é
+   *  `catalogItems(productIdsOrERPCodes:[id], first:1)`, que devolve o mesmo CatalogItemProduct. */
   async getProductById(productId: string): Promise<any> {
-    // Partner: catalogItemProductById NÃO existe no gateway; equivalente validado ao vivo:
-    // catalogItems(productIdsOrERPCodes:[id], first:1) — devolve o mesmo CatalogItemProduct.
-    if (this.usesPartnerApi) {
-      const q = `query($ids:[String]){
-        catalogItems(productIdsOrERPCodes:$ids,first:1){
-          nodes{__typename ... on CatalogItemProduct{ _id shortDescription publishedUrl
-            product{ ${UnboxClient.PDP_PRODUCT_FIELDS} }}}}}`;
-      const d = await this.gqlPartner<{ catalogItems: any }>(q, { ids: [productId] });
-      return d.catalogItems?.nodes?.[0] ?? null;
-    }
-    const q = `query($shopId:ID!,$productId:ID!){
-      catalogItemProductById(shopId:$shopId,productId:$productId,filterSoldOutVariants:false){
-        _id shortDescription publishedUrl
-        product{ ${UnboxClient.PDP_PRODUCT_FIELDS} }}}`;
-    const d = await this.gql<{ catalogItemProductById: any }>(q, { shopId: this.shopId, productId });
-    return d.catalogItemProductById;
+    const q = `query($ids:[String]){
+      catalogItems(productIdsOrERPCodes:$ids,first:1){
+        nodes{__typename ... on CatalogItemProduct{ _id shortDescription publishedUrl
+          product{ ${UnboxClient.PDP_PRODUCT_FIELDS} }}}}}`;
+    const d = await this.gql<{ catalogItems: any }>(q, { ids: [productId] });
+    return d.catalogItems?.nodes?.[0] ?? null;
   }
 
   // isTopLevel omitido = sem filtro (igual à vitrine padrão da Unbox). Forçar `true` esconde
   // categorias reais e visíveis marcadas isTopLevel:false no admin (ex.: "Acessórios") — 404
   // em /categoria/<slug> mesmo com o produto corretamente vinculado à categoria.
   async getTags(isTopLevel?: boolean): Promise<any[]> {
-    // Partner: mesma query, sem shopId (a loja vem do JWT). Campos idênticos (validado
-    // por introspecção no schema de parceiros).
-    if (this.usesPartnerApi) {
-      const q = `query($isTopLevel:Boolean){
-        tags(isTopLevel:$isTopLevel,shouldIncludeInvisible:false,shouldIncludeDeleted:false,first:100){
-          nodes{_id name displayTitle slug description isTopLevel isVisible position subTagIds featuredProductIds}
-        }}`;
-      const d = await this.gqlPartner<{ tags: any }>(q, { isTopLevel });
-      return d.tags.nodes;
-    }
-    const q = `query($shopId:ID!,$isTopLevel:Boolean){
-      tags(shopId:$shopId,isTopLevel:$isTopLevel,shouldIncludeInvisible:false,shouldIncludeDeleted:false,first:100){
+    const q = `query($isTopLevel:Boolean){
+      tags(isTopLevel:$isTopLevel,shouldIncludeInvisible:false,shouldIncludeDeleted:false,first:100){
         nodes{_id name displayTitle slug description isTopLevel isVisible position subTagIds featuredProductIds}
       }}`;
-    const d = await this.gql<{ tags: any }>(q, { shopId: this.shopId, isTopLevel });
+    const d = await this.gql<{ tags: any }>(q, { isTopLevel });
     return d.tags.nodes;
   }
 
   // ----------------------------------------------------------------------- loja
-  /** Dados da loja: promoções (shopSales), política de assinatura, settings, pagamentos. */
-  async getShop(slug: string): Promise<any> {
-    // Partner: shopBySlug() SEM argumentos (a loja vem do JWT; o `slug` recebido é ignorado).
-    // O gateway não expõe allowGuestCheckout nem settings.maxInstallments — omitidos aqui;
-    // o app já tem defaults (maxInstallments ?? 12) e allowGuestCheckout não é consumido.
-    if (this.usesPartnerApi) {
-      const q = `query{ shopBySlug{
-        _id name slug acceptsBoleto acceptsCreditCard
-        settings{allowAnonymousRecurringOrders allowLegalPersonSales showOutOfStockCatalogs}
-        shopSales{_id code label description discountMethod enabled createdAt
-          calculation{__typename ... on CalculationFreeItemByTier { tiers { cartSubtotalGTE catalogProductVariant { _id title } } }}}
-        recurringOrdersPolicy{_id enabled keepOrderPricingPolicy
-          allowedFrequencies{_id title periodicity interval}
-          pricingPolicy{type value}
-          customerActions{canSkipCycle canPause canChangeFrequency canChangeAddress canAddProducts canRemoveProducts canChangeProductQuantity}}
-      }}`;
-      const d = await this.gqlPartner<{ shopBySlug: any }>(q);
-      return d.shopBySlug;
-    }
-    const q = `query($slug:String!){ shopBySlug(slug:$slug){
-      _id name slug acceptsBoleto acceptsCreditCard allowGuestCheckout
+  /** Dados da loja: promoções (shopSales), política de assinatura, settings, pagamentos.
+   *  `shopBySlug` não recebe argumento — a loja vem do JWT, e o `slug` que chega aqui serve só
+   *  para quem chama continuar falando em termos de loja. */
+  async getShop(_slug?: string): Promise<any> {
+    const q = `query{ shopBySlug{
+      _id name slug acceptsBoleto acceptsCreditCard
       settings{maxInstallments allowAnonymousRecurringOrders allowLegalPersonSales showOutOfStockCatalogs}
       shopSales{_id code label description discountMethod enabled createdAt
         calculation{__typename ... on CalculationFreeItemByTier { tiers { cartSubtotalGTE catalogProductVariant { _id title } } }}}
@@ -419,29 +332,23 @@ export class UnboxClient {
         pricingPolicy{type value}
         customerActions{canSkipCycle canPause canChangeFrequency canChangeAddress canAddProducts canRemoveProducts canChangeProductQuantity}}
     }}`;
-    const d = await this.gql<{ shopBySlug: any }>(q, { slug });
+    const d = await this.gql<{ shopBySlug: any }>(q);
     return d.shopBySlug;
   }
 
+  /** Métodos de pagamento habilitados no checkout desta loja. Sem argumento: a loja sai do JWT,
+   *  e o próprio resolver já filtra por loja, ativação e região. */
   async getPaymentMethods(): Promise<any[]> {
-    const q = `query($shopId:ID!){availablePaymentMethods(shopId:$shopId){name displayName isEnabled canRefund pluginName}}`;
-    const d = await this.gql<{ availablePaymentMethods: any[] }>(q, { shopId: this.shopId });
+    const q = `query{availablePaymentMethods{name displayName isEnabled canRefund pluginName}}`;
+    const d = await this.gql<{ availablePaymentMethods: any[] }>(q);
     return d.availablePaymentMethods;
   }
 
   // ------------------------------------------------------------------ promoções
   async listDiscountCodes(first = 50): Promise<Connection<any>> {
-    // Partner: discountCodes sem shopId (loja vem do JWT); nodes do tipo Discount, com os
-    // mesmos campos que o app consome.
-    if (this.usesPartnerApi) {
-      const q = `query($first:Int){ discountCodes(first:$first){
-        totalCount nodes{_id code label description enabled discountMethod calculation{__typename}} }}`;
-      const d = await this.gqlPartner<{ discountCodes: any }>(q, { first });
-      return d.discountCodes;
-    }
-    const q = `query($shopId:ID!,$first:ConnectionLimitInt){ discountCodes(shopId:$shopId,first:$first){
+    const q = `query($first:Int){ discountCodes(first:$first){
       totalCount nodes{_id code label description enabled discountMethod calculation{__typename}} }}`;
-    const d = await this.gql<{ discountCodes: any }>(q, { shopId: this.shopId, first });
+    const d = await this.gql<{ discountCodes: any }>(q, { first });
     return d.discountCodes;
   }
 
@@ -459,7 +366,6 @@ export class UnboxClient {
       minOrderQuantityFailures{minOrderQuantity quantity}
       maxOrderQuantityFailures{maxOrderQuantity quantity} }}`;
     const d = await this.gql<{ createCart: any }>(q, { i: {
-      shopId: this.shopId,
       items: items.map((it) => ({
         price: { amount: it.price, currencyCode: it.currencyCode ?? "BRL" },
         productConfiguration: { productId: it.productId, productVariantId: it.productVariantId },
@@ -575,7 +481,7 @@ export class UnboxClient {
   async applyDiscount(cartId: string, cartToken: string, discountCode: string): Promise<any> {
     const q = `mutation($i:ApplyDiscountCodeToCartInput!){ applyDiscountCodeToCart(input:$i){
       cart{_id checkout{summary{discountTotal{displayAmount} total{amount displayAmount}}}} cartEvents{type data} }}`;
-    const d = await this.gql<{ applyDiscountCodeToCart: any }>(q, { i: { cartId, token: cartToken, shopId: this.shopId, discountCode } });
+    const d = await this.gql<{ applyDiscountCodeToCart: any }>(q, { i: { cartId, token: cartToken, discountCode } });
     return d.applyDiscountCodeToCart;
   }
 
@@ -593,7 +499,7 @@ export class UnboxClient {
   async removeDiscount(cartId: string, cartToken: string, discountId: string): Promise<any> {
     const q = `mutation($i:RemoveDiscountCodeFromCartInput!){ removeDiscountCodeFromCart(input:$i){
       cart{checkout{summary{discountTotal{displayAmount} total{amount displayAmount}}}} cartEvents{type data} }}`;
-    const d = await this.gql<{ removeDiscountCodeFromCart: any }>(q, { i: { cartId, token: cartToken, shopId: this.shopId, discountId } });
+    const d = await this.gql<{ removeDiscountCodeFromCart: any }>(q, { i: { cartId, token: cartToken, discountId } });
     return d.removeDiscountCodeFromCart;
   }
 
@@ -632,7 +538,7 @@ export class UnboxClient {
   /**
    * "Calcule o frete" para a PDP (fora do checkout). Cria um carrinho efêmero com 1 item,
    * grava o endereço (só CEP basta na prática p/ cotar) e cota o frete. Compõe primitivas
-   * já validadas ao vivo — não depende de createShipmentQuote (schema não confirmado).
+   * já validadas ao vivo — não depende de createShipmentQuote (que a API de parceiros não expõe).
    */
   async quoteShippingForProduct(item: CartItemInput, postal: string): Promise<FulfillmentOption[]> {
     const cart = await this.createCart([item]);
@@ -647,38 +553,37 @@ export class UnboxClient {
   // -------------------------------------------------------------------- checkout
   /** Opções de parcelamento (sem juros) para um valor — usado no cartão de crédito (não assinatura). */
   async getInstallments(amount: number): Promise<Array<{ installment: number; amount: number }>> {
-    // Partner: input sem shopId (loja vem do JWT); resposta com os mesmos campos.
-    if (this.usesPartnerApi) {
-      const q = `query($amount:Float!){ getInstallments(input:{amount:$amount}){ installments{installment amount} } }`;
-      const d = await this.gqlPartner<{ getInstallments: { installments: any[] } }>(q, { amount });
-      return (d.getInstallments?.installments ?? []).map((i: any) => ({ installment: i.installment, amount: i.amount }));
-    }
-    const q = `query($shopId:ID!,$amount:Float!){ getInstallments(input:{shopId:$shopId,amount:$amount}){ installments } }`;
-    const d = await this.gql<{ getInstallments: { installments: any[] } }>(q, { shopId: this.shopId, amount });
+    const q = `query($amount:Float!){ getInstallments(input:{amount:$amount}){ installments{installment amount} } }`;
+    const d = await this.gql<{ getInstallments: { installments: any[] } }>(q, { amount });
     return (d.getInstallments?.installments ?? []).map((i: any) => ({ installment: i.installment, amount: i.amount }));
   }
 
-  /** Cria o pedido (REAL). Envia x-captcha-verification automaticamente. */
+  /** Cria o pedido (REAL). O captcha é injetado na borda do gateway — nada a enviar aqui. */
   async placeOrder(p: PlaceOrderParams): Promise<any> {
     // country é obrigatório (String!) tanto no shippingAddress quanto no billingAddress.
     const address = { country: "BR", ...p.address };
+    // `PaymentInput.data` é AWSJSON. O scalar é assimétrico: na ENTRADA ele espera o JSON já
+    // serializado em string, e na SAÍDA devolve o objeto puro. Mandar o objeto aqui faz o gateway
+    // recusar o placeOrder na validação da variável, antes de qualquer cobrança.
     const payment = p.payment.type === "pix"
-      ? { amount: p.total, method: "unboxpay_pix", data: { paymentType: "pix" }, billingAddress: address }
+      ? { amount: p.total, method: "unboxpay_pix", data: JSON.stringify({ paymentType: "pix" }), billingAddress: address }
       : {
           amount: p.total, method: "unboxpay_credit", billingAddress: address,
-          data: {
+          data: JSON.stringify({
             cardHolder: p.payment.card.cardHolder, cardNumber: p.payment.card.cardNumber,
             expirationMonth: p.payment.card.expirationMonth, expirationYear: p.payment.card.expirationYear,
             securityCode: p.payment.card.securityCode, installments: p.payment.card.installments ?? 1,
             paymentType: "credit",
-          },
+          }),
         };
     // device (antifraude/3DS) é OBRIGATÓRIO e vai no NÍVEL RAIZ do PlaceOrderInput
     // (irmão de order/payments). Sem navegador (scripts), o fallback é { type: "API" }.
     const device: DeviceInput = p.device ?? { type: "API" };
     const input: any = {
+      // OrderInput não tem shopId (vem do JWT), mas OrderFulfillmentGroupInput declara
+      // `shopId: ID!` — é argumento explícito do contrato, então continua indo.
       order: {
-        cartId: p.cartId, currencyCode: "BRL", email: p.email, shopId: this.shopId,
+        cartId: p.cartId, currencyCode: "BRL", email: p.email,
         fulfillmentGroups: [{
           type: "SHIPPING", shopId: this.shopId, totalPrice: p.total,
           selectedFulfillmentMethodId: p.fulfillmentMethodId,
@@ -694,31 +599,29 @@ export class UnboxClient {
       token orders{_id referenceId status summary{total{amount displayAmount}}
         recurringOrderId generatedNewRecurringOrder
         payments{method{name} status{status} captureErrorMessage
-          data{... on UnboxPayPaymentData{qrCode paymentRecord redirectUrl numberOfInstallments}}}} }}`;
-    const d = await this.gql<{ placeOrder: any }>(q, { i: input }, { captcha: true, timeoutMs: PLACE_ORDER_TIMEOUT_MS });
+          data{__typename ... on UnboxPayPaymentData{qrCode paymentRecord redirectUrl numberOfInstallments}}}} }}`;
+    const d = await this.gql<{ placeOrder: any }>(q, { i: input }, { timeoutMs: PLACE_ORDER_TIMEOUT_MS });
     return d.placeOrder;
   }
 
   /**
    * Acompanhar pedido pelo referenceId.
-   * ⚠️ SEGURANÇA: com o token de LOJA, isto retorna QUALQUER pedido só pelo referenceId (validado ao
-   * vivo) — referenceId é curto e adivinhável. NUNCA exponha esta chamada ao browser sem o BFF antes
-   * verificar a POSSE do pedido: compare o `token` do placeOrder (guardado em cookie httpOnly) ou use
-   * o token do cliente logado (`UnboxCustomerClient.order`). Ver docs 09-seguranca.
+   * ⚠️ SEGURANÇA: com o token de LOJA, isto retorna QUALQUER pedido só pelo referenceId (validado
+   * ao vivo) — referenceId é curto e adivinhável, e `orderByReferenceId` nem recebe token de posse.
+   * NUNCA exponha esta chamada ao browser sem o BFF antes verificar a POSSE do pedido: compare o
+   * `token` do placeOrder (guardado em cookie httpOnly, ver lib/orders.ts getOwnedOrder) ou use o
+   * token do cliente logado (`UnboxCustomerClient.order`). Ver docs 09-seguranca.
    */
-  async getOrder(referenceId: string, token?: string): Promise<any> {
+  async getOrder(referenceId: string): Promise<any> {
     // Seleção COMPLETA (quebra do total, envio, rastreio e status do pagamento) com volta para a
-    // ENXUTA se a API recusar: ver comSelecaoEnxuta em ./pedido. Notas que valem para os dois
-    // caminhos:
+    // ENXUTA se a API recusar: ver comSelecaoEnxuta em ./pedido. Notas:
     //   · `OrderItem` tem `imageURLs` (objeto de tamanhos); a normalização devolve o `thumbnail`
     //     que o app lê.
     //   · `trackingUrl` não existe em Order, mas `fulfillmentGroups.tracking.url` existe
     //     (OrderTrackingData { code, url, event }).
     //   · fora displayStatus e payments.data, resolvedores que derrubam a consulta inteira.
     //   · `payments` sempre junto de `summary` (ver customer.ts, orders()).
-    //   · de `payments.amount` só o `displayAmount`: `Money.amount` é non-null e volta null quando o
-    //     pagamento não tem valor numérico, e um pedido assim derruba a consulta (ver customer.ts).
-    const selecao = (raiz: string, endereco: string, rica: boolean) => `${raiz}{
+    const selecao = (endereco: string, rica: boolean) => `query($id:ID!){ orderByReferenceId(id:$id){
           _id referenceId status email${rica ? " createdAt" : ""}
           summary{total{amount displayAmount}${rica ? RESUMO_DETALHADO : ""}}
           payments{displayName mode processor isCaptured cardBrand captureErrorMessage amount{displayAmount}${rica ? " status{status}" : ""}}
@@ -729,69 +632,71 @@ export class UnboxClient {
             items{nodes{_id title variantTitle quantity ${IMAGENS_DO_ITEM} productSlug price{amount displayAmount} subtotal{displayAmount} productConfiguration{productId productVariantId}}}
           }
           invoiceIssued dispatched delivered
-          recurringOrderId }`;
+          recurringOrderId } }`;
 
-    // Partner: orderByReferenceId(id) NÃO aceita o token de posse. A verificação de posse do pedido
-    // é (e sempre foi) responsabilidade do BFF (lib/orders.ts getOwnedOrder, via cookie httpOnly).
-    if (this.usesPartnerApi) {
-      const consulta = (rica: boolean) => comEnderecoDoGrupo((endereco) =>
-        this.gqlPartner<{ orderByReferenceId: any }>(`query($id:ID!){ ${selecao("orderByReferenceId(id:$id)", endereco, rica)} }`, { id: referenceId }));
-      const d = await comSelecaoEnxuta("orderByReferenceId (parceiro)", () => consulta(true), () => consulta(false));
-      return normalizarMiniaturas(d.orderByReferenceId);
-    }
     const consulta = (rica: boolean) => comEnderecoDoGrupo((endereco) =>
-      this.gql<{ orderByReferenceId: any }>(
-        `query($id:ID!,$shopId:ID,$token:String){ ${selecao("orderByReferenceId(id:$id,shopId:$shopId,token:$token)", endereco, rica)} }`,
-        { id: referenceId, shopId: this.shopId, token },
-      ));
+      this.gql<{ orderByReferenceId: any }>(selecao(endereco, rica), { id: referenceId }));
     const d = await comSelecaoEnxuta("orderByReferenceId", () => consulta(true), () => consulta(false));
     return normalizarMiniaturas(d.orderByReferenceId);
   }
 
   // -------------------------------------------------------- conta do cliente (OTP)
-  /** Storefront pede OTP por e-mail (contexto de loja). Exige x-captcha-verification (= UNBOX_CAPTCHA_BYPASS). */
+  // As três operações abaixo são de PRÉ-LOGIN: acontecem quando ainda não existe token de
+  // cliente, então vão só com o token da LOJA no Authorization. O `x-customer-token` entra
+  // depois, nas operações do cliente já autenticado (customer.ts). As duas primeiras são
+  // protegidas por captcha do lado da Unbox, injetado na borda do gateway.
+
+  /** Storefront pede OTP por e-mail. O captcha é injetado na borda do gateway. */
   async requestCustomerOtp(email: string): Promise<boolean> {
     const q = `mutation($i:CustomerOTPRequestInput!){ customerOTPRequest(input:$i){success} }`;
-    const d = await this.gql<{ customerOTPRequest: { success: boolean } }>(q, { i: { email, shopId: this.shopId } }, { captcha: true });
+    const d = await this.gql<{ customerOTPRequest: { success: boolean } }>(q, { i: { email } });
     return d.customerOTPRequest.success;
   }
 
-  /** Troca o OTP pelo token DO CLIENTE (use-o no UnboxCustomerClient). */
+  /** Troca o OTP pelo token DO CLIENTE — é ele que vira o `x-customer-token` das chamadas da
+   *  área do cliente (use-o no UnboxCustomerClient). */
   async customerSignIn(email: string, otp: string): Promise<{ accessToken: string; firstAccess: boolean }> {
     const q = `mutation($i:CustomerPasswordlessSignInInput){ customerPasswordlessSignIn(input:$i){
       accessToken idToken firstAccess newShopSignIn }}`;
-    const d = await this.gql<{ customerPasswordlessSignIn: any }>(q, { i: { email, otp, shopId: this.shopId } }, { captcha: true });
+    const d = await this.gql<{ customerPasswordlessSignIn: any }>(q, { i: { email, otp } });
     return { accessToken: d.customerPasswordlessSignIn.accessToken, firstAccess: d.customerPasswordlessSignIn.firstAccess };
   }
 
   async customerAccountExists(email: string): Promise<boolean> {
     const q = `query($i:HasCustomerAccountInput){ hasCustomerAccount(input:$i){result} }`;
-    const d = await this.gql<{ hasCustomerAccount: { result: boolean } }>(q, { i: { email, shopId: this.shopId } });
+    const d = await this.gql<{ hasCustomerAccount: { result: boolean } }>(q, { i: { email } });
     return d.hasCustomerAccount.result;
   }
 
   async getAddressByPostalCode(postalCode: string): Promise<any> {
     const q = `query($i:getAddressByPostalCodeInput!){ getAddressByPostalCode(input:$i){
       address1 neighborhood city region cityCode }}`;
-    const d = await this.gql<{ getAddressByPostalCode: any }>(q, { i: { shopId: this.shopId, postalCode: postalCode.replace(/\D/g, "") } });
+    const d = await this.gql<{ getAddressByPostalCode: any }>(q, { i: { postalCode: postalCode.replace(/\D/g, "") } });
     return d.getAddressByPostalCode;
   }
 
   // --------------------------------------------------------------- payment links
   /**
    * Cria um Payment Link hospedado pela Unbox (bom para WhatsApp / compartilhar carrinho).
-   * ⚠️ Operação de loja (admin-ish) — derivada da doc 07/10; rode sob demanda. Retorna o
-   * PaymentLink; a página pública é montada via getPublicPaymentLink(referenceId).
+   * ⚠️ Operação de loja (admin-ish) — rode sob demanda. Retorna o PaymentLink; a página pública
+   * é montada via getPublicPaymentLink(paymentLinkId).
+   *
+   * Os itens do Payment Link são PRODUTOS VIRTUAIS (`PaymentLinkItemInput`): título, quantidade e
+   * preço são do link, e o vínculo com o catálogo, quando existe, é por código de ERP. Não é o
+   * mesmo formato de um item de carrinho (productId/productVariantId).
    */
   async createPaymentLink(input: {
-    items: Array<{ productId: string; productVariantId: string; quantity: number }>;
+    title: string;
+    items: PaymentLinkItemInput[];
+    description?: string;
     constraints?: PaymentLinkConstraints;
     customerData?: Record<string, { value: string; editable: boolean }>;
   }): Promise<any> {
     const q = `mutation($i:CreatePaymentLinkInput!){ createPaymentLink(input:$i){
       _id referenceId status constraints{expirationDate usageLimit} }}`;
     const d = await this.gql<{ createPaymentLink: any }>(q, { i: {
-      shopId: this.shopId,
+      title: input.title,
+      description: input.description,
       items: input.items,
       constraints: input.constraints,
       metadata: input.customerData ? { customerData: input.customerData } : undefined,
@@ -801,20 +706,18 @@ export class UnboxClient {
 
   /** Lê um payment link público (para montar a página de pagamento). discountCode é aplicado aqui. */
   async getPublicPaymentLink(paymentLinkId: string, discountCode?: string): Promise<any> {
-    const q = `query($id:ID!,$shopId:ID!,$discountCode:String){ publicPaymentLink(paymentLinkId:$id,shopId:$shopId,discountCode:$discountCode){
+    const q = `query($id:ID!,$discountCode:String){ publicPaymentLink(paymentLinkId:$id,discountCode:$discountCode){
       _id referenceId status }}`;
-    const d = await this.gql<{ publicPaymentLink: any }>(q, { id: paymentLinkId, shopId: this.shopId, discountCode });
+    const d = await this.gql<{ publicPaymentLink: any }>(q, { id: paymentLinkId, discountCode });
     return d.publicPaymentLink;
   }
 
-  /** Cria um carrinho real a partir de um cart template (campanhas / "compre de novo"). */
+  /** Cria um carrinho real a partir de um cart template (campanhas / "compre de novo").
+   *  `CreateCartByTemplateInput` declara `shopId: ID!` explicitamente — por isso ele vai. */
   async createCartByTemplate(cartTemplateId: string): Promise<CartResult> {
     const q = `mutation($i:CreateCartByTemplateInput!){ createCartByTemplate(input:$i){
       token cart{ _id totalItemQuantity checkout{summary{total{amount displayAmount}}} } }}`;
-    // Escrita já publicada na API de parceiros (CreateCartPayload tem a mesma shape).
-    const d = this.usesPartnerApi
-      ? await this.gqlPartner<{ createCartByTemplate: any }>(q, { i: { shopId: this.shopId, cartTemplateId } })
-      : await this.gql<{ createCartByTemplate: any }>(q, { i: { shopId: this.shopId, cartTemplateId } });
+    const d = await this.gql<{ createCartByTemplate: any }>(q, { i: { shopId: this.shopId, cartTemplateId } });
     const r = d.createCartByTemplate;
     return { cartId: r.cart._id, cartToken: r.token, cart: r.cart };
   }
@@ -824,22 +727,17 @@ export class UnboxClient {
   async subscribeWebhook(eventType: string, endpoint: string): Promise<any> {
     const q = `mutation($i:SubscribeToWebhookInput){ subscribeToWebhook(input:$i){
       _id eventType endpoint secret createdAt }}`;
-    // Mesma mutation nos dois endpoints — uma das poucas ESCRITAS já publicadas na API de
-    // parceiros (junto com createCartByTemplate e os CRUDs de cupom).
-    const d = this.usesPartnerApi
-      ? await this.gqlPartner<{ subscribeToWebhook: any }>(q, { i: { eventType, endpoint } })
-      : await this.gql<{ subscribeToWebhook: any }>(q, { i: { eventType, endpoint } });
+    const d = await this.gql<{ subscribeToWebhook: any }>(q, { i: { eventType, endpoint } });
     return d.subscribeToWebhook;
   }
 
   // ------------------------------------------------------------------ inventário
-  /** Inventário de uma variante (API de parceiros — simpleInventory). Exige partnerApiKey. */
+  /** Inventário de uma variante (simpleInventory). */
   async getSimpleInventory(productId: string, productVariantId: string): Promise<SimpleInventoryInfo | null> {
-    if (!this.usesPartnerApi) throw new UnboxError("getSimpleInventory exige UNBOX_PARTNER_API_KEY (API de parceiros)");
     const q = `query($pc:ProductConfigurationInput!){ simpleInventory(productConfiguration:$pc){
       _id canBackorder inventoryInStock inventoryReserved isEnabled lowInventoryWarningThreshold
       productConfiguration{productId productVariantId} }}`;
-    const d = await this.gqlPartner<{ simpleInventory: SimpleInventoryInfo | null }>(q, { pc: { productId, productVariantId } });
+    const d = await this.gql<{ simpleInventory: SimpleInventoryInfo | null }>(q, { pc: { productId, productVariantId } });
     return d.simpleInventory ?? null;
   }
 }
