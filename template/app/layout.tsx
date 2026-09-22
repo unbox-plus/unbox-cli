@@ -31,6 +31,9 @@ import { DECLARACAO_DOS_DADOS_DA_LOJA, iconesDaLoja, lerDadosDaLoja } from "@/li
 // PERSONALIZAÇÃO POR PÚBLICO (foundation 18): a declaração libera os públicos no editor; `<PontoDePublico/>`
 // ouve o evento dos apps (o quiz); a medição empurra o público e o grupo para o dataLayer antes do GTM.
 import { DECLARACAO_DA_PERSONALIZACAO } from "@/lib/personalizacao";
+// CABEÇALHO E RODAPÉ DAS PÁGINAS DO CÓDIGO (foundation 18): a /oferta marca o pedido; a declaração liga os
+// interruptores no editor
+import { OCULTA_CHROME_EM } from "@/lib/chrome-das-paginas";
 import { PontoDePublico } from "@/lib/editable/publico";
 import { scriptDaMedicaoDoPublico } from "@/lib/editable/document";
 
@@ -113,7 +116,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
             página do lojista é 100% documento, e sem este corte cem artigos publicados viajariam
             junto com a página de um produto. Quem renderiza uma página do lojista acrescenta a fatia
             dela na própria rota (`<EditableFatia>`). */}
-        <EditableProvider doc={documentoSemPaginas(conteudo)} shop={STORE_SLUG} tokens={EDITABLE_TOKENS} editorOrigin={EDITOR_ORIGIN || undefined} apps={presencaNoAmbiente(process.env, { unboxGtmId: UNBOX_GTM_ID })} paginasDoLojista={declaracaoDoLojista(reservadosDaLoja())} rotasComSeo={ROTAS_COM_SEO} dadosDaLoja={DECLARACAO_DOS_DADOS_DA_LOJA} personalizacao={DECLARACAO_DA_PERSONALIZACAO}>
+        <EditableProvider doc={documentoSemPaginas(conteudo)} shop={STORE_SLUG} tokens={EDITABLE_TOKENS} editorOrigin={EDITOR_ORIGIN || undefined} apps={presencaNoAmbiente(process.env, { unboxGtmId: UNBOX_GTM_ID })} paginasDoLojista={declaracaoDoLojista(reservadosDaLoja())} rotasComSeo={ROTAS_COM_SEO} ocultaChromeEm={OCULTA_CHROME_EM} dadosDaLoja={DECLARACAO_DOS_DADOS_DA_LOJA} personalizacao={DECLARACAO_DA_PERSONALIZACAO}>
           <PontoDePublico />
           {children}
         </EditableProvider>

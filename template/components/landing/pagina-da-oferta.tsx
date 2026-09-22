@@ -22,6 +22,8 @@ import type { HomeData } from "@/components/home/sections/registry";
 // EDITOR: a pilha da landing dentro do container PRÓPRIO dela ("oferta", declarado em
 // lib/rotas-editaveis.ts). Renderizada solta, nada nela é editável e o gate reprova a página.
 import { OfertaSections } from "@/components/landing/oferta-sections";
+// "Ocultar cabeçalho" e "Ocultar rodapé" desta página (lib/chrome-das-paginas.ts): a marca que o CSS lê
+import { PedidoDeChrome } from "@/components/landing/pedido-de-chrome";
 import { mockupOr } from "@/lib/mockup";
 
 /** os metadados da oferta, os mesmos nas duas rotas: a versão de um público não é outra página para o buscador */
@@ -63,6 +65,7 @@ export async function PaginaDaOferta({ doc }: { doc: ContentDocument | null }) {
 
   return (
     <div className="store-layout full-bleed bg-white text-[var(--store-ink)]">
+      <PedidoDeChrome container="oferta" />
       <h1 className="sr-only">Oferta especial</h1>
       <OfertaSections data={data} />
       <div className="pb-14" />

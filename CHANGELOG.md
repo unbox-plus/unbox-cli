@@ -40,6 +40,13 @@ fora dos buscadores, e quem abre esse endereço entra no público, como pelo lin
   WhatsApp fica. O rodapé some MENOS a barra de baixo (`.rodape-barra`), que leva o selo "Powered by Unbox" (contrato)
   e os dados da empresa (a lei do comércio eletrônico os pede à vista). A loja declara `ocultaChrome: true` em
   `lib/paginas-do-lojista.ts`, e o `check-editable` cobra a casca, o CSS e a barra.
+- **A oferta também esconde cabeçalho e rodapé**: a `/oferta` (página do código, sem ficha) ganha os mesmos dois
+  interruptores, na aba Seções do editor, no grupo "Cabeçalho e rodapé". O pedido mora no estado do container da
+  página (`sections.oferta.ocultarCabecalho`, `ocultarRodape`, pela operação `set_chrome`, com desfazer), e a versão
+  de um público o herda. `<PedidoDeChrome container="oferta"/>` (`components/landing/pedido-de-chrome.tsx`) marca o
+  pedido com as mesmas classes da página avulsa, e o CSS é o mesmo: a barra do rodapé com o selo e os dados da
+  empresa fica. A loja declara as páginas em `lib/chrome-das-paginas.ts` (`OCULTA_CHROME_EM`), que o layout passa ao
+  editor (`ocultaChromeEm`); o `check-editable` cobra a marca na rota de cada página declarada, o CSS e a barra.
 - **A prévia do editor ganha a moldura da loja**: `app/previa-do-editor/layout.tsx` usa `components/moldura-da-loja.tsx`,
   a mesma de `app/(loja)/layout.tsx`. A página do lojista aparece na prévia com o cabeçalho e o rodapé, como vai ao ar,
   e o "Ocultar" aparece na hora (o pedido sai do rascunho).
@@ -94,10 +101,16 @@ produto ao passo 2, que o mostra primeiro. E o `check-editable` aprova a loja de
 Categoria, 24 de 24: o bloco adicionado em `/produtos` aparece na prévia da categoria antes de publicar, com o
 produto escolhido; o painel da categoria diz que a lista é a de `/produtos`, não oferece o "+" e não deixa arrastar;
 publicado, as duas categorias mostram o bloco; subir o bloco e ocultar a faixa de confiança em `/produtos` vale na
-categoria; sem rolagem lateral em 375 e 1440 px.
+categoria; sem rolagem lateral em 375 e 1440 px. Oferta sem cabeçalho e rodapé, 23 de 23: os interruptores da aba
+Seções escondem na prévia na hora; o que mudou diz qual dos dois e para que lado; a home continua inteira (e não
+mostra os interruptores); publicado, o HTML da `/oferta` já sai marcado do servidor, também na versão de Cacheados;
+em 375 e 1440 px o cabeçalho some, o rodapé fica só com a barra do selo e não há rolagem lateral, e `/produtos`
+continua inteira; desligar volta ao normal. O gate reprova a loja que declara `ocultaChromeEm` sem a marca na página.
 
 Loja já gerada: como na 0.23.0, nada muda sozinho. As LPs por público ligam quando a loja declara `oferta` e
-`pagina-*` e tem as duas rotas do público (o `check-editable` diz o que falta).
+`pagina-*` e tem as duas rotas do público (o `check-editable` diz o que falta). A categoria que espelha `/produtos`
+chega com o `components/catalog/catalog-client.tsx` e a página da categoria novos; o cabeçalho e o rodapé da oferta,
+com o `pedido-de-chrome.tsx`, o `lib/chrome-das-paginas.ts`, a marca em `pagina-da-oferta.tsx` e a prop no layout.
 
 ### v0.23.0 — foundation 18: a home muda para cada público
 

@@ -32,6 +32,7 @@ import {
   emptyDocument,
   type ManifestFonte,
   type ManifestRotaComSeo,
+  type ManifestChromeOcultavel,
   type ManifestDadosDaLoja,
   type OpcaoDeToken,
   type TipoDeToken,
@@ -474,6 +475,7 @@ export function EditableProvider({
   apps,
   paginasDoLojista,
   rotasComSeo,
+  ocultaChromeEm,
   dadosDaLoja,
   personalizacao,
   children,
@@ -513,6 +515,13 @@ export function EditableProvider({
    * `generateMetadata` das rotas não a passa, e o editor não oferece um campo que a loja não lê.
    */
   rotasComSeo?: ManifestRotaComSeo[];
+  /**
+   * PÁGINAS DO CÓDIGO QUE ESCONDEM CABEÇALHO E RODAPÉ (foundation 18): os containers cuja página marca o pedido do
+   * lojista (`sections[container].ocultarCabecalho`, `ocultarRodape`) para o CSS esconder (a `/oferta`). Mesmo
+   * contrato das props acima: só a loja cuja página já marca passa, e é a prop que liga os dois interruptores na
+   * aba Seções do editor.
+   */
+  ocultaChromeEm?: ManifestChromeOcultavel[];
   /**
    * DADOS DA LOJA (foundation 17): as partes que a loja LÊ do documento (empresa, redes, SEO da loja) e se ela
    * confere os redirecionamentos antes de responder 404. Mesmo contrato das duas props acima: a loja só a
@@ -738,8 +747,8 @@ export function EditableProvider({
     //      a prévia na visão de um público ("Ver como", `unbox-editor:publico`) e juntar a camada na página do
     //      público (`EditablePublico`); o manifesto diz de que visão ele fala (`publico`). O que LIBERA os
     //      públicos no painel é `personalizacao` (a prop), pelo mesmo motivo de `paginasDoLojista`.
-    return { shop, capturedAt: new Date().toISOString(), url: pagina, foundation: 18, entries, sections: secs, tipos, semContainer: fora, tokens: toks, ...(fontes.length ? { fontes } : {}), ...(letraDaLoja ? { letraDaLoja } : {}), ...(apps ? { apps } : {}), ...(paginasDoLojista ? { paginasDoLojista } : {}), ...(rotasComSeo?.length ? { rotasComSeo } : {}), ...(dadosDaLoja ? { dadosDaLoja } : {}), ...(personalizacao ? { personalizacao } : {}), ...(publicoEmVista ? { publico: publicoEmVista } : {}) };
-  }, [shop, tokens, apps, paginasDoLojista, rotasComSeo, dadosDaLoja, personalizacao, publicoEmVista]);
+    return { shop, capturedAt: new Date().toISOString(), url: pagina, foundation: 18, entries, sections: secs, tipos, semContainer: fora, tokens: toks, ...(fontes.length ? { fontes } : {}), ...(letraDaLoja ? { letraDaLoja } : {}), ...(apps ? { apps } : {}), ...(paginasDoLojista ? { paginasDoLojista } : {}), ...(rotasComSeo?.length ? { rotasComSeo } : {}), ...(ocultaChromeEm?.length ? { ocultaChromeEm } : {}), ...(dadosDaLoja ? { dadosDaLoja } : {}), ...(personalizacao ? { personalizacao } : {}), ...(publicoEmVista ? { publico: publicoEmVista } : {}) };
+  }, [shop, tokens, apps, paginasDoLojista, rotasComSeo, ocultaChromeEm, dadosDaLoja, personalizacao, publicoEmVista]);
 
   // manifesto: publica depois que os registros assentam (debounce)
   const manifestTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);

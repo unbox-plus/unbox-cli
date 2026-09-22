@@ -548,6 +548,19 @@ export interface SectionState {
    * junto sem aprender nada de públicos: todas elas movem o estado inteiro do container.
    */
   publicos?: Record<string, CamadaDeSecoes>;
+  /**
+   * A PÁGINA DO CÓDIGO SEM O TOPO (foundation 18): a landing page que veio com a loja (a `/oferta`) esconde a faixa
+   * de avisos e o cabeçalho só nela, como a página avulsa faz pelo registro (`PaginaDoLojista.ocultarCabecalho`). A
+   * página do código não tem registro, e o container É a página: por isso o pedido mora aqui, e vai à loja, à prévia
+   * e ao "usar esta versão" com o resto do estado, e a versão de um público o herda (`aplicarPublico` espalha o
+   * estado). Só `true` é gravado; só em container que a loja declara em `Manifest.ocultaChromeEm`.
+   */
+  ocultarCabecalho?: true;
+  /**
+   * A PÁGINA DO CÓDIGO SEM O RODAPÉ GRANDE: some o rodapé, e FICA a barra de baixo dele (os dados da empresa e o
+   * selo da Unbox), como na página avulsa. Mesmas regras de `ocultarCabecalho`.
+   */
+  ocultarRodape?: true;
 }
 
 /**
@@ -1238,6 +1251,14 @@ export interface ManifestRotaComSeo {
    * como ele escreveu, que é o caso da página inicial.
    */
   sufixoDoTitulo?: string;
+}
+
+/** uma página do código que sabe esconder cabeçalho e rodapé (`Manifest.ocultaChromeEm`) */
+export interface ManifestChromeOcultavel {
+  /** o container da página: "oferta" */
+  container: string;
+  /** o nome que o lojista lê: "Oferta" */
+  nome: string;
 }
 
 export interface PaginaDoLojista {
@@ -2766,6 +2787,12 @@ type OpDoDocumento =
   | { op: "set_css"; css: string | null }
   /** `seo: null` apaga o SEO da rota, e a página volta a emitir o que o código dela emite */
   | { op: "set_seo_da_rota"; rota: string; seo: SeoDaRota | null }
+  /**
+   * CABEÇALHO E RODAPÉ DE UMA PÁGINA DO CÓDIGO (foundation 18): `true` esconde, `null` mostra de novo, ausente não
+   * mexe. O container é a página (`oferta`), declarado pela loja em `Manifest.ocultaChromeEm`. A página avulsa usa o
+   * registro dela (`update_page`), não esta operação.
+   */
+  | { op: "set_chrome"; container: string; ocultarCabecalho?: true | null; ocultarRodape?: true | null }
   /** `valor: null` apaga a parte inteira */
   | { op: "set_dados_da_loja"; parte: ParteDosDadosDaLoja; valor: EmpresaDaLoja | RedesDaLoja | SeoDaLoja | null }
   /** REDIRECIONAMENTO MANUAL (foundation 17): um endereço antigo que passa a levar a um novo */
@@ -3225,6 +3252,23 @@ export function applyOp(doc: ContentDocument, op: PatchOp): { doc: ContentDocume
       // mapa que esvaziou some, como os outros
       if (Object.keys(mapa).length) next.seoDasRotas = mapa;
       else delete next.seoDasRotas;
+      break;
+    }
+    case "set_chrome": {
+      // o inverso leva só o que a operação mexeu, com o valor de antes (`null` = não estava escondido)
+      const antes = doc.sections[op.container];
+      const volta: Extract<PatchOp, { op: "set_chrome" }> = { op: "set_chrome", container: op.container };
+      const estado: SectionState = { ...(next.sections[op.container] ?? {}) };
+      for (const k of ["ocultarCabecalho", "ocultarRodape"] as const) {
+        if (op[k] === undefined) continue;
+        volta[k] = antes?.[k] ?? null;
+        if (op[k] === true) estado[k] = true;
+        else delete estado[k];
+      }
+      inverse = volta;
+      // o estado que esvaziou some, como os mapas: desfazer num container que não tinha estado devolve o documento igual
+      if (Object.keys(estado).length) next.sections[op.container] = estado;
+      else delete next.sections[op.container];
       break;
     }
     case "set_css": {
@@ -4175,6 +4219,13 @@ export interface Manifest {
    */
   rotasComSeo?: ManifestRotaComSeo[];
   /**
+   * PÁGINAS DO CÓDIGO QUE ESCONDEM CABEÇALHO E RODAPÉ (foundation 18): os containers cuja página marca o pedido
+   * (`SectionState.ocultarCabecalho`, `ocultarRodape`) para o CSS da loja esconder (a `/oferta`). Ausente = nenhuma:
+   * `validateOp` recusa esconder (`set_chrome`) e o painel não mostra os interruptores. A página avulsa declara o
+   * mesmo pedido em `paginasDoLojista.ocultaChrome`.
+   */
+  ocultaChromeEm?: ManifestChromeOcultavel[];
+  /**
    * DADOS DA LOJA (foundation 17): as partes que a loja LÊ (empresa, redes, SEO da loja) e se ela confere os
    * redirecionamentos em toda rota. Ausente = nenhuma: o painel não mostra os blocos e `validateOp` recusa.
    */
@@ -4642,6 +4693,19 @@ export function validateOp(op: PatchOp, manifest: Manifest, doc?: ContentDocumen
       if (op.seo === null) return SIM;
       const r = recusaDeSeo(op.seo, "rota");
       return r ? { ok: false, reason: r } : SIM;
+    }
+    case "set_chrome": {
+      if (typeof op.container !== "string" || !op.container) return { ok: false, reason: "container inválido" };
+      for (const k of ["ocultarCabecalho", "ocultarRodape"] as const) {
+        if (op[k] !== undefined && op[k] !== null && op[k] !== true) return { ok: false, reason: `«${k}» é true (esconder) ou null (mostrar).` };
+      }
+      if (op.ocultarCabecalho === undefined && op.ocultarRodape === undefined) return { ok: false, reason: "Diga o que muda: o cabeçalho, o rodapé ou os dois." };
+      // ESCONDER pede a loja que sabe esconder NESTA página; MOSTRAR de novo (`null`) passa sempre, como na página
+      // avulsa: a loja que deixou de declarar não pode prender o lojista num pedido que ela já nem cumpre
+      if ((op.ocultarCabecalho === true || op.ocultarRodape === true) && !(manifest.ocultaChromeEm ?? []).some((d) => d.container === op.container)) {
+        return { ok: false, reason: FRASE_SEM_CHROME_OCULTAVEL };
+      }
+      return SIM;
     }
     case "set_css": {
       // a loja precisa saber emitir a folha: numa que só recebeu a lib nova, o valor entraria no
