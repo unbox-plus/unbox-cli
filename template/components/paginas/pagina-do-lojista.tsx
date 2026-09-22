@@ -51,7 +51,7 @@ export async function migalhasDaPagina(id: string, registro: PaginaDoLojista, do
  * três rotas, pelo mesmo motivo do JSON-LD e da fatia: as três renderizam exatamente a mesma coisa.
  */
 function registroNaCasca(r: PaginaDoLojista): RegistroNaCasca {
-  return { tipo: r.tipo, handle: r.handle, colecao: r.colecao, autor: r.autor, tags: r.tags, publicadoEm: r.publicadoEm, criadoEm: r.criadoEm };
+  return { tipo: r.tipo, handle: r.handle, colecao: r.colecao, autor: r.autor, tags: r.tags, publicadoEm: r.publicadoEm, criadoEm: r.criadoEm, ocultarCabecalho: r.ocultarCabecalho, ocultarRodape: r.ocultarRodape };
 }
 
 export async function PaginaDoLojistaNaTela({

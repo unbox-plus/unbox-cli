@@ -673,6 +673,34 @@ if (RAIZ_DA_LOJA) {
 const lpsIncompletas = parDaPersonalizacao.lps.filter((l) => !l.rota || !l.arquivo || !l.junta);
 const personalizacaoIncompleta = parDaPersonalizacao.semPagina || parDaPersonalizacao.semCamada || parDaPersonalizacao.semBorda || parDaPersonalizacao.semLogin || parDaPersonalizacao.semLojaPadrao || lpsIncompletas.length > 0;
 
+// ── A LANDING PAGE SEM CABEÇALHO E SEM RODAPÉ (foundation 18) ───────────────────────────────────────────
+//
+// `ocultaChrome: true` na declaração das páginas (lib/paginas-do-lojista.ts) é o que faz o editor oferecer "Ocultar
+// cabeçalho" e "Ocultar rodapé" na ficha da página avulsa. Ela só vale com as três peças: a casca que MARCA o pedido
+// (`lp-sem-cabecalho`, `lp-sem-rodape`), o CSS que esconde (`body:has(...)` em app/globals.css, poupando a barra de
+// baixo do rodapé) e a `.rodape-barra` no rodapé (o que fica: o selo da Unbox e os dados da empresa). Faltando uma, o
+// interruptor da ficha não esconderia nada, ou esconderia o selo e os dados que a lei pede à vista. Conferência de
+// código-fonte, lida CRUA e sem as linhas que são só comentário (a peneira de comentários de bloco engole código a
+// partir de um `/*` escrito dentro de um comentário de linha).
+const soCodigo = (texto) => texto.split("\n").filter((l) => !/^\s*(\/\/|\/\*|\*)/.test(l)).join("\n");
+const lerDaLoja = (...partes) => {
+  try {
+    return RAIZ_DA_LOJA ? readFileSync(path.join(RAIZ_DA_LOJA, ...partes), "utf8") : "";
+  } catch {
+    return "";
+  }
+};
+const lpSemChrome = { declarada: /^\s*ocultaChrome\s*:\s*true\b/m.test(soCodigo(lerDaLoja("lib", "paginas-do-lojista.ts"))), faltam: [] };
+if (lpSemChrome.declarada) {
+  const casca = soCodigo(lerDaLoja("components", "paginas", "casca-de-pagina.tsx"));
+  const css = lerDaLoja("app", "globals.css");
+  const rodape = lerDaLoja("components", "site-footer.tsx");
+  if (!/\blp-sem-cabecalho\b/.test(casca) || !/\blp-sem-rodape\b/.test(casca)) lpSemChrome.faltam.push("a casca (components/paginas/casca-de-pagina.tsx) não marca lp-sem-cabecalho e lp-sem-rodape");
+  if (!/:has\(\.lp-sem-cabecalho\)[^{]*header\.site-chrome/.test(css)) lpSemChrome.faltam.push("o app/globals.css não esconde o header.site-chrome com :has(.lp-sem-cabecalho)");
+  if (!/:has\(\.lp-sem-rodape\)[^{]*footer\.site-chrome\s*>\s*:not\(\.rodape-barra\)/.test(css)) lpSemChrome.faltam.push("o app/globals.css não esconde o rodapé poupando a .rodape-barra (footer.site-chrome > :not(.rodape-barra))");
+  if (!/className=["{`][^\n]*\brodape-barra\b/.test(rodape) || !rodape.includes("<PoweredByUnbox")) lpSemChrome.faltam.push("o rodapé (components/site-footer.tsx) não marca a barra de baixo com .rodape-barra");
+}
+
 console.log("\nO PAR DO CORTE DO DOCUMENTO (o layout tira as páginas do lojista; a casca devolve a fatia):");
 if (!parDoCorte.conferido || parDoCorte.motivo) {
   console.log(`  não conferido · ${parDoCorte.motivo}`);
@@ -705,6 +733,11 @@ else {
     else console.log(`  ok             ${l.rota.padEnd(18)} versão em ${l.arquivo}`);
   }
 }
+
+console.log("\nA LANDING PAGE SEM CABEÇALHO E SEM RODAPÉ (a declaração, a casca, o CSS e a barra do rodapé):");
+if (!lpSemChrome.declarada) console.log("  não declarada · lib/paginas-do-lojista.ts não diz ocultaChrome: true: o editor não oferece os dois interruptores");
+else if (lpSemChrome.faltam.length) for (const f of lpSemChrome.faltam) console.log(`  FALTA          ${f}`);
+else console.log("  ok             a casca marca, o CSS esconde e a barra do rodapé (selo e dados da empresa) fica");
 
 if (medidas.length) {
   const lista = (xs) => (xs.length ? xs.join(", ") : "(nenhum)");
@@ -771,6 +804,7 @@ if (divergentes.length) {
 if (semDeclaracao.length) reprovacoes.push(`rota(s) listada(s) pela loja sem declaração de containers: ${semDeclaracao.map((r) => r.rota).join(", ")}`);
 if (prefixoIndevido.length) reprovacoes.push(`container do código com prefixo reservado às páginas do lojista em ${prefixoIndevido.map((x) => `${x.rota} (${x.containers.join(", ")})`).join(", ")}`);
 if (personalizacaoIncompleta) reprovacoes.push(`a loja declara a personalização por público sem ${[parDaPersonalizacao.semPagina ? "a página do público" : "", parDaPersonalizacao.semCamada ? "a camada (<EditablePublico>) na página do público" : "", parDaPersonalizacao.semBorda ? "a decisão no middleware (seguir)" : "", parDaPersonalizacao.semLogin ? "o login que confere as regras de cliente (publicoNoLogin)" : "", parDaPersonalizacao.semLojaPadrao ? "a loja padrão na privacidade (<LojaPadrao/>)" : "", lpsIncompletas.length ? `a página do público de ${lpsIncompletas.map((l) => l.rota ?? `«${l.container}»`).join(", ")}` : ""].filter(Boolean).join(" e ")}: o editor ofereceria versões que ninguém veria`);
+if (lpSemChrome.faltam.length) reprovacoes.push(`a loja declara ocultaChrome sem ${lpSemChrome.faltam.length} peça(s): ${lpSemChrome.faltam.join("; ")}: o interruptor da ficha não esconderia nada (ou esconderia o selo e os dados da empresa)`);
 if (parDoCorte.semFatia.length) reprovacoes.push(`rota(s) do lojista sem a fatia do documento: ${parDoCorte.semFatia.map((x) => `${x.rota} (${x.arquivo})`).join(", ")}: a página vai ao ar com o literal do código no lugar do texto do lojista`);
 
 // o par não conferido é NÃO RODOU pelo mesmo motivo dos outros: gate que varre o vazio e diz "limpo"

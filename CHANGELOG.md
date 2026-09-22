@@ -33,6 +33,16 @@ fora dos buscadores, e quem abre esse endereço entra no público, como pelo lin
   renderiza (a rota sai de `CONTAINERS_POR_ROTA`) e que ela junte a versão (`<EditablePublico>` numa rota do código,
   `aplicarPublico` na página do lojista). A tabela passou a ser lida do arquivo cru: a peneira de comentários lia o
   `pdp/*` de um comentário de linha como começo de comentário de bloco e engolia metade dela.
+- **Landing page sem cabeçalho e sem rodapé**: a ficha da página avulsa ganha "Ocultar cabeçalho" e "Ocultar
+  rodapé" (`ocultarCabecalho`, `ocultarRodape` no registro; a cópia para um público herda). A casca marca o pedido
+  (`.lp-sem-cabecalho`, `.lp-sem-rodape`) e o `app/globals.css` esconde pela mesma mecânica do checkout
+  (`body:has(...)`, sem JS, sem piscar). O cabeçalho some com a faixa de avisos (`.chrome-faixa`), e o botão do
+  WhatsApp fica. O rodapé some MENOS a barra de baixo (`.rodape-barra`), que leva o selo "Powered by Unbox" (contrato)
+  e os dados da empresa (a lei do comércio eletrônico os pede à vista). A loja declara `ocultaChrome: true` em
+  `lib/paginas-do-lojista.ts`, e o `check-editable` cobra a casca, o CSS e a barra.
+- **A prévia do editor ganha a moldura da loja**: `app/previa-do-editor/layout.tsx` usa `components/moldura-da-loja.tsx`,
+  a mesma de `app/(loja)/layout.tsx`. A página do lojista aparece na prévia com o cabeçalho e o rodapé, como vai ao ar,
+  e o "Ocultar" aparece na hora (o pedido sai do rascunho).
 - **A foundation (`lib/editable`)**: `containerVaria` (o curinga), a operação `duplicate_page` (conteúdo de Todos,
   sem camada, oculta e fora dos buscadores, com desfazer exato), `publico` no registro da página e em
   `update_page`, excluir um público desliga as páginas dele (desfazer religa), e `decidirPublico` recebe o
@@ -43,7 +53,10 @@ página avulsa servem a versão de quem tem uma e a de Todos para os outros (pú
 controle incluídos), com a canônica da página; a home do público não leva a camada das LPs; o link `?para=` da LP
 grava o público; abrir a cópia grava o público (e no navegador a home seguinte já vem na versão dele), o prefetch
 não; `/_publico/…/oferta` e `/_publico/…/paginas/…` respondem 404 por acesso direto; e o gate reprova a loja que
-declara a oferta sem a página do público dela.
+declara a oferta sem a página do público dela. Cabeçalho e rodapé, 19 de 19: os interruptores escondem na prévia na
+hora e na loja depois de publicar (375 e 1440 px, sem rolagem lateral), a barra com o selo fica, as outras páginas
+continuam com cabeçalho, a versão de um público herda o pedido, e o gate reprova a loja que declara sem a regra do
+CSS. A vitrine de uma página avulsa aceita escolha própria por público (camada).
 
 Loja já gerada: como na 0.23.0, nada muda sozinho. As LPs por público ligam quando a loja declara `oferta` e
 `pagina-*` e tem as duas rotas do público (o `check-editable` diz o que falta).

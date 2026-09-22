@@ -1263,6 +1263,18 @@ export interface PaginaDoLojista {
    * página avulsa.
    */
   publico?: string;
+  /**
+   * LANDING PAGE SEM O TOPO: a loja esconde a faixa de avisos e o cabeçalho só nesta página (a pessoa que chega
+   * pelo anúncio fica na oferta, sem menu para sair). Só `true` é gravado; só em página avulsa, de loja que declara
+   * `ocultaChrome` em `paginasDoLojista`.
+   */
+  ocultarCabecalho?: true;
+  /**
+   * LANDING PAGE SEM O RODAPÉ GRANDE: some o rodapé desta página, e FICA a barra de baixo dele, com os dados da
+   * empresa (a lei do comércio eletrônico os pede num lugar visível) e o selo da Unbox (contrato). Mesmas regras
+   * de `ocultarCabecalho`.
+   */
+  ocultarRodape?: true;
 }
 export interface ColecaoDePaginas {
   handle: string;
@@ -2723,6 +2735,10 @@ export function scriptDaMedicaoDoPublico(doc: ContentDocument | null | undefined
 export interface CamposDaPagina {
   /** o público para o qual a página é feita (`null` desliga); só em página avulsa, de loja com LPs por público */
   publico?: string | null;
+  /** esconder o cabeçalho (`true`) ou mostrar de novo (`null`); só em página avulsa, de loja que declara `ocultaChrome` */
+  ocultarCabecalho?: true | null;
+  /** esconder o rodapé grande (`true`) ou mostrar de novo (`null`); as mesmas regras */
+  ocultarRodape?: true | null;
   visibilidade?: Visibilidade;
   publicadoEm?: string | null;
   autor?: string | null;
@@ -3581,7 +3597,7 @@ export function applyOp(doc: ContentDocument, op: PatchOp): { doc: ContentDocume
       const em = instanteDa(op);
       const anteriores: CamposDaPagina = {};
       const novo: PaginaDoLojista = { ...registro, atualizadoEm: em };
-      for (const k of ["publico", "visibilidade", "publicadoEm", "autor", "tags", "seo"] as const) {
+      for (const k of ["publico", "ocultarCabecalho", "ocultarRodape", "visibilidade", "publicadoEm", "autor", "tags", "seo"] as const) {
         const v = op.campos[k];
         if (v === undefined) continue;
         // o inverso leva o valor anterior de CADA campo tocado (`null` = não havia): desfazer devolve só o que mudou
@@ -4142,6 +4158,11 @@ export interface ManifestPaginasDoLojista {
   colecoesDoCodigo: { handle: string; titulo: string }[];
   /** `RESERVADOS_FIXOS` mais as rotas da loja e as entradas de `public/` (calculado pela loja, nunca digitado) */
   reservados: string[];
+  /**
+   * a loja sabe esconder o cabeçalho e o rodapé de uma página avulsa (`ocultarCabecalho`, `ocultarRodape`): a casca
+   * da página marca o pedido e o CSS da loja esconde. Sem a declaração, o editor não oferece os dois interruptores.
+   */
+  ocultaChrome?: true;
 }
 
 /**
@@ -4710,6 +4731,7 @@ function recusaDePaginaDePublico(manifest: Manifest, doc: ContentDocument | unde
   return typeof publico === "string" && doc?.publicos?.[publico] ? null : "Esse público não existe mais.";
 }
 export const FRASE_SEM_LPS_POR_PUBLICO = "Nesta loja ainda não dá para ter páginas por público. Fale com a Unbox para liberar.";
+export const FRASE_SEM_CHROME_OCULTAVEL = "Nesta loja ainda não dá para esconder o cabeçalho e o rodapé de uma página. Fale com a Unbox para liberar.";
 
 function recusaDaCamada(op: PatchOp, publico: unknown, manifest: Manifest, doc: ContentDocument | undefined): string | null {
   if (!lojaTemPublicos(manifest)) return FRASE_SEM_PUBLICOS;
@@ -4899,8 +4921,10 @@ function recusaDeSeo(seo: unknown, de: boolean | "rota"): string | null {
 function recusaDeCampos(campos: unknown): string | null {
   if (!campos || typeof campos !== "object" || Array.isArray(campos)) return "campos da página precisam ser um objeto";
   const o = campos as Record<string, unknown>;
-  for (const k of Object.keys(o)) if (!["publico", "visibilidade", "publicadoEm", "autor", "tags", "seo", "colecao"].includes(k)) return `campo desconhecido: ${k}`;
+  for (const k of Object.keys(o)) if (!["publico", "ocultarCabecalho", "ocultarRodape", "visibilidade", "publicadoEm", "autor", "tags", "seo", "colecao"].includes(k)) return `campo desconhecido: ${k}`;
   if (o.publico !== undefined && o.publico !== null && typeof o.publico !== "string") return "O público da página precisa ser um identificador.";
+  // só `true` é gravado (esconder) e `null` volta a mostrar: um `false` gravado seria um terceiro estado igual ao ausente
+  for (const k of ["ocultarCabecalho", "ocultarRodape"] as const) if (o[k] !== undefined && o[k] !== null && o[k] !== true) return `«${k}» é true (esconder) ou null (mostrar).`;
   if (o.visibilidade !== undefined && o.visibilidade !== "visivel" && o.visibilidade !== "oculta") return "A visibilidade é «visível» ou «oculta».";
   if (o.publicadoEm !== undefined && o.publicadoEm !== null && (typeof o.publicadoEm !== "string" || !DATA_COM_FUSO.test(o.publicadoEm) || !Number.isFinite(Date.parse(o.publicadoEm)))) return "A data de publicação precisa vir completa, com hora e fuso (como 2026-09-09T10:00:00-03:00).";
   if (o.autor !== undefined && o.autor !== null && (typeof o.autor !== "string" || tamanho(o.autor) > AUTOR_MAX)) return `O nome do autor tem até ${AUTOR_MAX} caracteres.`;
@@ -5004,6 +5028,12 @@ function validarOpDePagina(op: PatchOp, manifest: Manifest, doc: ContentDocument
         if (registro.tipo !== "pagina") return nao("Só página avulsa é feita para um público.");
         const semLps = recusaDePaginaDePublico(manifest, doc, op.campos.publico);
         if (semLps) return nao(semLps);
+      }
+      // ESCONDER pede a loja que sabe esconder; MOSTRAR de novo (`null`) passa sempre: a loja que deixou de declarar
+      // não pode prender o lojista num pedido que ela já nem cumpre
+      if (op.campos.ocultarCabecalho === true || op.campos.ocultarRodape === true) {
+        if (registro.tipo !== "pagina") return nao("Só página avulsa esconde o cabeçalho e o rodapé.");
+        if (!manifest.paginasDoLojista?.ocultaChrome) return nao(FRASE_SEM_CHROME_OCULTAVEL);
       }
       if (op.campos.colecao !== undefined) {
         if (registro.tipo !== "artigo") return nao("Uma página avulsa não fica em coleção.");
