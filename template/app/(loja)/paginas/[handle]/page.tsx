@@ -25,13 +25,12 @@
 //
 // A URL antiga continua valendo para sempre e sem cadeia: nada de vivo responde por ela, então a
 // consulta acontece e o 308 sai igual.
+//
+// O CORPO mora em components/paginas/pagina-avulsa.tsx, porque a versão de cada público
+// (app/(loja)/%5Fpublico/[publico]/paginas/[handle], foundation 18) responde pela mesma régua.
 // ═══════════════════════════════════════════════════════════════════════════
 import type { Metadata } from "next";
-import { notFound, permanentRedirect } from "next/navigation";
-import { PREFIXO_DE_PAGINAS } from "@/lib/paginas-do-lojista";
-import { lerPaginas, paginaEmProducao, pararSeALeituraFalhou, redirecionamentoDe } from "@/lib/paginas-publicadas";
-import { metadadosDaPagina } from "@/lib/paginas-seo";
-import { PaginaDoLojistaNaTela } from "@/components/paginas/pagina-do-lojista";
+import { metadadosDaPaginaAvulsa, respostaDaPaginaAvulsa } from "@/components/paginas/pagina-avulsa";
 
 export const revalidate = 300;
 export const dynamicParams = true;
@@ -41,40 +40,12 @@ export async function generateStaticParams() {
   return [];
 }
 
-function caminhoDe(handle: string): string {
-  return `${PREFIXO_DE_PAGINAS}/${handle}`;
-}
-
 export async function generateMetadata({ params }: { params: Promise<{ handle: string }> }): Promise<Metadata> {
   const { handle } = await params;
-  const caminho = caminhoDe(decodeURIComponent(handle));
-  await pararSeALeituraFalhou();
-  const achada = await paginaEmProducao(caminho);
-  // Sem página, esta resposta é 404 ou 308 (quem decide é o componente abaixo). O `noindex` aqui é
-  // para o caso de a resposta ser 404 com corpo: nada dela entra no índice.
-  if (!achada) return { title: "Página não encontrada", robots: { index: false } };
-  return metadadosDaPagina({ doc: await lerPaginas(), id: achada.id, registro: achada.registro, caminho, noAr: true });
+  return metadadosDaPaginaAvulsa(handle);
 }
 
 export default async function PaginaAvulsa({ params }: { params: Promise<{ handle: string }> }) {
   const { handle } = await params;
-  const caminho = caminhoDe(decodeURIComponent(handle));
-
-  // A LEITURA ANTES DA DECISÃO: sem conseguir ler o publicado, esta rota não sabe se a página existe,
-  // e um 404 aqui seria guardado por 300 s e tiraria a URL do índice (o porquê está em
-  // `pararSeALeituraFalhou`).
-  await pararSeALeituraFalhou();
-
-  const achada = await paginaEmProducao(caminho);
-  if (!achada) {
-    // nada de vivo responde por este endereço: agora sim o mapa de redirecionamentos vale (308, para
-    // sempre, sem cadeia). Sem entrada nenhuma, oculta, agendada ou inexistente respondem a mesma
-    // coisa, e é 404 real: é o que tira a URL do índice do buscador. Fora de qualquer `Suspense`,
-    // pelo motivo do cabeçalho.
-    const destino = await redirecionamentoDe(caminho);
-    if (destino) permanentRedirect(destino);
-    notFound();
-  }
-
-  return <PaginaDoLojistaNaTela id={achada.id} registro={achada.registro} caminho={caminho} />;
+  return respostaDaPaginaAvulsa(handle);
 }

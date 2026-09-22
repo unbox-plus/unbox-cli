@@ -32,8 +32,8 @@
 // middleware: a rota é de verdade, e o token dela passa pela porta de prévia como em qualquer outra.
 //
 // FORA DE `app/(loja)/` de propósito: assim ela não entra na varredura de rotas editáveis pelo
-// simples fato de existir, e nasce sem o cabeçalho e o rodapé da loja, que a prévia de uma página do
-// lojista não precisa (o chrome é editado nas páginas do código).
+// simples fato de existir. O cabeçalho e o rodapé vêm do layout desta pasta (app/previa-do-editor/layout.tsx), a
+// mesma moldura da loja: a prévia mostra a página como ela vai ao ar, inclusive a landing page que os esconde.
 // ═══════════════════════════════════════════════════════════════════════════
 import type { Metadata } from "next";
 import { cookies } from "next/headers";

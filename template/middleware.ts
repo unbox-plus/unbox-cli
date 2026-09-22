@@ -185,8 +185,8 @@ export async function middleware(req: NextRequest, event: NextFetchEvent) {
   // /api/unbox/paginas: é a loja dizendo quais páginas ela tem, informação que o sitemap já publica.
   // Quem pergunta é o editor (servidor, para o seletor de página e a revalidação) e o gate de
   // cobertura, nenhum dos dois com cookie da porta. A rota é pública por contrato e só lê.
-  // (/api/unbox/vitrine NÃO entra aqui: quem a chama é a própria página da loja, dentro do iframe do
-  // editor, e ela já carrega o cookie que o token de prévia grava logo abaixo.)
+  // (/api/unbox/vitrine e /api/unbox/secoes NÃO entram aqui: quem as chama é a própria página da loja, dentro do
+  // iframe do editor, e ela já carrega o cookie que o token de prévia grava logo abaixo.)
   // /api/unbox/publicos: a lista dos públicos (nome e regras, nunca a descrição), que quem busca é ESTE
   // middleware, sem cookie da porta, e os apps da loja. Pública por contrato, como a de páginas.
   if (

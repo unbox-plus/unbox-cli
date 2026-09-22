@@ -548,6 +548,19 @@ export interface SectionState {
    * junto sem aprender nada de públicos: todas elas movem o estado inteiro do container.
    */
   publicos?: Record<string, CamadaDeSecoes>;
+  /**
+   * A PÁGINA DO CÓDIGO SEM O TOPO (foundation 18): a landing page que veio com a loja (a `/oferta`) esconde a faixa
+   * de avisos e o cabeçalho só nela, como a página avulsa faz pelo registro (`PaginaDoLojista.ocultarCabecalho`). A
+   * página do código não tem registro, e o container É a página: por isso o pedido mora aqui, e vai à loja, à prévia
+   * e ao "usar esta versão" com o resto do estado, e a versão de um público o herda (`aplicarPublico` espalha o
+   * estado). Só `true` é gravado; só em container que a loja declara em `Manifest.ocultaChromeEm`.
+   */
+  ocultarCabecalho?: true;
+  /**
+   * A PÁGINA DO CÓDIGO SEM O RODAPÉ GRANDE: some o rodapé, e FICA a barra de baixo dele (os dados da empresa e o
+   * selo da Unbox), como na página avulsa. Mesmas regras de `ocultarCabecalho`.
+   */
+  ocultarRodape?: true;
 }
 
 /**
@@ -1240,6 +1253,14 @@ export interface ManifestRotaComSeo {
   sufixoDoTitulo?: string;
 }
 
+/** uma página do código que sabe esconder cabeçalho e rodapé (`Manifest.ocultaChromeEm`) */
+export interface ManifestChromeOcultavel {
+  /** o container da página: "oferta" */
+  container: string;
+  /** o nome que o lojista lê: "Oferta" */
+  nome: string;
+}
+
 export interface PaginaDoLojista {
   tipo: TipoDePagina;
   handle: string;
@@ -1257,6 +1278,24 @@ export interface PaginaDoLojista {
   /** até 20, cada uma até 40, só exibidas (sem página de tag) */
   tags?: string[];
   seo?: SeoDaPagina;
+  /**
+   * A PÁGINA DE UM PÚBLICO (foundation 18, LPs): a cópia feita para ele (`duplicate_page`). Quem abre o endereço
+   * dela entra no público, como pelo link do anúncio, e o resto da loja passa a mostrar a versão dele. Só em
+   * página avulsa.
+   */
+  publico?: string;
+  /**
+   * LANDING PAGE SEM O TOPO: a loja esconde a faixa de avisos e o cabeçalho só nesta página (a pessoa que chega
+   * pelo anúncio fica na oferta, sem menu para sair). Só `true` é gravado; só em página avulsa, de loja que declara
+   * `ocultaChrome` em `paginasDoLojista`.
+   */
+  ocultarCabecalho?: true;
+  /**
+   * LANDING PAGE SEM O RODAPÉ GRANDE: some o rodapé desta página, e FICA a barra de baixo dele, com os dados da
+   * empresa (a lei do comércio eletrônico os pede num lugar visível) e o selo da Unbox (contrato). Mesmas regras
+   * de `ocultarCabecalho`.
+   */
+  ocultarRodape?: true;
 }
 export interface ColecaoDePaginas {
   handle: string;
@@ -1349,6 +1388,20 @@ export const HANDLE_MIN = 2;
 export const HANDLE_MAX = 80;
 export function handleValido(h: unknown): h is string {
   return typeof h === "string" && h.length >= HANDLE_MIN && h.length <= HANDLE_MAX && HANDLE.test(h);
+}
+
+/**
+ * O ENDEREÇO DA CÓPIA DE UMA PÁGINA PARA UM PÚBLICO: `<endereço>-<público>` (`inverno` + `volume` →
+ * `inverno-volume`), cortado no teto do endereço e com `-2`, `-3` quando já existe. Quem chama é o servidor do
+ * editor, dentro da trava do rascunho, como o id de seção adicionada: duas abas pedindo a mesma cópia não
+ * colidem.
+ */
+export function handleDaCopia(doc: ContentDocument | null | undefined, handle: string, publico: string): string {
+  const cortar = (h: string, max: number) => h.slice(0, max).replace(/-+$/, "");
+  const base = cortar(`${handle}-${publico}`, HANDLE_MAX);
+  let novo = base;
+  for (let n = 2; enderecoEmUso(doc, "pagina", novo) || handleReservado("pagina", novo); n++) novo = `${cortar(base, HANDLE_MAX - String(n).length - 1)}-${n}`;
+  return novo;
 }
 
 /**
@@ -1981,6 +2034,16 @@ export interface CamposDoPublico {
   entrada?: EntradaDoPublico | null;
 }
 
+/**
+ * O CONTAINER VARIA POR PÚBLICO? A loja declara quais (`personalizacao.containers`): nomes exatos (`home`,
+ * `oferta`) e curingas de prefixo (`pagina-*`, que casa `pagina-sobre`, `pagina-inverno`...), o mesmo formato das
+ * rotas editáveis. A raiz do caminho é o que se compara (`pagina-sobre.novo-faq-1` é de `pagina-sobre`).
+ */
+export function containerVaria(container: string, declarados: readonly string[] | null | undefined): boolean {
+  const raiz = container.split(".")[0];
+  return (declarados ?? []).some((c) => (c.endsWith("*") ? raiz.startsWith(c.slice(0, -1)) && raiz.length > c.length - 1 : c === raiz));
+}
+
 /** o caminho sem a marca de público: `home.banner.titulo@volume` → `home.banner.titulo` */
 export function caminhoBase(chave: string): string {
   const i = chave.indexOf(SEPARADOR_DE_PUBLICO);
@@ -2277,20 +2340,24 @@ export interface CamadaDoPublico {
  * A CAMADA DE UM PÚBLICO PRONTA PARA O NAVEGADOR: só o que o efetivo tem de diferente do documento de Todos.
  * É o que a rota do público entrega a `<EditablePublico>`, e o que faz o HTML da versão ser o de Todos mais
  * a camada, e não dois documentos inteiros. Sai com a mesma régua de `documentoSemPaginas`: nada de página
- * do lojista. Público desconhecido: null.
+ * do lojista (a dela chega pela fatia do documento efetivo). Público desconhecido: null.
+ *
+ * `containers` corta a camada nos containers que a página renderiza (`["oferta"]` na versão da oferta): sem ele,
+ * a versão da home levaria no HTML a camada de todas as LPs, e cada LP a da home.
  */
-export function camadaDoPublico(doc: ContentDocument | null | undefined, id: string | null | undefined): CamadaDoPublico | null {
+export function camadaDoPublico(doc: ContentDocument | null | undefined, id: string | null | undefined, containers?: readonly string[]): CamadaDoPublico | null {
   if (!doc || !id || !doc.publicos?.[id]) return null;
   const efetivo = aplicarPublico(doc, id);
   const sufixo = SEPARADOR_DE_PUBLICO + id;
+  const pedido = (c: string) => !ehContainerDoLojista(c) && (!containers || containerVaria(c, containers));
   const values: Record<string, EditableValue> = {};
   for (const k of Object.keys(doc.values)) {
     if (!k.endsWith(sufixo) || k.indexOf(SEPARADOR_DE_PUBLICO) !== k.length - sufixo.length) continue;
     const base = caminhoBase(k);
-    if (!ehContainerDoLojista(base)) values[base] = efetivo.values[base];
+    if (pedido(base)) values[base] = efetivo.values[base];
   }
   const sections: ContentDocument["sections"] = {};
-  for (const [c, st] of Object.entries(doc.sections)) if (st.publicos?.[id] && !ehContainerDoLojista(c)) sections[c] = efetivo.sections[c];
+  for (const [c, st] of Object.entries(doc.sections)) if (st.publicos?.[id] && pedido(c)) sections[c] = efetivo.sections[c];
   return { values, sections };
 }
 
@@ -2384,16 +2451,43 @@ export function valorDoCookieDePublico(c: CookieDePublico): string {
  */
 export interface PublicosDaBorda {
   controle: number;
-  publicos: { id: string; nome: string; entrada?: EntradaDoPublico }[];
+  /**
+   * `versoes`: os containers em que o público tem versão (a camada dele mexe ali). A borda só reescreve uma LP
+   * para a versão do público quando ela existe: sem isso, cada LP teria uma cópia em cache por público, igual à
+   * de Todos. A home fica de fora da conta: ela sempre vai para a rota do público.
+   */
+  publicos: { id: string; nome: string; entrada?: EntradaDoPublico; versoes?: string[] }[];
+  /** as páginas feitas para um público (`PaginaDoLojista.publico`): container da página → id do público */
+  paginas?: Record<string, string>;
 }
 export function publicosDaBorda(doc: ContentDocument | null | undefined): PublicosDaBorda {
   return {
     controle: controleDaLoja(doc),
     publicos: Object.entries(doc?.publicos ?? {}).map(([id, p]) => {
       const { cliente: _doLogin, ...daBorda } = p.entrada ?? {};
-      return { id, nome: p.nome, ...(entradaComRegra(daBorda) ? { entrada: clone(daBorda) } : {}) };
+      const versoes = containersComVersao(doc, id);
+      return { id, nome: p.nome, ...(entradaComRegra(daBorda) ? { entrada: clone(daBorda) } : {}), ...(versoes.length ? { versoes } : {}) };
     }),
+    ...paginasDosPublicos(doc),
   };
+}
+
+/** os containers (a raiz de cada um) em que a camada de um público mexe: valor trocado, ordem ou visibilidade */
+function containersComVersao(doc: ContentDocument | null | undefined, id: string): string[] {
+  const achados = new Set<string>();
+  for (const k of Object.keys(doc?.values ?? {})) if (publicoDaChave(k) === id) achados.add(caminhoBase(k).split(".")[0]);
+  for (const [c, st] of Object.entries(doc?.sections ?? {})) if (st.publicos?.[id]) achados.add(c.split(".")[0]);
+  return [...achados].sort();
+}
+
+/**
+ * as páginas avulsas VISÍVEIS feitas para um público que ainda existe: `{ paginas: { "pagina-inverno": "volume" } }`.
+ * A oculta fica de fora: o endereço dela responde 404, e quem o abrisse entraria no público por uma página que não viu.
+ */
+function paginasDosPublicos(doc: ContentDocument | null | undefined): { paginas?: Record<string, string> } {
+  const paginas: Record<string, string> = {};
+  for (const [id, r] of Object.entries(doc?.paginas ?? {})) if (r.tipo === "pagina" && r.visibilidade === "visivel" && r.publico && doc?.publicos?.[r.publico]) paginas[id] = r.publico;
+  return Object.keys(paginas).length ? { paginas } : {};
 }
 
 /** o público cuja regra de campanha casa com os `utm_*` do pedido; a ordem dos públicos desempata */
@@ -2535,6 +2629,17 @@ export interface PedidoNaBorda {
   host?: string | null;
   /** onde o visitante está, pelo IP */
   regiao?: RegiaoDoVisitante | null;
+  /**
+   * o container da página pedida: `home` (o padrão), `oferta`, `pagina-<endereço>`. A página feita para um
+   * público vale como o link do anúncio dele, e a versão só é servida onde o público tem uma.
+   */
+  container?: string;
+  /**
+   * `false` = pedido de DADOS (o RSC da navegação interna e o PREFETCH do `<Link>`, que chega sem ninguém clicar):
+   * a página de um público só põe no público quem ABRE o endereço dela. Ausente = navegação (o anúncio abre a
+   * página inteira). A borda lê do `sec-fetch-dest` do navegador, que o Next não tira do pedido.
+   */
+  navegacao?: boolean;
 }
 export interface DecisaoDaBorda {
   /** a versão a servir: o id do público, ou null (Todos) */
@@ -2550,7 +2655,8 @@ export interface DecisaoDaBorda {
  * QUAL VERSÃO SERVIR. Pura: o sorteio vem de fora (`sortear` devolve um inteiro de 0 a 99).
  *
  * 1. quem pediu a loja padrão (`recusa`) vê Todos, e nenhum sinal do pedido o tira de lá;
- * 2. sinal FORTE do pedido: o link do anúncio, depois a campanha. Grava a escolha (vale o último toque);
+ * 2. sinal FORTE do pedido: o link do anúncio, a página feita para um público (quem a abre entra nele, como pelo
+ *    anúncio), depois a campanha. Grava a escolha (vale o último toque);
  * 3. senão, a escolha FORTE gravada (link, campanha, app, login), se o público ainda existe;
  * 4. senão, sinal FRACO do pedido: o site de onde a pessoa veio, depois a região. Grava como fraco, e é isso
  *    que guarda o sorteio dela entre uma página e outra;
@@ -2559,6 +2665,10 @@ export interface DecisaoDaBorda {
  *
  * O grupo de controle vale em todos: a escolha é gravada igual, mas quem tem sorteio abaixo do % vê Todos. E
  * público fora da lista da borda é ignorado: a loja nunca reescreve para uma versão que não sabe fazer.
+ *
+ * SERVIR a versão só onde ela existe: a home sempre vai para a rota do público (é onde a fase 1 mede), e uma LP
+ * só quando a camada do público mexe nela (`versoes`). Sem versão, a escolha é gravada igual e a página é a de
+ * Todos: nada de uma cópia em cache por público de uma página que não muda.
  */
 export function decidirPublico(pedido: PedidoNaBorda, borda: PublicosDaBorda | null | undefined, sortear: () => number): DecisaoDaBorda {
   const nenhum: DecisaoDaBorda = { servir: null, publico: null, controle: false };
@@ -2570,9 +2680,14 @@ export function decidirPublico(pedido: PedidoNaBorda, borda: PublicosDaBorda | n
   let publico: string | null = null;
   let origem: OrigemDoPublico | null = null;
   const para = pedido.para?.trim().toLowerCase();
-  const daCampanha = existe(para) ? null : publicoDaCampanha(pedido.utm, borda);
+  const container = pedido.container ?? "home";
+  const daPagina = pedido.navegacao !== false && borda.paginas && Object.prototype.hasOwnProperty.call(borda.paginas, container) ? borda.paginas[container] : null;
+  const daCampanha = existe(para) || existe(daPagina) ? null : publicoDaCampanha(pedido.utm, borda);
   if (existe(para)) {
     publico = para;
+    origem = "link";
+  } else if (existe(daPagina)) {
+    publico = daPagina;
     origem = "link";
   } else if (daCampanha) {
     publico = daCampanha;
@@ -2598,7 +2713,8 @@ export function decidirPublico(pedido: PedidoNaBorda, borda: PublicosDaBorda | n
   const controle = sorteio < Math.max(0, Math.min(CONTROLE_MAX, borda.controle));
   // o sinal fraco que só repete o que já está gravado não grava de novo: seria um Set-Cookie em toda página vista
   const repete = origem !== null && FORCA_DA_ORIGEM[origem] === "fraco" && gravado?.publico === publico && gravado.origem === origem;
-  return { servir: controle ? null : publico, publico, controle, ...(origem && !repete ? { gravar: { publico, sorteio, forca: FORCA_DA_ORIGEM[origem], origem } } : {}) };
+  const temVersao = container === "home" || Boolean(borda.publicos.find((p) => p.id === publico)?.versoes?.includes(container.split(".")[0]));
+  return { servir: controle || !temVersao ? null : publico, publico, controle, ...(origem && !repete ? { gravar: { publico, sorteio, forca: FORCA_DA_ORIGEM[origem], origem } } : {}) };
 }
 
 function sorteioValido(n: number): number {
@@ -2638,6 +2754,12 @@ export function scriptDaMedicaoDoPublico(doc: ContentDocument | null | undefined
  * o campo. `colecao` só em artigo, e mover de coleção troca o id do container (é um renomear interno).
  */
 export interface CamposDaPagina {
+  /** o público para o qual a página é feita (`null` desliga); só em página avulsa, de loja com LPs por público */
+  publico?: string | null;
+  /** esconder o cabeçalho (`true`) ou mostrar de novo (`null`); só em página avulsa, de loja que declara `ocultaChrome` */
+  ocultarCabecalho?: true | null;
+  /** esconder o rodapé grande (`true`) ou mostrar de novo (`null`); as mesmas regras */
+  ocultarRodape?: true | null;
   visibilidade?: Visibilidade;
   publicadoEm?: string | null;
   autor?: string | null;
@@ -2665,6 +2787,12 @@ type OpDoDocumento =
   | { op: "set_css"; css: string | null }
   /** `seo: null` apaga o SEO da rota, e a página volta a emitir o que o código dela emite */
   | { op: "set_seo_da_rota"; rota: string; seo: SeoDaRota | null }
+  /**
+   * CABEÇALHO E RODAPÉ DE UMA PÁGINA DO CÓDIGO (foundation 18): `true` esconde, `null` mostra de novo, ausente não
+   * mexe. O container é a página (`oferta`), declarado pela loja em `Manifest.ocultaChromeEm`. A página avulsa usa o
+   * registro dela (`update_page`), não esta operação.
+   */
+  | { op: "set_chrome"; container: string; ocultarCabecalho?: true | null; ocultarRodape?: true | null }
   /** `valor: null` apaga a parte inteira */
   | { op: "set_dados_da_loja"; parte: ParteDosDadosDaLoja; valor: EmpresaDaLoja | RedesDaLoja | SeoDaLoja | null }
   /** REDIRECIONAMENTO MANUAL (foundation 17): um endereço antigo que passa a levar a um novo */
@@ -2696,7 +2824,7 @@ type OpDoDocumento =
   /** só como INVERSO de remove_section (desfazer): devolve a cópia (com `source`) ou a seção criada
    *  (com `tipo`) — valores, posição e visibilidade juntos. Sem o `tipo`, desfazer a remoção de uma
    *  criada devolveria um id sem tipo nenhum, e a loja não saberia o que renderizar ali. */
-  | { op: "restore_section"; container: string; id: string; source?: string; tipo?: string; values: Record<string, EditableValue>; index: number | null; hidden: boolean; declared?: Record<string, DeclaredEntry>; cloneIndex?: number; sections?: ContentDocument["sections"] }
+  | { op: "restore_section"; container: string; id: string; source?: string; tipo?: string; values: Record<string, EditableValue>; index: number | null; hidden: boolean; declared?: Record<string, DeclaredEntry>; cloneIndex?: number; sections?: ContentDocument["sections"]; /** as camadas dos públicos como estavam antes da remoção (a posição da seção em cada uma) */ camadas?: Record<string, CamadaDeSecoes> }
   /**
    * APPS (foundation 12): UM campo de rastreio (`gtm`, `ga4`, `metaPixel`, `tiktok`, `pinterest`,
    * `whatsapp.numero`, `whatsapp.mensagem`). `null` ou vazio = remover. O inverso é o mesmo `set_app` com
@@ -2749,6 +2877,14 @@ type OpDoDocumento =
    * nunca existiu para ninguém). O inverso é o renomear de volta com os redirecionamentos anteriores.
    */
   | { op: "rename_page"; id: string; novoHandle: string; redirecionar?: boolean; confirmado?: boolean; visivelNoPublicado?: boolean; prefixoDePaginas?: string; redirecionamentosAnteriores?: RedirecionamentosAnteriores }
+  /**
+   * DUPLICAR PARA UM PÚBLICO (foundation 18, LPs): uma cópia da página avulsa `id` com endereço próprio
+   * (`novoHandle`, que o servidor do editor escolhe: `handleDaCopia`), feita para o público. Leva o conteúdo de
+   * TODOS da original (camada de público nenhuma) e nasce OCULTA e fora dos buscadores: é uma LP de anúncio, e o
+   * mesmo texto em dois endereços concorreria no Google. Quem abre o endereço dela entra no público. O inverso é
+   * `delete_page` da cópia.
+   */
+  | { op: "duplicate_page"; id: string; /** o público da cópia; `publico` numa operação quer dizer camada, e não é isso */ paraPublico: string; novoHandle: string; prefixoDePaginas?: string }
   /** registro em `colecoes` e o título em `values[colecao-<h>.cabecalho.titulo]`; inverso `delete_collection` */
   | { op: "create_collection"; handle: string; titulo: string }
   /** só coleção SEM artigos; apaga o registro e o container `colecao-<h>`; inverso `restore_collection` */
@@ -2778,7 +2914,7 @@ type OpDoDocumento =
   /** apaga o registro E a camada inteira dele; o inverso é `restore_publico`, que devolve tudo no mesmo lugar */
   | { op: "delete_publico"; id: string }
   /** interno (inverso de `delete_publico`): o registro na mesma posição da lista, os valores, as declarações e a camada das seções */
-  | { op: "restore_publico"; id: string; registro: Publico; indice: number; values: Record<string, EditableValue>; declared?: Record<string, DeclaredEntry>; camadas?: Record<string, CamadaDeSecoes> }
+  | { op: "restore_publico"; id: string; registro: Publico; indice: number; values: Record<string, EditableValue>; declared?: Record<string, DeclaredEntry>; camadas?: Record<string, CamadaDeSecoes>; /** as páginas que eram do público (a exclusão as desligou) */ paginas?: string[] }
   /** o % do grupo de controle; `null` volta ao padrão */
   | { op: "set_personalizacao"; controle: number | null };
 
@@ -3008,6 +3144,56 @@ function entradaLimpa(e: EntradaDoPublico): EntradaDoPublico {
 }
 
 /** Aplica UMA operação e devolve o documento novo + a operação inversa (pra desfazer). */
+/**
+ * A SEÇÃO NOVA (cópia ou adicionada) NA ORDEM DE CADA PÚBLICO que tem ordem própria (foundation 18), mexendo no
+ * estado do container no lugar. `anteriores` são as candidatas a vizinha de cima, da mais próxima para a mais
+ * longe: a seção entra logo depois da primeira que a ordem do público cita. Lista vazia = ela é a primeira de Todos,
+ * e entra no começo. Nenhuma candidata citada = ela fica fora da ordem do público, e renderiza no fim, como tudo o
+ * que a ordem não cita (é o que ela faria sem esta regra, e não há vizinha melhor para escolher).
+ */
+function comNaCamada(estado: SectionState, id: string, anteriores: readonly string[]): void {
+  if (!estado.publicos) return;
+  let mudou = false;
+  const camadas: Record<string, CamadaDeSecoes> = {};
+  for (const [pid, camada] of Object.entries(estado.publicos)) {
+    const ordem = camada.order;
+    const vizinha = anteriores.find((x) => ordem?.includes(x));
+    if (!ordem || ordem.includes(id) || (anteriores.length && vizinha === undefined)) {
+      camadas[pid] = camada;
+      continue;
+    }
+    const i = vizinha === undefined ? 0 : ordem.indexOf(vizinha) + 1;
+    camadas[pid] = { ...camada, order: [...ordem.slice(0, i), id, ...ordem.slice(i)] };
+    mudou = true;
+  }
+  if (mudou) estado.publicos = camadas;
+}
+
+/**
+ * As camadas dos públicos SEM a seção `id` (na ordem e nas marcas de ocultar e mostrar). Lista que fica vazia sai,
+ * camada que fica vazia sai, e nenhuma camada sobrando é `undefined`: nada de chave vazia inventando diferença entre
+ * o rascunho e o publicado. Devolve o MESMO objeto quando a seção não estava em camada nenhuma.
+ */
+function semNaCamada(publicos: SectionState["publicos"], id: string): SectionState["publicos"] {
+  if (!publicos) return publicos;
+  let mudou = false;
+  const camadas: Record<string, CamadaDeSecoes> = {};
+  for (const [pid, camada] of Object.entries(publicos)) {
+    const limpa: CamadaDeSecoes = {};
+    for (const k of ["order", "ocultar", "mostrar"] as const) {
+      const lista = camada[k];
+      if (!lista) continue;
+      if (lista.includes(id)) mudou = true;
+      const sem = lista.filter((x) => x !== id);
+      // a ORDEM fica mesmo vazia (ela diz "a ordem deste público é esta"); as marcas vazias não dizem nada
+      if (sem.length || k === "order") limpa[k] = sem;
+    }
+    if (Object.keys(limpa).length) camadas[pid] = limpa;
+  }
+  if (!mudou) return publicos;
+  return Object.keys(camadas).length ? camadas : undefined;
+}
+
 export function applyOp(doc: ContentDocument, op: PatchOp): { doc: ContentDocument; inverse: PatchOp } {
   const next = clone(doc);
   let inverse: PatchOp;
@@ -3066,6 +3252,23 @@ export function applyOp(doc: ContentDocument, op: PatchOp): { doc: ContentDocume
       // mapa que esvaziou some, como os outros
       if (Object.keys(mapa).length) next.seoDasRotas = mapa;
       else delete next.seoDasRotas;
+      break;
+    }
+    case "set_chrome": {
+      // o inverso leva só o que a operação mexeu, com o valor de antes (`null` = não estava escondido)
+      const antes = doc.sections[op.container];
+      const volta: Extract<PatchOp, { op: "set_chrome" }> = { op: "set_chrome", container: op.container };
+      const estado: SectionState = { ...(next.sections[op.container] ?? {}) };
+      for (const k of ["ocultarCabecalho", "ocultarRodape"] as const) {
+        if (op[k] === undefined) continue;
+        volta[k] = antes?.[k] ?? null;
+        if (op[k] === true) estado[k] = true;
+        else delete estado[k];
+      }
+      inverse = volta;
+      // o estado que esvaziou some, como os mapas: desfazer num container que não tinha estado devolve o documento igual
+      if (Object.keys(estado).length) next.sections[op.container] = estado;
+      else delete next.sections[op.container];
       break;
     }
     case "set_css": {
@@ -3158,6 +3361,9 @@ export function applyOp(doc: ContentDocument, op: PatchOp): { doc: ContentDocume
       const base = st.order ?? [];
       const order = base.includes(op.id) ? base.flatMap((x) => (x === op.id ? [x, op.cloneId] : [x])) : undefined;
       next.sections[op.container] = { ...st, clones, ...(order ? { order } : {}) };
+      // e na ORDEM DE CADA PÚBLICO que tem uma (foundation 18): logo depois da origem, como em Todos; sem isso a cópia
+      // ia para o fim da versão dele. O desfazer (`remove_section`) a tira de lá
+      comNaCamada(next.sections[op.container], op.cloneId, [op.id]);
       // a cópia nasce com o que o lojista está VENDO (valores do escopo de origem), não com o código
       const de = `${op.container}.${op.id}.`;
       const para = `${op.container}.${op.cloneId}.`;
@@ -3189,6 +3395,9 @@ export function applyOp(doc: ContentDocument, op: PatchOp): { doc: ContentDocume
         order = [...semId.slice(0, pos), op.id, ...semId.slice(pos)];
       }
       next.sections[op.container] = { ...st, criadas, ...(order ? { order } : {}) };
+      // e na ORDEM DE CADA PÚBLICO que tem uma (foundation 18): depois da mesma vizinha de cima que ela tem em Todos
+      // (a mais próxima que a ordem do público cita). Sem ordem em Todos a criada vai para o fim, e na versão também
+      if (order) comNaCamada(next.sections[op.container], op.id, order.slice(0, order.indexOf(op.id)).reverse());
       // NADA em `values`: a seção criada mostra os literais do componente (os `fallback` dos primitivos)
       inverse = { op: "remove_section", container: op.container, id: op.id, ...(ordemAntesDaSemeadura !== undefined ? { ordemAnterior: ordemAntesDaSemeadura } : {}) };
       break;
@@ -3234,6 +3443,15 @@ export function applyOp(doc: ContentDocument, op: PatchOp): { doc: ContentDocume
       const ocultasSemId = st.hidden?.filter((x) => x !== op.id);
       if (ocultasSemId) estadoLimpo.hidden = ocultasSemId;
       next.sections[op.container] = { ...st, ...estadoLimpo };
+      // A SEÇÃO SAI TAMBÉM DAS CAMADAS DOS PÚBLICOS (foundation 18): da ordem e das marcas de ocultar e mostrar. Sem
+      // isso o id ficava pendurado nelas, e uma seção nova com o mesmo id herdaria a posição e a visibilidade da
+      // antiga na versão do público. O desfazer devolve as camadas exatamente como estavam
+      const camadasAntes = st.publicos ? clone(st.publicos) : undefined;
+      const semNasCamadas = semNaCamada(st.publicos, op.id);
+      if (semNasCamadas !== st.publicos) {
+        if (semNasCamadas) next.sections[op.container].publicos = semNasCamadas;
+        else delete next.sections[op.container].publicos;
+      }
       // desfazendo uma duplicação que semeou a ordem: a ordem volta a ser o que era (inclusive não existir)
       if (op.ordemAnterior !== undefined) {
         if (op.ordemAnterior === null) delete next.sections[op.container].order;
@@ -3244,7 +3462,7 @@ export function applyOp(doc: ContentDocument, op: PatchOp): { doc: ContentDocume
       const aninhados: ContentDocument["sections"] = {};
       for (const c of Object.keys(next.sections)) if (c === raiz || c.startsWith(raiz + ".")) { aninhados[c] = clone(next.sections[c]); delete next.sections[c]; }
       // desfazer devolve a cópia inteira: valores, proveniência, posição, visibilidade e listas de dentro
-      inverse = { op: "restore_section", container: op.container, id: op.id, ...(origem ? { source: origem } : { tipo: tipoCriada }), values, index: index != null && index >= 0 ? index : null, hidden: (st.hidden ?? []).includes(op.id), ...(Object.keys(declared).length ? { declared } : {}), ...(cloneIndex >= 0 ? { cloneIndex } : {}), ...(Object.keys(aninhados).length ? { sections: aninhados } : {}) };
+      inverse = { op: "restore_section", container: op.container, id: op.id, ...(origem ? { source: origem } : { tipo: tipoCriada }), values, index: index != null && index >= 0 ? index : null, hidden: (st.hidden ?? []).includes(op.id), ...(Object.keys(declared).length ? { declared } : {}), ...(cloneIndex >= 0 ? { cloneIndex } : {}), ...(Object.keys(aninhados).length ? { sections: aninhados } : {}), ...(camadasAntes && semNasCamadas !== st.publicos ? { camadas: camadasAntes } : {}) };
       break;
     }
     case "set_app": {
@@ -3365,10 +3583,17 @@ export function applyOp(doc: ContentDocument, op: PatchOp): { doc: ContentDocume
       }
       const indice = Object.keys(doc.publicos!).indexOf(op.id);
       const { values, declared, camadas } = retirarPublico(next, op.id);
+      // as páginas feitas para ele deixam de ser de alguém (continuam páginas comuns); desfazer as religa
+      const paginas: string[] = [];
+      for (const [pid, r] of Object.entries(next.paginas ?? {})) if (r.publico === op.id) {
+        paginas.push(pid);
+        const { publico: _dele, ...semPublico } = r;
+        next.paginas![pid] = semPublico;
+      }
       const publicos = { ...next.publicos };
       delete publicos[op.id];
       next.publicos = publicos;
-      inverse = { op: "restore_publico", id: op.id, registro: clone(registro), indice, values, ...(Object.keys(declared).length ? { declared } : {}), ...(Object.keys(camadas).length ? { camadas } : {}) };
+      inverse = { op: "restore_publico", id: op.id, registro: clone(registro), indice, values, ...(Object.keys(declared).length ? { declared } : {}), ...(Object.keys(camadas).length ? { camadas } : {}) , ...(paginas.length ? { paginas } : {}) };
       break;
     }
     case "restore_publico": {
@@ -3384,6 +3609,7 @@ export function applyOp(doc: ContentDocument, op: PatchOp): { doc: ContentDocume
           Object.assign(cam, clone(camada));
         });
       }
+      for (const pid of op.paginas ?? []) if (next.paginas?.[pid]) next.paginas[pid] = { ...next.paginas[pid], publico: op.id };
       inverse = { op: "delete_publico", id: op.id };
       break;
     }
@@ -3435,6 +3661,33 @@ export function applyOp(doc: ContentDocument, op: PatchOp): { doc: ContentDocume
       inverse = { op: "restore_page", id: op.id, registro: clone(registro), values, sections, ...(Object.keys(declared).length ? { declared } : {}), ...seHouver(anteriores) };
       break;
     }
+    case "duplicate_page": {
+      const origem = doc.paginas?.[op.id];
+      if (!origem) {
+        inverse = { op: "delete_page", id: idDePagina("pagina", op.novoHandle) };
+        break;
+      }
+      const em = instanteDa(op);
+      const novoId = idDePagina("pagina", op.novoHandle);
+      // o conteúdo de TODOS, com o container trocado: a camada de outros públicos (e as marcas de seção dela) fica
+      // na original, porque a cópia já É a versão de um público
+      const prefixo = `${op.id}.`;
+      const deTodos = (k: string) => k.startsWith(prefixo) && !k.includes(SEPARADOR_DE_PUBLICO);
+      for (const k of Object.keys(doc.values)) if (deTodos(k)) next.values[novoId + k.slice(op.id.length)] = clone(doc.values[k]);
+      for (const k of Object.keys(doc.declared ?? {})) if (deTodos(k)) next.declared = { ...(next.declared ?? {}), [novoId + k.slice(op.id.length)]: { ...doc.declared![k] } };
+      for (const [c, st] of Object.entries(doc.sections)) {
+        if (c !== op.id && !c.startsWith(prefixo)) continue;
+        const { publicos: _outros, ...semCamadas } = clone(st);
+        next.sections[novoId + c.slice(op.id.length)] = semCamadas;
+      }
+      const { publicadoEm: _quando, publico: _de, ...resto } = clone(origem);
+      const registro: PaginaDoLojista = { ...resto, handle: op.novoHandle, publico: op.paraPublico, visibilidade: "oculta", criadoEm: em, atualizadoEm: em, seo: { ...(origem.seo ?? {}), ocultarDeBuscadores: true } };
+      next.paginas = { ...(next.paginas ?? {}), [novoId]: registro };
+      const anteriores: RedirecionamentosAnteriores = {};
+      assumirRota(next, rotaDePagina(registro, op.prefixoDePaginas), anteriores);
+      inverse = { op: "delete_page", id: novoId, ...seHouver(anteriores) };
+      break;
+    }
     case "restore_page": {
       next.paginas = { ...(next.paginas ?? {}), [op.id]: clone(op.registro) };
       for (const [k, v] of Object.entries(op.values)) next.values[k] = clone(v);
@@ -3453,7 +3706,7 @@ export function applyOp(doc: ContentDocument, op: PatchOp): { doc: ContentDocume
       const em = instanteDa(op);
       const anteriores: CamposDaPagina = {};
       const novo: PaginaDoLojista = { ...registro, atualizadoEm: em };
-      for (const k of ["visibilidade", "publicadoEm", "autor", "tags", "seo"] as const) {
+      for (const k of ["publico", "ocultarCabecalho", "ocultarRodape", "visibilidade", "publicadoEm", "autor", "tags", "seo"] as const) {
         const v = op.campos[k];
         if (v === undefined) continue;
         // o inverso leva o valor anterior de CADA campo tocado (`null` = não havia): desfazer devolve só o que mudou
@@ -3624,6 +3877,8 @@ export function applyOp(doc: ContentDocument, op: PatchOp): { doc: ContentDocume
       for (const [k, v] of Object.entries(op.values)) next.values[k] = clone(v);
       if (op.declared) next.declared = { ...(next.declared ?? {}), ...op.declared };
       if (op.sections) for (const [c, estado] of Object.entries(op.sections)) next.sections[c] = clone(estado);
+      // as camadas dos públicos voltam EXATAMENTE como estavam antes da remoção (a posição e as marcas da seção)
+      if (op.camadas) next.sections[op.container].publicos = clone(op.camadas);
       inverse = { op: "remove_section", container: op.container, id: op.id };
       break;
     }
@@ -3964,6 +4219,13 @@ export interface Manifest {
    */
   rotasComSeo?: ManifestRotaComSeo[];
   /**
+   * PÁGINAS DO CÓDIGO QUE ESCONDEM CABEÇALHO E RODAPÉ (foundation 18): os containers cuja página marca o pedido
+   * (`SectionState.ocultarCabecalho`, `ocultarRodape`) para o CSS da loja esconder (a `/oferta`). Ausente = nenhuma:
+   * `validateOp` recusa esconder (`set_chrome`) e o painel não mostra os interruptores. A página avulsa declara o
+   * mesmo pedido em `paginasDoLojista.ocultaChrome`.
+   */
+  ocultaChromeEm?: ManifestChromeOcultavel[];
+  /**
    * DADOS DA LOJA (foundation 17): as partes que a loja LÊ (empresa, redes, SEO da loja) e se ela confere os
    * redirecionamentos em toda rota. Ausente = nenhuma: o painel não mostra os blocos e `validateOp` recusa.
    */
@@ -4014,6 +4276,11 @@ export interface ManifestPaginasDoLojista {
   colecoesDoCodigo: { handle: string; titulo: string }[];
   /** `RESERVADOS_FIXOS` mais as rotas da loja e as entradas de `public/` (calculado pela loja, nunca digitado) */
   reservados: string[];
+  /**
+   * a loja sabe esconder o cabeçalho e o rodapé de uma página avulsa (`ocultarCabecalho`, `ocultarRodape`): a casca
+   * da página marca o pedido e o CSS da loja esconde. Sem a declaração, o editor não oferece os dois interruptores.
+   */
+  ocultaChrome?: true;
 }
 
 /**
@@ -4427,6 +4694,19 @@ export function validateOp(op: PatchOp, manifest: Manifest, doc?: ContentDocumen
       const r = recusaDeSeo(op.seo, "rota");
       return r ? { ok: false, reason: r } : SIM;
     }
+    case "set_chrome": {
+      if (typeof op.container !== "string" || !op.container) return { ok: false, reason: "container inválido" };
+      for (const k of ["ocultarCabecalho", "ocultarRodape"] as const) {
+        if (op[k] !== undefined && op[k] !== null && op[k] !== true) return { ok: false, reason: `«${k}» é true (esconder) ou null (mostrar).` };
+      }
+      if (op.ocultarCabecalho === undefined && op.ocultarRodape === undefined) return { ok: false, reason: "Diga o que muda: o cabeçalho, o rodapé ou os dois." };
+      // ESCONDER pede a loja que sabe esconder NESTA página; MOSTRAR de novo (`null`) passa sempre, como na página
+      // avulsa: a loja que deixou de declarar não pode prender o lojista num pedido que ela já nem cumpre
+      if ((op.ocultarCabecalho === true || op.ocultarRodape === true) && !(manifest.ocultaChromeEm ?? []).some((d) => d.container === op.container)) {
+        return { ok: false, reason: FRASE_SEM_CHROME_OCULTAVEL };
+      }
+      return SIM;
+    }
     case "set_css": {
       // a loja precisa saber emitir a folha: numa que só recebeu a lib nova, o valor entraria no
       // documento e a tela ficaria igual, que é o defeito que esta casa não comete
@@ -4545,6 +4825,7 @@ export function validateOp(op: PatchOp, manifest: Manifest, doc?: ContentDocumen
     case "delete_page":
     case "update_page":
     case "rename_page":
+    case "duplicate_page":
     case "create_collection":
     case "delete_collection":
     case "update_collection":
@@ -4572,12 +4853,23 @@ function lojaTemPublicos(manifest: Manifest): boolean {
   return (manifest.foundation ?? 1) >= 18 && Boolean(manifest.personalizacao?.containers?.length);
 }
 
+/**
+ * A PÁGINA FEITA PARA UM PÚBLICO exige a loja que sabe disso (declara `pagina-*` entre os containers que variam:
+ * é a mesma borda que serve a versão de uma LP que grava o público de quem abre a cópia) e o público vivo.
+ */
+function recusaDePaginaDePublico(manifest: Manifest, doc: ContentDocument | undefined, publico: unknown): string | null {
+  if (!lojaTemPublicos(manifest) || !containerVaria("pagina-x", manifest.personalizacao!.containers)) return FRASE_SEM_LPS_POR_PUBLICO;
+  return typeof publico === "string" && doc?.publicos?.[publico] ? null : "Esse público não existe mais.";
+}
+export const FRASE_SEM_LPS_POR_PUBLICO = "Nesta loja ainda não dá para ter páginas por público. Fale com a Unbox para liberar.";
+export const FRASE_SEM_CHROME_OCULTAVEL = "Nesta loja ainda não dá para esconder o cabeçalho e o rodapé de uma página. Fale com a Unbox para liberar.";
+
 function recusaDaCamada(op: PatchOp, publico: unknown, manifest: Manifest, doc: ContentDocument | undefined): string | null {
   if (!lojaTemPublicos(manifest)) return FRASE_SEM_PUBLICOS;
   if (typeof publico !== "string" || !doc?.publicos?.[publico]) return "Esse público não existe mais.";
   if (!OPS_DA_CAMADA.has(op.op)) return FRASE_VALE_PARA_TODOS;
   const raiz = op.op === "set" || op.op === "unset" ? op.path.split(".")[0] : "container" in op && typeof op.container === "string" ? op.container.split(".")[0] : "";
-  return manifest.personalizacao!.containers.includes(raiz) ? null : FRASE_VALE_PARA_TODOS;
+  return containerVaria(raiz, manifest.personalizacao!.containers) ? null : FRASE_VALE_PARA_TODOS;
 }
 
 function recusaDoNomeDePublico(nome: unknown, doc: ContentDocument | undefined, id?: string): string | null {
@@ -4760,7 +5052,10 @@ function recusaDeSeo(seo: unknown, de: boolean | "rota"): string | null {
 function recusaDeCampos(campos: unknown): string | null {
   if (!campos || typeof campos !== "object" || Array.isArray(campos)) return "campos da página precisam ser um objeto";
   const o = campos as Record<string, unknown>;
-  for (const k of Object.keys(o)) if (!["visibilidade", "publicadoEm", "autor", "tags", "seo", "colecao"].includes(k)) return `campo desconhecido: ${k}`;
+  for (const k of Object.keys(o)) if (!["publico", "ocultarCabecalho", "ocultarRodape", "visibilidade", "publicadoEm", "autor", "tags", "seo", "colecao"].includes(k)) return `campo desconhecido: ${k}`;
+  if (o.publico !== undefined && o.publico !== null && typeof o.publico !== "string") return "O público da página precisa ser um identificador.";
+  // só `true` é gravado (esconder) e `null` volta a mostrar: um `false` gravado seria um terceiro estado igual ao ausente
+  for (const k of ["ocultarCabecalho", "ocultarRodape"] as const) if (o[k] !== undefined && o[k] !== null && o[k] !== true) return `«${k}» é true (esconder) ou null (mostrar).`;
   if (o.visibilidade !== undefined && o.visibilidade !== "visivel" && o.visibilidade !== "oculta") return "A visibilidade é «visível» ou «oculta».";
   if (o.publicadoEm !== undefined && o.publicadoEm !== null && (typeof o.publicadoEm !== "string" || !DATA_COM_FUSO.test(o.publicadoEm) || !Number.isFinite(Date.parse(o.publicadoEm)))) return "A data de publicação precisa vir completa, com hora e fuso (como 2026-09-09T10:00:00-03:00).";
   if (o.autor !== undefined && o.autor !== null && (typeof o.autor !== "string" || tamanho(o.autor) > AUTOR_MAX)) return `O nome do autor tem até ${AUTOR_MAX} caracteres.`;
@@ -4860,6 +5155,17 @@ function validarOpDePagina(op: PatchOp, manifest: Manifest, doc: ContentDocument
       if (r) return nao(r);
       const b = bool(op.confirmado, "«confirmado»") ?? bool(op.redirecionar, "«redirecionar»");
       if (b) return nao(b);
+      if (op.campos.publico !== undefined && op.campos.publico !== null) {
+        if (registro.tipo !== "pagina") return nao("Só página avulsa é feita para um público.");
+        const semLps = recusaDePaginaDePublico(manifest, doc, op.campos.publico);
+        if (semLps) return nao(semLps);
+      }
+      // ESCONDER pede a loja que sabe esconder; MOSTRAR de novo (`null`) passa sempre: a loja que deixou de declarar
+      // não pode prender o lojista num pedido que ela já nem cumpre
+      if (op.campos.ocultarCabecalho === true || op.campos.ocultarRodape === true) {
+        if (registro.tipo !== "pagina") return nao("Só página avulsa esconde o cabeçalho e o rodapé.");
+        if (!manifest.paginasDoLojista?.ocultaChrome) return nao(FRASE_SEM_CHROME_OCULTAVEL);
+      }
       if (op.campos.colecao !== undefined) {
         if (registro.tipo !== "artigo") return nao("Uma página avulsa não fica em coleção.");
         if (!colecaoExiste(op.campos.colecao)) return nao(`A coleção «${op.campos.colecao}» não existe.`);
@@ -4872,6 +5178,18 @@ function validarOpDePagina(op: PatchOp, manifest: Manifest, doc: ContentDocument
           }
         }
       }
+      return SIM;
+    }
+    case "duplicate_page": {
+      const registro = paginaDaOp(op.id);
+      if (!registro) return nao("Essa página não existe mais.");
+      if (registro.tipo !== "pagina") return nao("Só página avulsa ganha cópia para um público.");
+      const semLps = recusaDePaginaDePublico(manifest, doc, op.paraPublico);
+      if (semLps) return nao(semLps);
+      if (!handleValido(op.novoHandle)) return nao(FRASE_ENDERECO);
+      if (handleReservado("pagina", op.novoHandle)) return nao(FRASE_RESERVADO);
+      if (enderecoEmUso(doc, "pagina", op.novoHandle)) return nao(FRASE_EM_USO);
+      if (Object.keys(doc.paginas ?? {}).length >= PAGINAS_MAX) return nao(`A loja chegou ao limite de ${PAGINAS_MAX} páginas.`);
       return SIM;
     }
     case "rename_page": {

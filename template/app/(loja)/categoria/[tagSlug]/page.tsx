@@ -5,6 +5,8 @@ import { buildTagMap, buildCategories, mapCatalogItems } from "@/lib/catalog-map
 import { CatalogClient } from "@/components/catalog/catalog-client";
 import { mockupOr } from "@/lib/mockup";
 import { DataLayerReady } from "@/components/analytics/data-layer-ready";
+import { getPublishedContent } from "@/lib/editable/server";
+import { dadosSeHouverSecoes } from "@/lib/paginas-dados";
 
 export const revalidate = 300;
 
@@ -32,9 +34,11 @@ export default async function CategoryPage({ params }: { params: Promise<{ tagSl
 
   const tagMap = buildTagMap(tags as any[]);
   const itens = mapCatalogItems(catalog.nodes ?? [], tagMap);
-  // EDITOR: a categoria REAPROVEITA o container "catalogo" de /produtos (mesma faixa de confiança, mesmo
-  // cabeçalho de kits, mesmo aviso de lista vazia) sem mandar na ordem dele: `layout={false}` faz o
-  // manifesto desta página sair com `semLayout`, e o painel explica que a ordem se edita em /produtos.
+  // EDITOR: a categoria ESPELHA o container "catalogo" de /produtos (é a mesma página com um filtro): a mesma
+  // ordem, as mesmas ocultas e as mesmas seções que o lojista adicionou lá (foundation 18), sem mandar em nada
+  // disso. `layout="espelho"` faz o manifesto desta página sair com `semLayout`, e o painel explica que a lista se
+  // edita em /produtos. Os dados das seções adicionadas só viajam no HTML quando há alguma.
+  const secoes = await dadosSeHouverSecoes(await getPublishedContent(), "catalogo");
   return (
     <>
     <DataLayerReady pageType="category" products={itens.slice(0, 12).map((i) => ({ id: i.productId, name: i.title, price: i.price }))} />
@@ -42,7 +46,8 @@ export default async function CategoryPage({ params }: { params: Promise<{ tagSl
       items={itens}
       categories={buildCategories(tags as any[])}
       initialCategory={tag.displayTitle || tag.name}
-      layout={false}
+      layout="espelho"
+      secoes={secoes}
     />
     </>
   );

@@ -11,7 +11,8 @@
 // só a camada deste público (`<EditablePublico>`): o HTML da versão é o de Todos mais a camada.
 //
 // Cada versão é uma página pronta em cache, como a home (ISR de 300 s, revalidada junto com `/` na
-// publicação). A canônica é `/`: a versão não é outra página para o buscador.
+// publicação). A canônica é `/`: a versão não é outra página para o buscador. As LPs têm as rotas delas aqui
+// dentro (`oferta/` e `paginas/[handle]/`, fase 2).
 // ═══════════════════════════════════════════════════════════════════════════
 import type { Metadata } from "next";
 import { aplicarPublico, camadaDoPublico, getPublishedContent } from "@/lib/editable/server";
@@ -36,7 +37,8 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function HomeDoPublico({ params }: { params: Promise<{ publico: string }> }) {
   const { publico } = await params;
   const doc = await getPublishedContent();
-  const camada = camadaDoPublico(doc, decodeURIComponent(publico));
+  // só a camada da HOME: a das LPs vai nas páginas delas
+  const camada = camadaDoPublico(doc, decodeURIComponent(publico), ["home"]);
   // o público não existe mais (excluído depois de a pessoa ganhar o cookie): Todos, e o cookie velho sai
   if (!doc || !camada) {
     return (

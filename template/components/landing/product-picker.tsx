@@ -114,7 +114,9 @@ export function ProductPicker({
         </div>
       </div>
 
-      <div className="grid lg:grid-cols-[1fr_1.1fr]">
+      {/* `grid-cols-1` = `minmax(0, 1fr)`: sem ele a coluna do celular é implícita (`auto`) e cresce até o conteúdo
+          mais largo (o slogan com os selos), e a tela passava da largura do aparelho (medido: 478 px em 375) */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.1fr]">
         {/* painel visual (desktop) */}
         <div className="relative hidden min-h-[calc(100vh-49px)] lg:block">
           <img src={sideImage} alt="" className="absolute inset-0 h-full w-full object-cover" />
@@ -125,8 +127,8 @@ export function ProductPicker({
           <button type="button" onClick={() => router.back()} className="flex items-center gap-1.5 text-[13px] font-semibold text-[var(--store-muted)] hover:text-[var(--store-ink)]"><CaretLeft weight="bold" />voltar</button>
 
           <div className="mt-4 flex items-center gap-3.5">
-            <img src="/brand/logo.svg" alt={shopName} className="h-10 w-auto" />
-            <div>
+            <img src="/brand/logo.svg" alt={shopName} className="h-10 w-auto flex-none" />
+            <div className="min-w-0">
               <div className="font-display text-[15px] font-extrabold leading-tight">{tagline}</div>
               <div className="mt-1 flex flex-wrap gap-x-3.5 gap-y-1 text-[11.5px] font-semibold text-[var(--store-muted)]">
                 <span className="flex items-center gap-1"><ShieldCheck weight="fill" className="text-[var(--store-primary,#18181B)]" />Compra segura</span>
@@ -158,7 +160,9 @@ export function ProductPicker({
                   </div>
                   <div className="min-w-0 flex-1">
                     {p.weight && <div className="text-[11.5px] text-[var(--store-muted)]">{p.weight}</div>}
-                    <div className="font-display truncate text-[15px] font-extrabold">{p.title}</div>
+                    {/* até DUAS linhas, não uma: com o contador ao lado, uma linha só cortava o nome em "Máscara Nu…" no
+                        celular, e é o que a pessoa está comprando */}
+                    <div className="font-display line-clamp-2 text-[15px] font-extrabold leading-tight">{p.title}</div>
                     <Link href={`/produto/${encodeURIComponent(p.slug)}`} className="text-[12px] font-semibold text-[var(--store-muted)] underline underline-offset-2">ver produto</Link>
                   </div>
                   {n > 0 ? (

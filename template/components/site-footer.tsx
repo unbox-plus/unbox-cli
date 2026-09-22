@@ -48,8 +48,9 @@ export async function SiteFooter() {
         {/* as páginas do lojista: derivado, não editável (ver o cabeçalho) */}
         <LinksDoConteudo />
 
-        {/* barra inferior — fixa em todas as variantes (contrato Unbox) */}
-        <div className="border-t border-[var(--store-chrome-line,rgba(255,255,255,.1))]">
+        {/* barra inferior — fixa em todas as variantes (contrato Unbox). `.rodape-barra`: é o que FICA quando uma
+            landing page esconde o rodapé (app/globals.css): o selo e os dados da empresa não somem nunca */}
+        <div className="rodape-barra border-t border-[var(--store-chrome-line,rgba(255,255,255,.1))]">
           <div className="mx-auto max-w-[var(--container-max,1240px)] px-6 py-[18px] text-xs text-[var(--store-chrome-muted)]">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <EditableText
