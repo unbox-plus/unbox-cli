@@ -19,8 +19,11 @@ personalização pede a loja padrão na página de privacidade.
   plano: nenhum pedido espera busca. Acesso direto a `/_publico/…` responde 404.
 - `GET /api/unbox/publicos`: `{ controle, publicos: [{ id, nome, entrada }] }`, pública como a de páginas, sem
   a descrição (que é do chat do editor).
-- **O contrato dos apps**: `window.dispatchEvent(new CustomEvent("unbox:definir-publico", { detail: { id } }))`.
-  `<PontoDePublico/>`, no layout, grava a escolha e troca a versão sem recarregar.
+- **O contrato dos apps**: o quiz só avisa a resposta,
+  `window.dispatchEvent(new CustomEvent("unbox:resposta-do-quiz", { detail: { resposta } }))` (ou `respostas: [...]`),
+  e quem liga a resposta ao público é o lojista, no editor (a regra "Respostas do quiz"). O app que já sabe o id o
+  diz direto: `unbox:definir-publico` com `{ id }`. `<PontoDePublico/>`, no layout, ouve os dois, grava a escolha e
+  troca a versão sem recarregar. A resposta não vai para o dataLayer; vai só o público.
 - **A medição**: `scriptDaMedicaoDoPublico` empurra `publico`, `publico_grupo` (versão ou controle) e
   `publico_origem` para o dataLayer antes do GTM. Não vai para Meta, TikTok nem CAPI.
 - `app/api/revalidate` revalida as versões junto com `/`; `lib/rotas-editaveis.ts` lê a pasta `%5Fx` como a
@@ -45,6 +48,8 @@ personalização pede a loja padrão na página de privacidade.
   `todos~<sorteio>~forte~recusa` por 365 dias, e nenhum sinal automático tira a pessoa de lá.
 - O `check-editable` cobra também `publicoNoLogin(` no login e `<LojaPadrao` na privacidade quando o layout declara
   a personalização.
+- Numa instância fria, a borda espera a lista (até 400 ms) também para quem chega com uma escolha já gravada: sem
+  isso, quem volta com o cookie via Todos na primeira página e a versão na seguinte.
 
 - Publicar revalida também a LISTA dos públicos (`revalidatePath("/api/unbox/publicos")` com `/`): gerada no build
   antes da primeira publicação, ela não entra no cache com a tag do conteúdo. Publicado, a versão vale em até 1

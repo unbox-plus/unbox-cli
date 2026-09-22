@@ -10,20 +10,21 @@
 //
 // NENHUM PEDIDO ESPERA BUSCA: a lista dos públicos (`GET /api/unbox/publicos`) fica em memória e se renova
 // em segundo plano a cada minuto. Instância recém-criada, sem lista, serve Todos enquanto busca. A única
-// espera é de quem chega com sinal forte numa instância fria (o clique no anúncio), e ela tem teto curto.
+// espera, com teto curto, é numa instância fria de quem chega com sinal forte (o clique no anúncio) ou com uma
+// escolha já gravada: sem ela, quem volta com o cookie veria Todos na primeira página e a versão na seguinte.
 //
 // Quem chega sem cookie e sem sinal (a maioria das visitas, o Googlebot, o PageSpeed) recebe exatamente a
 // página de hoje.
 // ═══════════════════════════════════════════════════════════════════════════
 import { NextResponse, type NextFetchEvent, type NextRequest } from "next/server";
 import {
-  CAMPOS_DE_UTM, COOKIE_DE_PUBLICO, DIAS_DA_ESCOLHA, PARAM_DE_PUBLICO, ROTA_DO_PUBLICO, decidirPublico, valorDoCookieDePublico,
+  CAMPOS_DE_UTM, COOKIE_DE_PUBLICO, DIAS_DA_ESCOLHA, PARAM_DE_PUBLICO, ROTA_DO_PUBLICO, decidirPublico, lerCookieDePublico, valorDoCookieDePublico,
   type CampoDeUtm, type PublicosDaBorda,
 } from "@/lib/editable/document";
 
 /** quanto tempo a cópia em memória vale antes de a borda buscar de novo (em segundo plano) */
 const VALIDADE_DA_COPIA_MS = 60_000;
-/** quanto quem chega pelo anúncio numa instância sem cópia espera a lista, no máximo */
+/** quanto quem chega pelo anúncio (ou com escolha gravada) numa instância sem cópia espera a lista, no máximo */
 const ESPERA_DO_SINAL_FORTE_MS = 400;
 
 let copia: { dados: PublicosDaBorda | null; em: number } | null = null;
@@ -99,7 +100,9 @@ export async function seguir(req: NextRequest, event?: NextFetchEvent): Promise<
   const para = q.get(PARAM_DE_PUBLICO);
   const utm = Object.fromEntries(CAMPOS_DE_UTM.map((c) => [c, q.get(`utm_${c}`)])) as Partial<Record<CampoDeUtm, string | null>>;
   const pendente = renovar(req.nextUrl.origin, event);
-  if (!copia && pendente && (para || Object.values(utm).some(Boolean))) {
+  const gravado = lerCookieDePublico(req.cookies.get(COOKIE_DE_PUBLICO)?.value);
+  const temEscolha = gravado !== null && gravado.origem !== "recusa";
+  if (!copia && pendente && (para || Object.values(utm).some(Boolean) || temEscolha)) {
     await Promise.race([pendente, new Promise((r) => setTimeout(r, ESPERA_DO_SINAL_FORTE_MS))]);
   }
   const decisao = decidirPublico(

@@ -7,16 +7,20 @@
 // `router.refresh()` busca a rota de novo, o middleware lê o cookie e reescreve para a página do público.
 // Nada de conteúdo é trocado no navegador por conta própria (piscaria, e pioraria o LCP).
 //
-// O CONTRATO COM OS APPS (o quiz do Admin e qualquer outro): disparar
-//   window.dispatchEvent(new CustomEvent("unbox:definir-publico", { detail: { id: "volume" } }))
-// com o id de um público da loja (a lista está em `GET /api/unbox/publicos`). `<PontoDePublico/>`, no
-// layout, ouve o evento. O app não precisa importar nada desta loja.
+// O CONTRATO COM OS APPS (o quiz do Admin e qualquer outro), dois eventos que `<PontoDePublico/>`, no layout, ouve.
+// O app não precisa importar nada desta loja:
+//   · o QUIZ só avisa a resposta, e quem a liga a um público é o lojista, no editor (a regra "Respostas do quiz"):
+//       window.dispatchEvent(new CustomEvent("unbox:resposta-do-quiz", { detail: { resposta: "Quero volume" } }))
+//     (ou `{ respostas: [...] }` no fim de um quiz de várias perguntas);
+//   · o app que já sabe o id do público o diz direto (a lista está em `GET /api/unbox/publicos`):
+//       window.dispatchEvent(new CustomEvent("unbox:definir-publico", { detail: { id: "volume" } }))
 // ═══════════════════════════════════════════════════════════════════════════
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import {
-  COOKIE_DE_PUBLICO, DIAS_DA_ESCOLHA, EVENTO_DEFINIR_PUBLICO, PARAM_DE_PUBLICO, cookieDaLojaPadrao, idDePublicoValido, lerCookieDePublico, valorDoCookieDePublico,
-  type OrigemDoPublico,
+  COOKIE_DE_PUBLICO, DIAS_DA_ESCOLHA, EVENTO_DEFINIR_PUBLICO, EVENTO_RESPOSTA_DO_QUIZ, PARAM_DE_PUBLICO, cookieDaLojaPadrao, idDePublicoValido, lerCookieDePublico,
+  publicoDaResposta, valorDoCookieDePublico,
+  type OrigemDoPublico, type PublicosDaBorda,
 } from "./document";
 import { useEditableContext } from "./provider";
 
@@ -67,17 +71,44 @@ export function useDefinirPublico(): (id: string, origem?: OrigemDoPublico) => v
   );
 }
 
-/** Ouve o evento dos apps (`unbox:definir-publico`). Uma linha no layout, dentro do `EditableProvider`. */
+/**
+ * a lista dos públicos com as regras (a rota pública da loja, em cache na CDN), buscada uma vez por página e só
+ * quando um quiz responde: a lista não vai no HTML de toda página para servir a um clique que talvez nem aconteça
+ */
+let listaDaPagina: Promise<PublicosDaBorda | null> | null = null;
+function listaDosPublicos(): Promise<PublicosDaBorda | null> {
+  listaDaPagina ??= fetch("/api/unbox/publicos", { headers: { accept: "application/json" } })
+    .then((r) => (r.ok ? (r.json() as Promise<PublicosDaBorda>) : null))
+    .catch(() => null)
+    .then((l) => {
+      if (!l) listaDaPagina = null; // falhou: a próxima resposta tenta de novo
+      return l;
+    });
+  return listaDaPagina;
+}
+
+/** Ouve os eventos dos apps (a resposta do quiz e o público dito direto). Uma linha no layout, dentro do `EditableProvider`. */
 export function PontoDePublico(): null {
   const definir = useDefinirPublico();
   React.useEffect(() => {
-    const ouvir = (ev: Event) => {
+    const ouvirId = (ev: Event) => {
       const id = (ev as CustomEvent<{ id?: unknown }>).detail?.id;
       if (typeof id === "string") definir(id.trim().toLowerCase(), "app");
     };
-    window.addEventListener(EVENTO_DEFINIR_PUBLICO, ouvir);
+    const ouvirResposta = (ev: Event) => {
+      const d = (ev as CustomEvent<{ resposta?: unknown; respostas?: unknown }>).detail;
+      const respostas = [...(Array.isArray(d?.respostas) ? d.respostas : []), d?.resposta].filter((r): r is string => typeof r === "string" && r.trim() !== "");
+      if (!respostas.length) return;
+      void listaDosPublicos().then((lista) => {
+        const id = publicoDaResposta(respostas, lista);
+        if (id) definir(id, "app");
+      });
+    };
+    window.addEventListener(EVENTO_DEFINIR_PUBLICO, ouvirId);
+    window.addEventListener(EVENTO_RESPOSTA_DO_QUIZ, ouvirResposta);
     return () => {
-      window.removeEventListener(EVENTO_DEFINIR_PUBLICO, ouvir);
+      window.removeEventListener(EVENTO_DEFINIR_PUBLICO, ouvirId);
+      window.removeEventListener(EVENTO_RESPOSTA_DO_QUIZ, ouvirResposta);
     };
   }, [definir]);
   return null;

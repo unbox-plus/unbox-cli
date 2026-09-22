@@ -1936,7 +1936,10 @@ const SLUG_DE_PRODUTO = /^[a-z0-9][a-z0-9_-]{0,99}$/;
 export type RegraDeCliente = { tipo: "comprou"; produto: string } | { tipo: "assinante" } | { tipo: "uf"; uf: Uf };
 /**
  * Como alguém ENTRA neste público, além do link do anúncio (`?para=<id>`, que vale para todo público sem regra
- * nenhuma) e dos apps da loja (que avisam pelo evento `unbox:definir-publico`):
+ * nenhuma) e dos apps que já sabem o id (evento `unbox:definir-publico`):
+ * - `quiz`: a resposta que a pessoa deu no quiz da loja CONTÉM o texto (sem diferença de acento e maiúscula). O
+ *   quiz só avisa a resposta (evento `unbox:resposta-do-quiz`); quem liga a resposta ao público é o lojista, aqui.
+ *   FORTE, como toda escolha feita num app;
  * - `utm`: a campanha do endereço. FORTE: grava a escolha e vale na hora;
  * - `site`: o site de onde a pessoa veio para a loja. FRACO;
  * - `regiao`: onde ela está, pelo IP. FRACO, e só no Brasil;
@@ -1944,6 +1947,7 @@ export type RegraDeCliente = { tipo: "comprou"; produto: string } | { tipo: "ass
  * Fraco nunca tira ninguém de um público escolhido por sinal forte (`decidirPublico`).
  */
 export interface EntradaDoPublico {
+  quiz?: string[];
   utm?: RegraDeUtm[];
   site?: string[];
   regiao?: RegraDeRegiao[];
@@ -2318,6 +2322,12 @@ export const ROTA_DO_PUBLICO = "/_publico";
 /** o evento que os apps da loja (o quiz do Admin e qualquer outro) disparam para pôr o visitante num público */
 export const EVENTO_DEFINIR_PUBLICO = "unbox:definir-publico";
 /**
+ * o evento com que um QUIZ avisa a resposta da pessoa, sem saber de públicos:
+ * `{ detail: { resposta: "Quero volume" } }` ou, no fim de um quiz de várias perguntas, `{ detail: { respostas: [...] } }`.
+ * Quem liga a resposta ao público é a regra `quiz` de cada um (`publicoDaResposta`).
+ */
+export const EVENTO_RESPOSTA_DO_QUIZ = "unbox:resposta-do-quiz";
+/**
  * De onde veio a escolha gravada. `recusa` é quem pediu a LOJA PADRÃO (direito de oposição): o cookie guarda
  * `todos` e nenhum sinal automático o tira de lá.
  */
@@ -2452,6 +2462,22 @@ export function publicoDaRegiao(regiao: RegiaoDoVisitante | null | undefined, bo
   for (const p of borda.publicos) {
     for (const r of p.entrada?.regiao ?? []) {
       if (r.uf === uf && (!r.cidade || semAcento(r.cidade) === cidade)) return p.id;
+    }
+  }
+  return null;
+}
+
+/**
+ * O público cuja regra de QUIZ casa com as respostas da pessoa: a resposta contém o texto da regra, sem diferença
+ * de acento, maiúscula e espaço. A ordem dos públicos desempata, e dentro dela a ordem das respostas não importa.
+ */
+export function publicoDaResposta(respostas: readonly string[] | null | undefined, borda: PublicosDaBorda | null | undefined): string | null {
+  const ditas = (respostas ?? []).filter((r): r is string => typeof r === "string").map(semAcento).filter(Boolean);
+  if (!ditas.length || !borda) return null;
+  for (const p of borda.publicos) {
+    for (const regra of p.entrada?.quiz ?? []) {
+      const texto = semAcento(regra);
+      if (texto && ditas.some((d) => d.includes(texto))) return p.id;
     }
   }
   return null;
@@ -2964,12 +2990,14 @@ function retirarPublico(next: ContentDocument, id: string): { values: Record<str
 
 /** a entrada tem alguma regra? Entrada sem regra não se grava: `{ utm: [] }` seria um campo que não diz nada */
 function entradaComRegra(e: EntradaDoPublico | null | undefined): e is EntradaDoPublico {
-  return Boolean(e?.utm?.length || e?.site?.length || e?.regiao?.length || e?.cliente?.length);
+  return Boolean(e?.quiz?.length || e?.utm?.length || e?.site?.length || e?.regiao?.length || e?.cliente?.length);
 }
 /** a entrada no formato gravado: texto aparado, site em minúsculas e sem repetição, e só os campos de cada regra */
 function entradaLimpa(e: EntradaDoPublico): EntradaDoPublico {
   const sites = [...new Set((e.site ?? []).map((s) => s.trim().toLowerCase()))];
+  const quiz = [...new Set((e.quiz ?? []).map((r) => r.trim()).filter(Boolean))];
   return {
+    ...(quiz.length ? { quiz } : {}),
     ...(e.utm?.length ? { utm: e.utm.map((r) => ({ campo: r.campo, contem: r.contem.trim() })) } : {}),
     ...(sites.length ? { site: sites } : {}),
     ...(e.regiao?.length ? { regiao: e.regiao.map((r) => ({ uf: r.uf, ...(r.cidade?.trim() ? { cidade: r.cidade.trim() } : {}) })) } : {}),
@@ -4570,8 +4598,19 @@ export function recusaDaEntrada(e: unknown): string | null {
   if (e === undefined || e === null) return null;
   if (typeof e !== "object" || Array.isArray(e)) return "Regras de entrada inválidas.";
   const o = e as Record<string, unknown>;
-  for (const k of Object.keys(o)) if (k !== "utm" && k !== "site" && k !== "regiao" && k !== "cliente") return `Regra de entrada desconhecida: ${k}.`;
-  return recusaDasCampanhas(o.utm) ?? recusaDosSites(o.site) ?? recusaDasRegioes(o.regiao) ?? recusaDasRegrasDeCliente(o.cliente);
+  for (const k of Object.keys(o)) if (k !== "quiz" && k !== "utm" && k !== "site" && k !== "regiao" && k !== "cliente") return `Regra de entrada desconhecida: ${k}.`;
+  return recusaDasRespostas(o.quiz) ?? recusaDasCampanhas(o.utm) ?? recusaDosSites(o.site) ?? recusaDasRegioes(o.regiao) ?? recusaDasRegrasDeCliente(o.cliente);
+}
+
+function recusaDasRespostas(v: unknown): string | null {
+  if (v === undefined) return null;
+  const lista = recusaDaLista(v, "quiz");
+  if (lista) return lista;
+  for (const r of v as unknown[]) {
+    if (typeof r !== "string" || !r.trim()) return "Cada resposta do quiz precisa de um texto.";
+    if (tamanho(r.trim()) > TEXTO_DE_REGRA_MAX) return `Resposta do quiz longa demais: no máximo ${TEXTO_DE_REGRA_MAX} letras.`;
+  }
+  return null;
 }
 
 /** a lista de um sinal: ausente passa; o resto tem de ser lista dentro do teto */
