@@ -54,7 +54,9 @@ fora dos buscadores, e quem abre esse endereço entra no público, como pelo lin
 - **O bloco de compra tem o produto escolhido pelo lojista** (a foto é o seletor, o mesmo da vitrine; vale o primeiro
   com preço), com versão por público como toda escolha. O botão leva o produto ao passo 2
   (`/carrinho/oferta?…&produto=<endereço>`), que o põe primeiro e já com a quantidade. Cada bloco adicionado ganha a
-  âncora dele (`#comprar-<id>`); o da receita guarda `#comprar`.
+  âncora dele (`#comprar-<id>`); o da receita guarda `#comprar`. E o passo 2 cabe no celular: a coluna do grid não
+  tinha tamanho no celular e crescia até o slogan com os selos (medido: 478 px numa tela de 375); agora é
+  `grid-cols-1`, e o nome do produto quebra em até duas linhas em vez de cortar em "Máscara Nu…".
 - **Os dados das seções só vão no HTML quando há seção**: produto, catálogo, listagem e páginas do lojista mandam o
   `HomeData` só quando o container tem seção adicionada no publicado (`dadosSeHouverSecoes`). Na prévia, a página
   busca em `GET /api/unbox/secoes` (com o token da prévia) pelo `useDadosDasSecoes`. A oferta e a página de produto
