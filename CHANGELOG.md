@@ -1,5 +1,53 @@
 ## Changelog
 
+### v0.24.0 — foundation 18, fase 2: landing pages por público
+
+A versão por público chega às landing pages, nas duas formas. A primeira é a versão da própria LP: a oferta
+(`/oferta`) e toda página avulsa do lojista (`/paginas/<endereço>`) mudam para cada público como a home já mudava
+(textos, imagens, ordem e seções ocultas), pelo mesmo "Ver como" do editor. A segunda é a cópia: na ficha de uma
+página avulsa, "Duplicar para um público" faz uma cópia com endereço próprio (`<endereço>-<público>`), oculta e
+fora dos buscadores, e quem abre esse endereço entra no público, como pelo link do anúncio.
+
+- **A declaração** (`lib/personalizacao.ts`) passa a `["home", "oferta", "pagina-*"]`. O curinga é o das rotas
+  editáveis: casa toda página avulsa, cujo container nasce no documento.
+- **A borda** (`lib/publicos-da-borda.ts`): `containerDoPedido` diz o container da página pedida (`/` → `home`,
+  `/oferta` → `oferta`, `/paginas/<h>` → `pagina-<h>`, só o que a declaração tem), e a reescrita vai para a rota do
+  público da página (`/_publico/<id>`, `/_publico/<id>/oferta`, `/_publico/<id>/paginas/<h>`). Uma LP só é
+  reescrita quando o público TEM versão nela (`versoes` na lista), para não guardar em cache uma cópia por público
+  igual à de Todos; a home vai sempre, como antes. A página feita para um público grava a escolha como o link do
+  anúncio, mas só na navegação do documento (`sec-fetch-dest`): o prefetch do `<Link>` não põe ninguém no público.
+  Numa instância fria, a página avulsa também espera a lista (até 400 ms), porque só ela sabe se a página é de um
+  público.
+- **As rotas do público das LPs**: `app/(loja)/%5Fpublico/[publico]/oferta` (a mesma `PaginaDaOferta`, agora em
+  `components/landing/pagina-da-oferta.tsx`, dentro de `<EditablePublico>` com a camada cortada na oferta) e
+  `app/(loja)/%5Fpublico/[publico]/paginas/[handle]` (a mesma resposta de `/paginas/[handle]`, agora em
+  `components/paginas/pagina-avulsa.tsx`, com `PaginaDoLojistaNaTela publico=`: a fatia, as vitrines e o dado
+  estruturado saem do documento efetivo do público). As duas têm a canônica e os metadados da página de Todos.
+- `camadaDoPublico(doc, id, containers)` corta a camada nos containers da página: a versão da home deixa de levar no
+  HTML a camada das LPs, e vice-versa.
+- `GET /api/unbox/publicos` ganha `versoes` (os containers em que cada público tem versão) e `paginas` (as páginas
+  avulsas visíveis feitas para um público). Publicar pelo editor revalida a lista SEMPRE (a primeira troca numa LP
+  muda `versoes`), e cada caminho publicado revalida as versões dele (`/oferta` a da oferta, `/paginas/…` a das
+  páginas, `/` as três).
+- O `check-editable` cobra, para cada container declarado além da home, a página do público da rota que o
+  renderiza (a rota sai de `CONTAINERS_POR_ROTA`) e que ela junte a versão (`<EditablePublico>` numa rota do código,
+  `aplicarPublico` na página do lojista). A tabela passou a ser lida do arquivo cru: a peneira de comentários lia o
+  `pdp/*` de um comentário de linha como começo de comentário de bloco e engolia metade dela.
+- **A foundation (`lib/editable`)**: `containerVaria` (o curinga), a operação `duplicate_page` (conteúdo de Todos,
+  sem camada, oculta e fora dos buscadores, com desfazer exato), `publico` no registro da página e em
+  `update_page`, excluir um público desliga as páginas dele (desfazer religa), e `decidirPublico` recebe o
+  `container` e a `navegacao` do pedido.
+
+Medido na loja gerada por este CLI (`next build && next start`, lendo o editor local), 34 de 34: a oferta e a
+página avulsa servem a versão de quem tem uma e a de Todos para os outros (público sem versão naquela página e
+controle incluídos), com a canônica da página; a home do público não leva a camada das LPs; o link `?para=` da LP
+grava o público; abrir a cópia grava o público (e no navegador a home seguinte já vem na versão dele), o prefetch
+não; `/_publico/…/oferta` e `/_publico/…/paginas/…` respondem 404 por acesso direto; e o gate reprova a loja que
+declara a oferta sem a página do público dela.
+
+Loja já gerada: como na 0.23.0, nada muda sozinho. As LPs por público ligam quando a loja declara `oferta` e
+`pagina-*` e tem as duas rotas do público (o `check-editable` diz o que falta).
+
 ### v0.23.0 — foundation 18: a home muda para cada público
 
 O lojista define até cinco PÚBLICOS no editor (quem busca volume, quem chegou pelo anúncio de inverno) e dá a

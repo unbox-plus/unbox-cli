@@ -603,7 +603,9 @@ if (prefixoIndevido.length) {
 // duas: o login que confere as regras de cliente (`publicoNoLogin`), sem o qual elas nunca valeriam, e a loja
 // padrão na página de privacidade (`<LojaPadrao/>`), o direito de oposição de quem não quer a personalização.
 // Conferência de CÓDIGO-FONTE, como a do par do corte: só é cobrada quando o layout declara.
-const parDaPersonalizacao = { declarada: false, pagina: null, camada: null, semPagina: false, semCamada: false, semBorda: false, semLogin: false, semLojaPadrao: false };
+const parDaPersonalizacao = { declarada: false, pagina: null, camada: null, semPagina: false, semCamada: false, semBorda: false, semLogin: false, semLojaPadrao: false, lps: [] };
+/** a rota do Next como expressão: `[x]` casa qualquer nome de segmento (`/paginas/[handle]` casa `/paginas/[endereco]`) */
+const padraoDaRota = (rota) => rota.split(/(\[[^\]]+\])/).map((p) => (p.startsWith("[") ? "\\[[^\\]]+\\]" : p.replace(/[.*+?^${}()|\\]/g, "\\$&"))).join("");
 if (RAIZ_DA_LOJA) {
   const layoutDaLoja = readFileSync(path.join(RAIZ_DA_LOJA, "app", "layout.tsx"), "utf8");
   if (/personalizacao=\{/.test(semComentarios(layoutDaLoja))) {
@@ -632,9 +634,44 @@ if (RAIZ_DA_LOJA) {
     };
     if (!/\bpublicoNoLogin\s*\(/.test(fonte("app", "api", "account", "signin", "route.ts"))) parDaPersonalizacao.semLogin = true;
     if (!/<\s*LojaPadrao[\s/>]/.test(fonte("app", "(loja)", "privacidade", "page.tsx"))) parDaPersonalizacao.semLojaPadrao = true;
+    // AS LPS POR PÚBLICO (fase 2): cada container declarado além da home tem a página do público da rota que o
+    // renderiza (a rota sai de CONTAINERS_POR_ROTA): `oferta` → `/_publico/[publico]/oferta`, `pagina-*` →
+    // `/_publico/[publico]/paginas/[handle]`. Sem ela, a borda reescreveria a LP para uma rota que responde 404; e
+    // a página do público tem de JUNTAR a versão: a camada (`<EditablePublico>`) numa rota do código, o documento
+    // efetivo (`aplicarPublico`) numa página do lojista, que chega pela fatia.
+    // do arquivo CRU, e não por `semComentarios`: ela lê `pdp/*` num comentário de linha como começo de comentário
+    // de bloco e engole a tabela até o próximo `*/` (medido: sumiam a oferta e as páginas do lojista). Aqui o que se
+    // procura é o formato da entrada (`"rota": [...]`), que comentário nenhum da tabela tem.
+    const cru = (...partes) => {
+      try {
+        return readFileSync(path.join(RAIZ_DA_LOJA, ...partes), "utf8");
+      } catch {
+        return "";
+      }
+    };
+    const declarados = [...(cru("lib", "personalizacao.ts").match(/DECLARACAO_DA_PERSONALIZACAO[^=]*=\s*\{[^}]*?containers\s*:\s*\[([^\]]*)\]/)?.[1] ?? "").matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+    const corpoDaTabela = cru("lib", "rotas-editaveis.ts").match(/export const CONTAINERS_POR_ROTA[^=]*=\s*\{([\s\S]*?)\n\};/)?.[1] ?? "";
+    const tabela = [...corpoDaTabela.matchAll(/"([^"]+)"\s*:\s*\[([^\]]*)\]/g)].map((m) => ({ rota: m[1], containers: [...m[2].matchAll(/"([^"]+)"/g)].map((x) => x[1]) }));
+    const doApp = [...paginasDoApp(RAIZ_DA_LOJA)];
+    for (const container of declarados) {
+      if (container === "home") continue;
+      const rotas = tabela.filter((r) => r.containers.includes(container)).map((r) => r.rota);
+      if (!rotas.length) {
+        parDaPersonalizacao.lps.push({ container, rota: null, arquivo: null, junta: null });
+        continue;
+      }
+      for (const rota of rotas) {
+        const padrao = new RegExp(`^\\/(%5F|_)publico\\/\\[[^\\]]+\\]${padraoDaRota(rota)}$`);
+        const achadaLp = doApp.find(([r]) => padrao.test(r));
+        const doLojista = /^(pagina|artigo|colecao)-/.test(container);
+        const junta = achadaLp ? ondeEstaAFatia(achadaLp[1], RAIZ_DA_LOJA, doLojista ? /\baplicarPublico\s*\(/ : /<\s*EditablePublico[\s>]/) : null;
+        parDaPersonalizacao.lps.push({ container, rota, arquivo: achadaLp ? path.relative(RAIZ_DA_LOJA, achadaLp[1]) : null, junta, doLojista });
+      }
+    }
   }
 }
-const personalizacaoIncompleta = parDaPersonalizacao.semPagina || parDaPersonalizacao.semCamada || parDaPersonalizacao.semBorda || parDaPersonalizacao.semLogin || parDaPersonalizacao.semLojaPadrao;
+const lpsIncompletas = parDaPersonalizacao.lps.filter((l) => !l.rota || !l.arquivo || !l.junta);
+const personalizacaoIncompleta = parDaPersonalizacao.semPagina || parDaPersonalizacao.semCamada || parDaPersonalizacao.semBorda || parDaPersonalizacao.semLogin || parDaPersonalizacao.semLojaPadrao || lpsIncompletas.length > 0;
 
 console.log("\nO PAR DO CORTE DO DOCUMENTO (o layout tira as páginas do lojista; a casca devolve a fatia):");
 if (!parDoCorte.conferido || parDoCorte.motivo) {
@@ -661,6 +698,12 @@ else {
   else console.log("  ok             o login confere as regras de cliente (publicoNoLogin)");
   if (parDaPersonalizacao.semLojaPadrao) console.log("  SEM A OPOSIÇÃO a página de privacidade não oferece <LojaPadrao/>: quem não quer a personalização não teria como sair dela");
   else console.log("  ok             a privacidade oferece a loja padrão (<LojaPadrao/>)");
+  for (const l of parDaPersonalizacao.lps) {
+    if (!l.rota) console.log(`  SEM A ROTA     a loja declara «${l.container}» e nenhuma rota de CONTAINERS_POR_ROTA (lib/rotas-editaveis.ts) o renderiza: o editor ofereceria versão de uma página que não existe`);
+    else if (!l.arquivo) console.log(`  SEM A VERSÃO   ${l.rota}: a loja declara «${l.container}» e não tem app/(loja)/%5Fpublico/[publico]${l.rota}/page.tsx: a borda reescreveria a página para uma rota que responde 404`);
+    else if (!l.junta) console.log(`  SEM A CAMADA   ${l.arquivo} e nada que ela importa junta a versão (${l.doLojista ? "aplicarPublico, na página do lojista" : "<EditablePublico>"}): ela sairia com o texto de Todos`);
+    else console.log(`  ok             ${l.rota.padEnd(18)} versão em ${l.arquivo}`);
+  }
 }
 
 if (medidas.length) {
@@ -727,7 +770,7 @@ if (divergentes.length) {
 }
 if (semDeclaracao.length) reprovacoes.push(`rota(s) listada(s) pela loja sem declaração de containers: ${semDeclaracao.map((r) => r.rota).join(", ")}`);
 if (prefixoIndevido.length) reprovacoes.push(`container do código com prefixo reservado às páginas do lojista em ${prefixoIndevido.map((x) => `${x.rota} (${x.containers.join(", ")})`).join(", ")}`);
-if (personalizacaoIncompleta) reprovacoes.push(`a loja declara a personalização por público sem ${[parDaPersonalizacao.semPagina ? "a página do público" : "", parDaPersonalizacao.semCamada ? "a camada (<EditablePublico>) na página do público" : "", parDaPersonalizacao.semBorda ? "a decisão no middleware (seguir)" : "", parDaPersonalizacao.semLogin ? "o login que confere as regras de cliente (publicoNoLogin)" : "", parDaPersonalizacao.semLojaPadrao ? "a loja padrão na privacidade (<LojaPadrao/>)" : ""].filter(Boolean).join(" e ")}: o editor ofereceria versões que ninguém veria`);
+if (personalizacaoIncompleta) reprovacoes.push(`a loja declara a personalização por público sem ${[parDaPersonalizacao.semPagina ? "a página do público" : "", parDaPersonalizacao.semCamada ? "a camada (<EditablePublico>) na página do público" : "", parDaPersonalizacao.semBorda ? "a decisão no middleware (seguir)" : "", parDaPersonalizacao.semLogin ? "o login que confere as regras de cliente (publicoNoLogin)" : "", parDaPersonalizacao.semLojaPadrao ? "a loja padrão na privacidade (<LojaPadrao/>)" : "", lpsIncompletas.length ? `a página do público de ${lpsIncompletas.map((l) => l.rota ?? `«${l.container}»`).join(", ")}` : ""].filter(Boolean).join(" e ")}: o editor ofereceria versões que ninguém veria`);
 if (parDoCorte.semFatia.length) reprovacoes.push(`rota(s) do lojista sem a fatia do documento: ${parDoCorte.semFatia.map((x) => `${x.rota} (${x.arquivo})`).join(", ")}: a página vai ao ar com o literal do código no lugar do texto do lojista`);
 
 // o par não conferido é NÃO RODOU pelo mesmo motivo dos outros: gate que varre o vazio e diz "limpo"
