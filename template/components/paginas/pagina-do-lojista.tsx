@@ -9,6 +9,11 @@
 // JSON-LD: as três renderizam exatamente a mesma coisa, e a prévia tem de mostrar o que vai ao ar.
 // Repetida rota a rota, a fatia divergiria numa delas em silêncio, e o sintoma seria o texto do
 // lojista sumindo da tela sem erro nenhum.
+//
+// A VERSÃO DE UM PÚBLICO (foundation 18, LPs) também entra aqui: a quarta rota,
+// `/_publico/[publico]/paginas/[handle]`, passa `publico`, e tudo sai do documento EFETIVO dele
+// (`aplicarPublico`): a fatia (o texto, as fotos, a ordem e as seções ocultas da versão), as vitrines e
+// o dado estruturado. Os metadados não: o SEO da página vale para todos.
 import { ldJson } from "@/lib/json-ld";
 import { EditableFatia } from "@/lib/editable";
 import { fatiaDoDocumento } from "@/lib/editable/server";
@@ -18,7 +23,7 @@ import { tituloDaColecao, tituloDaPaginaOuEndereco } from "@/components/paginas/
 import { dadosDasPaginas } from "@/lib/paginas-dados";
 import { jsonLdDaLoja, jsonLdDaPagina, jsonLdDeMigalhas } from "@/lib/paginas-seo";
 import { lerPaginas } from "@/lib/paginas-publicadas";
-import { type PaginaDoLojista } from "@/lib/editable/document";
+import { aplicarPublico, type ContentDocument, type PaginaDoLojista } from "@/lib/editable/document";
 
 /**
  * O caminho de migalhas desta página. Montado no SERVIDOR e usado pelos dois lados (a navegação
@@ -30,8 +35,9 @@ import { type PaginaDoLojista } from "@/lib/editable/document";
  * logo acima do `<h1>` com o título certo. A migalha leva `data-editor-ignore`, então nem quando o
  * rascunho chega ela se corrigiria sozinha.
  */
-export async function migalhasDaPagina(id: string, registro: PaginaDoLojista): Promise<Migalha[]> {
-  const doc = await lerPaginas();
+export async function migalhasDaPagina(id: string, registro: PaginaDoLojista, docDaVista?: ContentDocument | null): Promise<Migalha[]> {
+  // `docDaVista`: o documento que a página mostra (o efetivo de um público), para a migalha dizer o mesmo título do <h1>
+  const doc = docDaVista === undefined ? await lerPaginas() : docDaVista;
   const migalhas: Migalha[] = [{ nome: "Início", href: "/" }];
   if (registro.tipo === "artigo" && registro.colecao) {
     migalhas.push({ nome: tituloDaColecao(doc, registro.colecao), href: `/${registro.colecao}` });
@@ -45,7 +51,7 @@ export async function migalhasDaPagina(id: string, registro: PaginaDoLojista): P
  * três rotas, pelo mesmo motivo do JSON-LD e da fatia: as três renderizam exatamente a mesma coisa.
  */
 function registroNaCasca(r: PaginaDoLojista): RegistroNaCasca {
-  return { tipo: r.tipo, handle: r.handle, colecao: r.colecao, autor: r.autor, tags: r.tags, publicadoEm: r.publicadoEm, criadoEm: r.criadoEm };
+  return { tipo: r.tipo, handle: r.handle, colecao: r.colecao, autor: r.autor, tags: r.tags, publicadoEm: r.publicadoEm, criadoEm: r.criadoEm, ocultarCabecalho: r.ocultarCabecalho, ocultarRodape: r.ocultarRodape };
 }
 
 export async function PaginaDoLojistaNaTela({
@@ -53,6 +59,7 @@ export async function PaginaDoLojistaNaTela({
   registro,
   caminho,
   aviso = null,
+  publico,
 }: {
   id: string;
   registro: PaginaDoLojista;
@@ -65,9 +72,12 @@ export async function PaginaDoLojistaNaTela({
    * publicada, que são três frases diferentes.
    */
   aviso?: string | null;
+  /** a versão de um público (a rota `/_publico/[publico]/paginas/[handle]`); público que não existe mostra a de Todos */
+  publico?: string;
 }) {
-  const doc = await lerPaginas();
-  const [dados, migalhas] = await Promise.all([dadosDasPaginas(doc, id), migalhasDaPagina(id, registro)]);
+  const publicado = await lerPaginas();
+  const doc = publicado && publico ? aplicarPublico(publicado, publico) : publicado;
+  const [dados, migalhas] = await Promise.all([dadosDasPaginas(doc, id), migalhasDaPagina(id, registro, doc)]);
   const colecao = registro.tipo === "artigo" && registro.colecao ? tituloDaColecao(doc, registro.colecao) : undefined;
   // a entidade da loja vai JUNTO: `publisher` e `isPartOf` apontam para ela por `@id`, e um `@id` que
   // só existe no JSON-LD da home não é resolvido por quem lê esta página (ver `jsonLdDaLoja`)

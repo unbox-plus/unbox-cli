@@ -97,8 +97,9 @@ export const CONTAINERS_POR_ROTA: Readonly<Record<string, readonly string[]>> = 
 // Hoje ela vive fora de `app/(loja)/` e a varredura já não a acha. A lista existe assim mesmo porque
 // o robots e a varredura mudam de mão: no dia em que alguém mover a rota para dentro do grupo, ela
 // continua fora da lista, em vez de aparecer no seletor sem ninguém entender por quê.
-// `/_publico` (foundation 18): a versão da home de cada público, que só existe como destino da reescrita do
-// middleware. Não é página da loja, não vai para o sitemap, e o conteúdo dela é o da home.
+// `/_publico` (foundation 18): a versão de cada público (da home, da oferta e das páginas avulsas), que só existe
+// como destino da reescrita do middleware. Não é página da loja, não vai para o sitemap, e o conteúdo dela é o da
+// página de Todos com a versão do público por cima.
 export const ROTAS_INTERNAS: readonly string[] = ["/previa-do-editor", "/_publico"];
 
 /** `rota` é uma rota interna (ferramenta), e não uma página da loja. Prefixo por segmento, como o robots. */

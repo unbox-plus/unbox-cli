@@ -22,6 +22,12 @@
 // A DATA É UMA SÓ, e vem de `dataDoArtigo` (components/paginas/data-do-artigo.ts): o mesmo cálculo
 // alimenta esta linha e o `BlogPosting` que a rota emite.
 //
+// ── A LANDING PAGE SEM CABEÇALHO E SEM RODAPÉ ──────────────────────────────────
+// A ficha da página avulsa tem "Ocultar cabeçalho" e "Ocultar rodapé" (`ocultarCabecalho`, `ocultarRodape` no
+// registro). A casca só MARCA o pedido (`.lp-sem-cabecalho`, `.lp-sem-rodape`) e quem esconde é o app/globals.css,
+// pela mesma mecânica do checkout: `body:has(...)`, sem JS, sem piscar, com o HTML já certo no servidor. Na prévia
+// do editor o pedido sai do RASCUNHO que chegou, para o interruptor da ficha aparecer na hora, sem publicar.
+//
 // ── A TARJA DE PÁGINA OCULTA ──────────────────────────────────────────────────
 // Em produção uma página oculta é 404, e esta casca nem chega a renderizar. Em modo edição ela abre
 // (é o único jeito de o lojista trabalhar nela antes de publicar), e então a tarja diz o estado, para
@@ -45,7 +51,7 @@ import { enderecoComoTitulo } from "@/components/paginas/titulos";
  *
  * É a mesma régua do `documentoSemPaginas` do app/layout.tsx, aplicada à prop.
  */
-export type RegistroNaCasca = Pick<PaginaDoLojista, "tipo" | "handle" | "colecao" | "autor" | "tags" | "publicadoEm" | "criadoEm">;
+export type RegistroNaCasca = Pick<PaginaDoLojista, "tipo" | "handle" | "colecao" | "autor" | "tags" | "publicadoEm" | "criadoEm" | "ocultarCabecalho" | "ocultarRodape">;
 
 /** um degrau do caminho de migalhas; o último (a página atual) não tem link */
 export interface Migalha {
@@ -85,12 +91,15 @@ export function CascaDePagina({
   const temResumo = Boolean(resolveValue(ctx.doc, caminhoDoResumo, "").trim());
   const quando = modo === "artigo" ? dataDoArtigo(registro) : null;
   const tags = modo === "artigo" ? (registro.tags ?? []) : [];
+  // o pedido de cabeçalho e rodapé: do rascunho na prévia (depois que ele chega), do publicado fora dela
+  const pedido = (ctx.rascunhoChegou ? ctx.doc.paginas?.[id] : undefined) ?? registro;
+  const semChrome = modo === "pagina" ? `${pedido.ocultarCabecalho ? " lp-sem-cabecalho" : ""}${pedido.ocultarRodape ? " lp-sem-rodape" : ""}` : "";
 
   return (
     // `--store-bg` (o fundo da marca), e não `bg-white`: medido no render, a casca pintava uma faixa
     // de branco puro de ponta a ponta sobre o fundo do `body`, com emenda visível onde ela acabava.
     // Toda página e todo artigo que o lojista publicasse nasceria nesse branco, fora da marca.
-    <div className="store-layout full-bleed bg-[var(--store-bg)] text-[var(--store-ink)]">
+    <div className={`store-layout full-bleed bg-[var(--store-bg)] text-[var(--store-ink)]${semChrome}`}>
       <Editable.Sections container={id} catalogo={catalogoDasPaginas(data)}>
         <Editable.Section id={SECAO_CABECALHO} kind="banner" label="Cabeçalho da página" fixed>
           <header className="mx-auto w-full max-w-[720px] px-4 pt-7 sm:px-6">

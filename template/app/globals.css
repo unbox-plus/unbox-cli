@@ -466,6 +466,18 @@ h4 { font-size: max(16px, calc(clamp(16px, 0.973rem + 0.116vw, 17px) * var(--unb
 body:has(.checkout-root) .site-chrome { display: none; }
 body:has(.checkout-root) .site-main { max-width: none; padding: 0; min-height: 0; }
 
+/* LANDING PAGE SEM CABEÇALHO / SEM RODAPÉ (foundation 18): a casca da página avulsa marca o pedido da ficha
+   (`.lp-sem-cabecalho`, `.lp-sem-rodape`), pela mesma mecânica do checkout acima. O cabeçalho some com a faixa de
+   avisos; o botão do WhatsApp (também `.site-chrome`) fica, porque é canal de venda. O rodapé some MENOS a barra de
+   baixo (`.rodape-barra`): ela leva o "Powered by Unbox" (contrato) e os dados da empresa, que a lei do comércio
+   eletrônico pede num lugar visível. Browser sem :has() → a página com cabeçalho e rodapé, que é o modo seguro. */
+body:has(.lp-sem-cabecalho) header.site-chrome,
+body:has(.lp-sem-cabecalho) .chrome-faixa { display: none; }
+html:has(.lp-sem-cabecalho) { scroll-padding-top: 0; }
+body:has(.lp-sem-rodape) footer.site-chrome > :not(.rodape-barra) { display: none; }
+body:has(.lp-sem-rodape) footer.site-chrome { margin-top: 0; }
+body:has(.lp-sem-rodape) footer.site-chrome > .rodape-barra { border-top: 0; }
+
 /* Páginas full-bleed (home, catálogo, PDP) começam coladas no header E no footer — remove o
    padding do <main> e a margem própria do footer, senão sobra uma faixa da cor de fundo padrão
    entre a seção full-bleed e o header/footer. */
