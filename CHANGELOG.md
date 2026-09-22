@@ -1,6 +1,6 @@
 ## Changelog
 
-### Não lançado (v0.23.0) — a integração com a Unbox saiu do template e virou pacote
+### Não lançado (v0.25.0) — a integração com a Unbox saiu do template e virou pacote
 
 Até aqui, toda chamada à API de parceiros vivia dentro do template, em `lib/unbox/*.ts`, e era
 **copiada** para cada loja gerada. Isso fazia com que atualizar a integração, inclusive as
@@ -42,6 +42,186 @@ O que mudou na loja gerada:
   `cartEventLabel` do pacote, e o índice dele é livre de builtin do Node de propósito (o
   `node:crypto` do webhook mora em `@unbox-plus/sdk/webhooks`). Medido no build de produção: o
   chunk do cliente leva o rótulo e nenhuma query do GraphQL.
+
+### v0.24.0 — foundation 18, fase 2: landing pages por público
+
+A versão por público chega às landing pages, nas duas formas. A primeira é a versão da própria LP: a oferta
+(`/oferta`) e toda página avulsa do lojista (`/paginas/<endereço>`) mudam para cada público como a home já mudava
+(textos, imagens, ordem e seções ocultas), pelo mesmo "Ver como" do editor. A segunda é a cópia: na ficha de uma
+página avulsa, "Duplicar para um público" faz uma cópia com endereço próprio (`<endereço>-<público>`), oculta e
+fora dos buscadores, e quem abre esse endereço entra no público, como pelo link do anúncio.
+
+- **A declaração** (`lib/personalizacao.ts`) passa a `["home", "oferta", "pagina-*"]`. O curinga é o das rotas
+  editáveis: casa toda página avulsa, cujo container nasce no documento.
+- **A borda** (`lib/publicos-da-borda.ts`): `containerDoPedido` diz o container da página pedida (`/` → `home`,
+  `/oferta` → `oferta`, `/paginas/<h>` → `pagina-<h>`, só o que a declaração tem), e a reescrita vai para a rota do
+  público da página (`/_publico/<id>`, `/_publico/<id>/oferta`, `/_publico/<id>/paginas/<h>`). Uma LP só é
+  reescrita quando o público TEM versão nela (`versoes` na lista), para não guardar em cache uma cópia por público
+  igual à de Todos; a home vai sempre, como antes. A página feita para um público grava a escolha como o link do
+  anúncio, mas só na navegação do documento (`sec-fetch-dest`): o prefetch do `<Link>` não põe ninguém no público.
+  Numa instância fria, a página avulsa também espera a lista (até 400 ms), porque só ela sabe se a página é de um
+  público.
+- **As rotas do público das LPs**: `app/(loja)/%5Fpublico/[publico]/oferta` (a mesma `PaginaDaOferta`, agora em
+  `components/landing/pagina-da-oferta.tsx`, dentro de `<EditablePublico>` com a camada cortada na oferta) e
+  `app/(loja)/%5Fpublico/[publico]/paginas/[handle]` (a mesma resposta de `/paginas/[handle]`, agora em
+  `components/paginas/pagina-avulsa.tsx`, com `PaginaDoLojistaNaTela publico=`: a fatia, as vitrines e o dado
+  estruturado saem do documento efetivo do público). As duas têm a canônica e os metadados da página de Todos.
+- `camadaDoPublico(doc, id, containers)` corta a camada nos containers da página: a versão da home deixa de levar no
+  HTML a camada das LPs, e vice-versa.
+- `GET /api/unbox/publicos` ganha `versoes` (os containers em que cada público tem versão) e `paginas` (as páginas
+  avulsas visíveis feitas para um público). Publicar pelo editor revalida a lista SEMPRE (a primeira troca numa LP
+  muda `versoes`), e cada caminho publicado revalida as versões dele (`/oferta` a da oferta, `/paginas/…` a das
+  páginas, `/` as três).
+- O `check-editable` cobra, para cada container declarado além da home, a página do público da rota que o
+  renderiza (a rota sai de `CONTAINERS_POR_ROTA`) e que ela junte a versão (`<EditablePublico>` numa rota do código,
+  `aplicarPublico` na página do lojista). A tabela passou a ser lida do arquivo cru: a peneira de comentários lia o
+  `pdp/*` de um comentário de linha como começo de comentário de bloco e engolia metade dela.
+- **Landing page sem cabeçalho e sem rodapé**: a ficha da página avulsa ganha "Ocultar cabeçalho" e "Ocultar
+  rodapé" (`ocultarCabecalho`, `ocultarRodape` no registro; a cópia para um público herda). A casca marca o pedido
+  (`.lp-sem-cabecalho`, `.lp-sem-rodape`) e o `app/globals.css` esconde pela mesma mecânica do checkout
+  (`body:has(...)`, sem JS, sem piscar). O cabeçalho some com a faixa de avisos (`.chrome-faixa`), e o botão do
+  WhatsApp fica. O rodapé some MENOS a barra de baixo (`.rodape-barra`), que leva o selo "Powered by Unbox" (contrato)
+  e os dados da empresa (a lei do comércio eletrônico os pede à vista). A loja declara `ocultaChrome: true` em
+  `lib/paginas-do-lojista.ts`, e o `check-editable` cobra a casca, o CSS e a barra.
+- **A oferta também esconde cabeçalho e rodapé**: a `/oferta` (página do código, sem ficha) ganha os mesmos dois
+  interruptores, na aba Seções do editor, no grupo "Cabeçalho e rodapé". O pedido mora no estado do container da
+  página (`sections.oferta.ocultarCabecalho`, `ocultarRodape`, pela operação `set_chrome`, com desfazer), e a versão
+  de um público o herda. `<PedidoDeChrome container="oferta"/>` (`components/landing/pedido-de-chrome.tsx`) marca o
+  pedido com as mesmas classes da página avulsa, e o CSS é o mesmo: a barra do rodapé com o selo e os dados da
+  empresa fica. A loja declara as páginas em `lib/chrome-das-paginas.ts` (`OCULTA_CHROME_EM`), que o layout passa ao
+  editor (`ocultaChromeEm`); o `check-editable` cobra a marca na rota de cada página declarada, o CSS e a barra.
+- **A prévia do editor ganha a moldura da loja**: `app/previa-do-editor/layout.tsx` usa `components/moldura-da-loja.tsx`,
+  a mesma de `app/(loja)/layout.tsx`. A página do lojista aparece na prévia com o cabeçalho e o rodapé, como vai ao ar,
+  e o "Ocultar" aparece na hora (o pedido sai do rascunho).
+- **O catálogo da loja em toda página** ("+ Adicionar seção"): a home, a oferta, as páginas e os artigos do lojista,
+  a listagem de uma coleção, o catálogo de produtos e a página de produto oferecem o MESMO catálogo
+  (`catalogoDaLoja`, `components/home/sections/catalogo.ts`; nomes em `components/home/sections/tipos.ts`). Só entra o
+  que aparece: as seções que se desenham sozinhas (texto, banner, benefícios, como funciona, cards, citação, HTML),
+  as de produto (vitrine e bloco de compra sempre; categorias, destaques, economia e kits quando o catálogo tem o que
+  mostrar) e as que dependem de conteúdo real da marca (depoimentos, avaliações, selos, diferenciais, faixa rolante,
+  ficha técnica, vídeos, nossa história, comparativo, números, comunidade, newsletter), que entram quando a receita
+  da loja as traz com conteúdo, e nascem com ele. Nada de depoimento ou número inventado.
+- **O bloco de compra tem o produto escolhido pelo lojista** (a foto é o seletor, o mesmo da vitrine; vale o primeiro
+  com preço), com versão por público como toda escolha. O botão leva o produto ao passo 2
+  (`/carrinho/oferta?…&produto=<endereço>`), que o põe primeiro e já com a quantidade. Cada bloco adicionado ganha a
+  âncora dele (`#comprar-<id>`); o da receita guarda `#comprar`. E o passo 2 cabe no celular: a coluna do grid não
+  tinha tamanho no celular e crescia até o slogan com os selos (medido: 478 px numa tela de 375); agora é
+  `grid-cols-1`, e o nome do produto quebra em até duas linhas em vez de cortar em "Máscara Nu…".
+- **Os dados das seções só vão no HTML quando há seção**: produto, catálogo, listagem e páginas do lojista mandam o
+  `HomeData` só quando o container tem seção adicionada no publicado (`dadosSeHouverSecoes`). Na prévia, a página
+  busca em `GET /api/unbox/secoes` (com o token da prévia) pelo `useDadosDasSecoes`. A oferta e a página de produto
+  montam o catálogo pelo invólucro de cliente `<SecoesComCatalogo>`. A listagem de coleção ganhou a lista de artigos
+  como seção fixa (o que se adiciona entra antes ou depois dela), e as páginas passam a ter os mesmos destaques e
+  kits da home.
+- **A categoria espelha o catálogo de produtos**: `Editable.Sections` ganha `layout="espelho"`, a página que mostra a
+  lista da dona igual a ela (ordem, ocultas, cópias e as seções adicionadas) sem mandar nela: não declara catálogo nem
+  posição, e o manifesto sai com `semLayout`, como no `layout={false}`. `/categoria/[tagSlug]` passa a usá-lo (era
+  `layout={false}`, que só levava a copy): o que o lojista adiciona, move ou oculta em `/produtos` vale em toda
+  categoria, como o painel da categoria já dizia. O "+" continua só em `/produtos`.
+- **A ordem de cada público acompanha a seção nova**: numa versão com ordem própria, a cópia entra logo depois da
+  origem e a seção adicionada depois da mesma vizinha que tem em Todos (antes, as duas caíam no fim da versão); a
+  removida sai das camadas, e desfazer as devolve.
+- **A foundation (`lib/editable`)**: `containerVaria` (o curinga), a operação `duplicate_page` (conteúdo de Todos,
+  sem camada, oculta e fora dos buscadores, com desfazer exato), `publico` no registro da página e em
+  `update_page`, excluir um público desliga as páginas dele (desfazer religa), e `decidirPublico` recebe o
+  `container` e a `navegacao` do pedido.
+
+Medido na loja gerada por este CLI (`next build && next start`, lendo o editor local), 34 de 34: a oferta e a
+página avulsa servem a versão de quem tem uma e a de Todos para os outros (público sem versão naquela página e
+controle incluídos), com a canônica da página; a home do público não leva a camada das LPs; o link `?para=` da LP
+grava o público; abrir a cópia grava o público (e no navegador a home seguinte já vem na versão dele), o prefetch
+não; `/_publico/…/oferta` e `/_publico/…/paginas/…` respondem 404 por acesso direto; e o gate reprova a loja que
+declara a oferta sem a página do público dela. Cabeçalho e rodapé, 19 de 19: os interruptores escondem na prévia na
+hora e na loja depois de publicar (375 e 1440 px, sem rolagem lateral), a barra com o selo fica, as outras páginas
+continuam com cabeçalho, a versão de um público herda o pedido, e o gate reprova a loja que declara sem a regra do
+CSS. A vitrine de uma página avulsa aceita escolha própria por público (camada). Catálogo em toda página, 34 de 34
+(com um catálogo de teste): o "+" das seis páginas oferece os 12 tipos que a loja de teste consegue mostrar e nenhum
+sem conteúdo real; o bloco de compra entra pelo clique na página de produto e aparece na hora; a escolha de produto
+troca na prévia e vale em toda página de produto; na oferta, o bloco adicionado convive com o da receita sem âncora
+repetida e mostra o produto da versão de Cacheados para Cacheados; destaques numa página avulsa, categorias depois
+da lista do blog e benefícios no catálogo; página sem seção não leva o catálogo no HTML; o botão do bloco leva o
+produto ao passo 2, que o mostra primeiro. E o `check-editable` aprova a loja de teste com catálogo (11 páginas).
+Categoria, 24 de 24: o bloco adicionado em `/produtos` aparece na prévia da categoria antes de publicar, com o
+produto escolhido; o painel da categoria diz que a lista é a de `/produtos`, não oferece o "+" e não deixa arrastar;
+publicado, as duas categorias mostram o bloco; subir o bloco e ocultar a faixa de confiança em `/produtos` vale na
+categoria; sem rolagem lateral em 375 e 1440 px. Oferta sem cabeçalho e rodapé, 23 de 23: os interruptores da aba
+Seções escondem na prévia na hora; o que mudou diz qual dos dois e para que lado; a home continua inteira (e não
+mostra os interruptores); publicado, o HTML da `/oferta` já sai marcado do servidor, também na versão de Cacheados;
+em 375 e 1440 px o cabeçalho some, o rodapé fica só com a barra do selo e não há rolagem lateral, e `/produtos`
+continua inteira; desligar volta ao normal. O gate reprova a loja que declara `ocultaChromeEm` sem a marca na página.
+
+Loja já gerada: como na 0.23.0, nada muda sozinho. As LPs por público ligam quando a loja declara `oferta` e
+`pagina-*` e tem as duas rotas do público (o `check-editable` diz o que falta). A categoria que espelha `/produtos`
+chega com o `components/catalog/catalog-client.tsx` e a página da categoria novos; o cabeçalho e o rodapé da oferta,
+com o `pedido-de-chrome.tsx`, o `lib/chrome-das-paginas.ts`, a marca em `pagina-da-oferta.tsx` e a prop no layout.
+
+### v0.23.0 — foundation 18: a home muda para cada público
+
+O lojista define até cinco PÚBLICOS no editor (quem busca volume, quem chegou pelo anúncio de inverno) e dá a
+cada um a sua versão da home: textos, imagens, vitrines, ordem e seções ocultas. O que o público não mudou
+continua sendo o de Todos. Quem decide quem vê o quê é a borda da loja, por sinais FORTES (o link do anúncio
+`?para=<id>`, a campanha `utm_*` contém um texto, os apps da loja como o quiz, e a conta do cliente, conferida no
+login) e FRACOS (o site de onde a pessoa veio e a região dela), que nunca passam por cima de um forte. Um grupo de
+controle (20% por padrão) cai no público e vê Todos, para medir se a versão vende mais. E quem não quer a
+personalização pede a loja padrão na página de privacidade.
+
+- **A home virou `PaginaInicial({ doc })`** (`components/home/pagina-inicial.tsx`). `app/(loja)/page.tsx` é
+  casca, e a versão de cada público (`app/(loja)/%5Fpublico/[publico]`) renderiza o mesmo corpo com o
+  documento dela. É o que faz as vitrines saírem por público.
+- **A borda** (`lib/publicos-da-borda.ts`): o middleware passa as saídas que liberam a loja por `seguir`, que
+  reescreve `/` para `/_publico/<id>` (inclusive o RSC da navegação interna, que o Next não deixa o middleware
+  distinguir) e grava o cookie `unbox_publico`. A lista dos públicos fica em memória e se renova em segundo
+  plano: nenhum pedido espera busca. Acesso direto a `/_publico/…` responde 404.
+- `GET /api/unbox/publicos`: `{ controle, publicos: [{ id, nome, entrada }] }`, pública como a de páginas, sem
+  a descrição (que é do chat do editor).
+- **O contrato dos apps**: o quiz só avisa a resposta,
+  `window.dispatchEvent(new CustomEvent("unbox:resposta-do-quiz", { detail: { resposta } }))` (ou `respostas: [...]`),
+  e quem liga a resposta ao público é o lojista, no editor (a regra "Respostas do quiz"). O app que já sabe o id o
+  diz direto: `unbox:definir-publico` com `{ id }`. `<PontoDePublico/>`, no layout, ouve os dois, grava a escolha e
+  troca a versão sem recarregar. A resposta não vai para o dataLayer; vai só o público.
+- **A medição**: `scriptDaMedicaoDoPublico` empurra `publico`, `publico_grupo` (versão ou controle) e
+  `publico_origem` para o dataLayer antes do GTM. Não vai para Meta, TikTok nem CAPI.
+- `app/api/revalidate` revalida as versões junto com `/`; `lib/rotas-editaveis.ts` lê a pasta `%5Fx` como a
+  rota `/_x` (e a do público é interna); o gate de marca cobra o `dataLayerReady` na `PaginaInicial`; e o
+  `check-editable` cobra o par da personalização (a página do público com `<EditablePublico>` e o `seguir` no
+  middleware) quando o layout a declara.
+- **A foundation (`lib/editable`)**: públicos e camada no documento, as operações com desfazer exato, a
+  projeção para o navegador como lista de permissão (campo novo fica no servidor até alguém o permitir), o
+  "Ver como" do editor e `EditablePublico`. Detalhe no README da foundation, seção "Personalização por público".
+
+- **Os sinais fracos, na borda**: `seguir` passa a `decidirPublico` o `referer` (site de outro host: Instagram,
+  Google… ou o endereço de outro site, com os subdomínios) e a região que a Vercel põe em todo pedido
+  (`x-vercel-ip-country`, `-country-region`, `-city`; só no Brasil, porque "SC" também é a Carolina do Sul). Sinal
+  fraco grava como fraco, o que guarda o sorteio do visitante, e não regrava quando só repete o gravado.
+- **A conta, no login** (`lib/publico-do-cliente.ts`): `app/api/account/signin` chama `publicoNoLogin` depois de
+  gravar o token. Ele lê as regras de cliente do documento (comprou o produto, assinatura ativa, estado do
+  endereço; elas não saem em `/api/unbox/publicos`), consulta só o que elas perguntam, com teto de 800 ms, e grava o
+  público na mesma resposta. Nunca derruba nem atrasa o login além do teto, e respeita o quiz respondido e a loja
+  padrão. `UnboxCustomerClient.produtosComprados` é a consulta mínima dos pedidos pagos.
+- **A loja padrão** (direito de oposição): a privacidade ganha "Versões da loja por interesse", que só aparece em
+  loja com públicos e lista os sinais que ELA usa, com o botão `<LojaPadrao/>`. Ver a loja padrão grava
+  `todos~<sorteio>~forte~recusa` por 365 dias, e nenhum sinal automático tira a pessoa de lá.
+- O `check-editable` cobra também `publicoNoLogin(` no login e `<LojaPadrao` na privacidade quando o layout declara
+  a personalização.
+- Numa instância fria, a borda espera a lista (até 400 ms) também para quem chega com uma escolha já gravada: sem
+  isso, quem volta com o cookie via Todos na primeira página e a versão na seguinte.
+
+- Publicar revalida também a LISTA dos públicos (`revalidatePath("/api/unbox/publicos")` com `/`): gerada no build
+  antes da primeira publicação, ela não entra no cache com a tag do conteúdo. Publicado, a versão vale em até 1
+  minuto (o que a borda leva para renovar a cópia em memória).
+- Texto editado na própria prévia do editor (`contentEditable`) remonta com o documento seguinte: antes, desfazer
+  ou trocar a visão deixava o texto velho na prévia até recarregar.
+
+Medido na loja gerada por este CLI (`next build && next start`, lendo um editor de teste): Todos sem cookie é
+a página de sempre, o link e a campanha gravam e servem a versão, o controle vê Todos, 50 pedidos paralelos
+alternando cookie sem mistura, e publicar revalida a home, as versões e a lista. A versão pesa 760 bytes a mais
+que Todos, comprimida (a camada e o caminho do bundle da rota). Nos sinais novos (29 de 29): Instagram, blog e
+região levam à versão certa e gravam fraco; forte gravado resiste a site e região; a loja padrão resiste a tudo; o
+login (contra uma API de parceiros falsa) grava o público da compra paga e da assinatura, não grava para pedido
+cancelado, respeita quiz e loja padrão, e com a API lenta (2,5 s) responde em 806 ms, sem público.
+
+Loja já gerada: a foundation nova (`lib/editable`) não muda nada sozinha; a personalização liga quando a loja
+tem as três peças e passa `personalizacao` ao provider (o `check-editable` diz o que falta).
 
 ### v0.22.1 — o WhatsApp do Brasil escrito sem o 55 ganha o 55
 

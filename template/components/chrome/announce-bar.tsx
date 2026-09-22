@@ -22,7 +22,7 @@ export function AnnounceBar() {
 
   return (
     <EditableSection id="faixa" kind="faixa-de-anuncio" container="chrome" fixed label="Faixa de anúncio do topo">
-      <div className="store-layout site-chrome hidden items-stretch bg-[var(--store-chrome-bg,#18181B)] text-[13px] font-semibold text-[var(--store-chrome-text,#ffffff)] md:flex">
+      <div className="store-layout site-chrome chrome-faixa hidden items-stretch bg-[var(--store-chrome-bg,#18181B)] text-[13px] font-semibold text-[var(--store-chrome-text,#ffffff)] md:flex">
         <div className="flex flex-1 items-center justify-center gap-2 px-4 py-[9px]">
           {/* a className era do ícone; vai para o invólucro do Icon (regra do `Editable.Icon`) */}
           <EditableIcon path="icone" label="Ícone da faixa" size={16} className="text-base text-[var(--store-cta,#D97706)]">

@@ -1,6 +1,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // OS DADOS DA LOJA (foundation 17): a empresa, as redes sociais, o favicon e a verificação do Google, que o
-// lojista preenche no editor (Configurações gerais e aba SEO), e os redirecionamentos manuais.
+// lojista preenche no editor (Configurações gerais: os blocos Dados da empresa, Redes sociais e SEO), e os
+// redirecionamentos manuais (o bloco Redirecionamentos).
 //
 // Quem mostra cada coisa:
 // · rodapé (components/site-footer.tsx): razão social, CNPJ, endereço e contato;

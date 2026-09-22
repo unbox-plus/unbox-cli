@@ -489,8 +489,11 @@ function arquivoDoImport(alvo, deArquivo, raiz) {
  * fatia da casca. A peneira vale só para a busca; os imports saem do texto cru.
  */
 const semComentarios = (fonte) => fonte.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:\w])\/\/[^\n]*/g, "$1");
-/** a fatia aparece na cadeia de imports desta rota? Devolve o arquivo onde ela está, ou null */
-function ondeEstaAFatia(entrada, raiz) {
+/**
+ * a fatia aparece na cadeia de imports desta rota? Devolve o arquivo onde ela está, ou null. `marca` troca o que
+ * se procura: a camada do público (`<EditablePublico>`, foundation 18) segue a MESMA cadeia que a fatia
+ */
+function ondeEstaAFatia(entrada, raiz, marca = /<\s*(EditableFatia|Editable\.Fatia)[\s>]/) {
   const vistos = new Set();
   const fila = [entrada];
   while (fila.length && vistos.size < 500) {
@@ -502,7 +505,7 @@ function ondeEstaAFatia(entrada, raiz) {
     if (arq.includes(`${path.sep}lib${path.sep}editable${path.sep}`)) continue;
     let fonte = "";
     try { fonte = readFileSync(arq, "utf8"); } catch { continue; }
-    if (/<\s*(EditableFatia|Editable\.Fatia)[\s>]/.test(semComentarios(fonte))) return path.relative(raiz, arq);
+    if (marca.test(semComentarios(fonte))) return path.relative(raiz, arq);
     for (const m of fonte.matchAll(/from\s+["']([^"']+)["']/g)) {
       const prox = arquivoDoImport(m[1], arq, raiz);
       if (prox) fila.push(prox);
@@ -591,6 +594,144 @@ if (prefixoIndevido.length) {
   console.log(`  Os prefixos ${PREFIXOS_DO_LOJISTA.join(", ")} (lidos de ${FONTE_DOS_PREFIXOS}) são dos containers que o lojista cria pelo editor; a loja trata qualquer container assim como página dele. Renomeie o container no código (ou marque a rota com doLojista, se ela for a casca das páginas do lojista).`);
 }
 
+// ── O PAR DA PERSONALIZAÇÃO (foundation 18) ──────────────────────────────────────────────────────────
+//
+// A declaração `personalizacao` no layout é o que LIBERA os públicos no editor. Ela só vale com as outras duas
+// peças: a página do público (`app/(loja)/%5Fpublico/[publico]`, que junta a camada com `<EditablePublico>`) e
+// o middleware que decide na borda (`seguir`, de lib/publicos-da-borda.ts). Faltando uma, o lojista montaria
+// versões da home que ninguém nunca veria (ou que viriam com o texto de Todos), sem erro nenhum na tela. E mais
+// duas: o login que confere as regras de cliente (`publicoNoLogin`), sem o qual elas nunca valeriam, e a loja
+// padrão na página de privacidade (`<LojaPadrao/>`), o direito de oposição de quem não quer a personalização.
+// Conferência de CÓDIGO-FONTE, como a do par do corte: só é cobrada quando o layout declara.
+const parDaPersonalizacao = { declarada: false, pagina: null, camada: null, semPagina: false, semCamada: false, semBorda: false, semLogin: false, semLojaPadrao: false, lps: [] };
+/** a rota do Next como expressão: `[x]` casa qualquer nome de segmento (`/paginas/[handle]` casa `/paginas/[endereco]`) */
+const padraoDaRota = (rota) => rota.split(/(\[[^\]]+\])/).map((p) => (p.startsWith("[") ? "\\[[^\\]]+\\]" : p.replace(/[.*+?^${}()|\\]/g, "\\$&"))).join("");
+if (RAIZ_DA_LOJA) {
+  const layoutDaLoja = readFileSync(path.join(RAIZ_DA_LOJA, "app", "layout.tsx"), "utf8");
+  if (/personalizacao=\{/.test(semComentarios(layoutDaLoja))) {
+    parDaPersonalizacao.declarada = true;
+    const achada = [...paginasDoApp(RAIZ_DA_LOJA)].find(([rota]) => /^\/(%5F|_)publico\/\[[^\]]+\]$/.test(rota));
+    if (!achada) parDaPersonalizacao.semPagina = true;
+    else {
+      parDaPersonalizacao.pagina = path.relative(RAIZ_DA_LOJA, achada[1]);
+      parDaPersonalizacao.camada = ondeEstaAFatia(achada[1], RAIZ_DA_LOJA, /<\s*EditablePublico[\s>]/);
+      if (!parDaPersonalizacao.camada) parDaPersonalizacao.semCamada = true;
+    }
+    let middleware = "";
+    for (const nome of ["middleware.ts", "middleware.js", path.join("src", "middleware.ts")]) {
+      try {
+        middleware = readFileSync(path.join(RAIZ_DA_LOJA, nome), "utf8");
+        break;
+      } catch {}
+    }
+    if (!/\bseguir\s*\(/.test(semComentarios(middleware))) parDaPersonalizacao.semBorda = true;
+    const fonte = (...partes) => {
+      try {
+        return semComentarios(readFileSync(path.join(RAIZ_DA_LOJA, ...partes), "utf8"));
+      } catch {
+        return "";
+      }
+    };
+    if (!/\bpublicoNoLogin\s*\(/.test(fonte("app", "api", "account", "signin", "route.ts"))) parDaPersonalizacao.semLogin = true;
+    if (!/<\s*LojaPadrao[\s/>]/.test(fonte("app", "(loja)", "privacidade", "page.tsx"))) parDaPersonalizacao.semLojaPadrao = true;
+    // AS LPS POR PÚBLICO (fase 2): cada container declarado além da home tem a página do público da rota que o
+    // renderiza (a rota sai de CONTAINERS_POR_ROTA): `oferta` → `/_publico/[publico]/oferta`, `pagina-*` →
+    // `/_publico/[publico]/paginas/[handle]`. Sem ela, a borda reescreveria a LP para uma rota que responde 404; e
+    // a página do público tem de JUNTAR a versão: a camada (`<EditablePublico>`) numa rota do código, o documento
+    // efetivo (`aplicarPublico`) numa página do lojista, que chega pela fatia.
+    // do arquivo CRU, e não por `semComentarios`: ela lê `pdp/*` num comentário de linha como começo de comentário
+    // de bloco e engole a tabela até o próximo `*/` (medido: sumiam a oferta e as páginas do lojista). Aqui o que se
+    // procura é o formato da entrada (`"rota": [...]`), que comentário nenhum da tabela tem.
+    const cru = (...partes) => {
+      try {
+        return readFileSync(path.join(RAIZ_DA_LOJA, ...partes), "utf8");
+      } catch {
+        return "";
+      }
+    };
+    const declarados = [...(cru("lib", "personalizacao.ts").match(/DECLARACAO_DA_PERSONALIZACAO[^=]*=\s*\{[^}]*?containers\s*:\s*\[([^\]]*)\]/)?.[1] ?? "").matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+    const corpoDaTabela = cru("lib", "rotas-editaveis.ts").match(/export const CONTAINERS_POR_ROTA[^=]*=\s*\{([\s\S]*?)\n\};/)?.[1] ?? "";
+    const tabela = [...corpoDaTabela.matchAll(/"([^"]+)"\s*:\s*\[([^\]]*)\]/g)].map((m) => ({ rota: m[1], containers: [...m[2].matchAll(/"([^"]+)"/g)].map((x) => x[1]) }));
+    const doApp = [...paginasDoApp(RAIZ_DA_LOJA)];
+    for (const container of declarados) {
+      if (container === "home") continue;
+      const rotas = tabela.filter((r) => r.containers.includes(container)).map((r) => r.rota);
+      if (!rotas.length) {
+        parDaPersonalizacao.lps.push({ container, rota: null, arquivo: null, junta: null });
+        continue;
+      }
+      for (const rota of rotas) {
+        const padrao = new RegExp(`^\\/(%5F|_)publico\\/\\[[^\\]]+\\]${padraoDaRota(rota)}$`);
+        const achadaLp = doApp.find(([r]) => padrao.test(r));
+        const doLojista = /^(pagina|artigo|colecao)-/.test(container);
+        const junta = achadaLp ? ondeEstaAFatia(achadaLp[1], RAIZ_DA_LOJA, doLojista ? /\baplicarPublico\s*\(/ : /<\s*EditablePublico[\s>]/) : null;
+        parDaPersonalizacao.lps.push({ container, rota, arquivo: achadaLp ? path.relative(RAIZ_DA_LOJA, achadaLp[1]) : null, junta, doLojista });
+      }
+    }
+  }
+}
+const lpsIncompletas = parDaPersonalizacao.lps.filter((l) => !l.rota || !l.arquivo || !l.junta);
+const personalizacaoIncompleta = parDaPersonalizacao.semPagina || parDaPersonalizacao.semCamada || parDaPersonalizacao.semBorda || parDaPersonalizacao.semLogin || parDaPersonalizacao.semLojaPadrao || lpsIncompletas.length > 0;
+
+// ── A LANDING PAGE SEM CABEÇALHO E SEM RODAPÉ (foundation 18) ───────────────────────────────────────────
+//
+// `ocultaChrome: true` na declaração das páginas (lib/paginas-do-lojista.ts) é o que faz o editor oferecer "Ocultar
+// cabeçalho" e "Ocultar rodapé" na ficha da página avulsa. Ela só vale com as três peças: a casca que MARCA o pedido
+// (`lp-sem-cabecalho`, `lp-sem-rodape`), o CSS que esconde (`body:has(...)` em app/globals.css, poupando a barra de
+// baixo do rodapé) e a `.rodape-barra` no rodapé (o que fica: o selo da Unbox e os dados da empresa). Faltando uma, o
+// interruptor da ficha não esconderia nada, ou esconderia o selo e os dados que a lei pede à vista. Conferência de
+// código-fonte, lida CRUA e sem as linhas que são só comentário (a peneira de comentários de bloco engole código a
+// partir de um `/*` escrito dentro de um comentário de linha).
+const soCodigo = (texto) => texto.split("\n").filter((l) => !/^\s*(\/\/|\/\*|\*)/.test(l)).join("\n");
+const lerDaLoja = (...partes) => {
+  try {
+    return RAIZ_DA_LOJA ? readFileSync(path.join(RAIZ_DA_LOJA, ...partes), "utf8") : "";
+  } catch {
+    return "";
+  }
+};
+/** o CSS que esconde e a barra do rodapé que fica: as duas peças que a página avulsa e a do código dividem */
+const faltasDoCssEDaBarra = () => {
+  const faltam = [];
+  const css = lerDaLoja("app", "globals.css");
+  const rodape = lerDaLoja("components", "site-footer.tsx");
+  if (!/:has\(\.lp-sem-cabecalho\)[^{]*header\.site-chrome/.test(css)) faltam.push("o app/globals.css não esconde o header.site-chrome com :has(.lp-sem-cabecalho)");
+  if (!/:has\(\.lp-sem-rodape\)[^{]*footer\.site-chrome\s*>\s*:not\(\.rodape-barra\)/.test(css)) faltam.push("o app/globals.css não esconde o rodapé poupando a .rodape-barra (footer.site-chrome > :not(.rodape-barra))");
+  if (!/className=["{`][^\n]*\brodape-barra\b/.test(rodape) || !rodape.includes("<PoweredByUnbox")) faltam.push("o rodapé (components/site-footer.tsx) não marca a barra de baixo com .rodape-barra");
+  return faltam;
+};
+const lpSemChrome = { declarada: /^\s*ocultaChrome\s*:\s*true\b/m.test(soCodigo(lerDaLoja("lib", "paginas-do-lojista.ts"))), faltam: [] };
+if (lpSemChrome.declarada) {
+  const casca = soCodigo(lerDaLoja("components", "paginas", "casca-de-pagina.tsx"));
+  if (!/\blp-sem-cabecalho\b/.test(casca) || !/\blp-sem-rodape\b/.test(casca)) lpSemChrome.faltam.push("a casca (components/paginas/casca-de-pagina.tsx) não marca lp-sem-cabecalho e lp-sem-rodape");
+  lpSemChrome.faltam.push(...faltasDoCssEDaBarra());
+}
+
+// ── A PÁGINA DO CÓDIGO SEM CABEÇALHO E SEM RODAPÉ (foundation 18) ───────────────────────────────────────
+//
+// `ocultaChromeEm` no layout (a lista mora em lib/chrome-das-paginas.ts) liga os dois interruptores na aba Seções do
+// editor para uma página do código (a `/oferta`), cujo pedido mora no estado do container dela. Cada container
+// declarado precisa da rota que o renderiza (em CONTAINERS_POR_ROTA) com `<PedidoDeChrome container="…"/>` na cadeia
+// de imports, e do mesmo CSS e da mesma barra do rodapé da página avulsa. Faltando, o interruptor gravaria e a
+// página continuaria com cabeçalho (ou esconderia o selo e os dados da empresa).
+const doCodigoSemChrome = { declarada: false, paginas: [], faltam: [] };
+if (RAIZ_DA_LOJA && /ocultaChromeEm=\{/.test(semComentarios(lerDaLoja("app", "layout.tsx")))) {
+  doCodigoSemChrome.declarada = true;
+  const containers = [...soCodigo(lerDaLoja("lib", "chrome-das-paginas.ts")).matchAll(/container:\s*["']([a-z][a-z0-9-]*)["']/g)].map((m) => m[1]);
+  if (!containers.length) doCodigoSemChrome.faltam.push("a lista das páginas (OCULTA_CHROME_EM, em lib/chrome-das-paginas.ts), que o layout passa em ocultaChromeEm");
+  const tabela = lerDaLoja("lib", "rotas-editaveis.ts");
+  const paginas = paginasDoApp(RAIZ_DA_LOJA);
+  for (const container of containers) {
+    const rota = [...tabela.matchAll(/"(\/[^"]*)"\s*:\s*\[([^\]]*)\]/g)].find((m) => m[2].split(",").map((x) => x.trim().replace(/^["']|["']$/g, "")).includes(container))?.[1] ?? null;
+    const arquivo = rota ? paginas.get(rota) ?? null : null;
+    const marca = new RegExp(`<\\s*PedidoDeChrome[^>]*container=["']${container}["']`);
+    const onde = arquivo ? ondeEstaAFatia(arquivo, RAIZ_DA_LOJA, marca) : null;
+    doCodigoSemChrome.paginas.push({ container, rota, arquivo: arquivo ? path.relative(RAIZ_DA_LOJA, arquivo) : null, onde });
+  }
+  doCodigoSemChrome.faltam.push(...faltasDoCssEDaBarra());
+}
+const doCodigoIncompleto = doCodigoSemChrome.declarada && (doCodigoSemChrome.faltam.length > 0 || doCodigoSemChrome.paginas.some((p) => !p.onde));
+
 console.log("\nO PAR DO CORTE DO DOCUMENTO (o layout tira as páginas do lojista; a casca devolve a fatia):");
 if (!parDoCorte.conferido || parDoCorte.motivo) {
   console.log(`  não conferido · ${parDoCorte.motivo}`);
@@ -602,6 +743,43 @@ if (!parDoCorte.conferido || parDoCorte.motivo) {
     console.log("  Sem a fatia, a página vai ao ar com o literal do código no lugar do texto do lojista: título, resumo, imagem e corpo somem do corpo da página, sem erro, sem log e sem 500. E o <head> continua com o texto dele, porque metadados e dado estruturado saem do servidor, que lê o publicado inteiro.");
     console.log("  Envolva o que a rota renderiza em <EditableFatia fatia={fatiaDoDocumento(doc, alvos)}> (no template isso mora nas metades de servidor: components/paginas/pagina-do-lojista.tsx e colecao-do-lojista.tsx), ou devolva o documento inteiro ao provider no app/layout.tsx.");
   }
+}
+
+console.log("\nA PERSONALIZAÇÃO POR PÚBLICO (a declaração no layout, a página do público e a borda):");
+if (!parDaPersonalizacao.declarada) console.log("  não declarada · o app/layout.tsx não passa `personalizacao` ao provider: o editor não oferece públicos nesta loja");
+else {
+  if (parDaPersonalizacao.semPagina) console.log("  SEM A PÁGINA   app/(loja)/%5Fpublico/[publico]/page.tsx não existe: a borda reescreveria para uma rota que responde 404");
+  else if (parDaPersonalizacao.semCamada) console.log(`  SEM A CAMADA   ${parDaPersonalizacao.pagina} e nada que ela importa renderiza <EditablePublico>: a versão sairia com o texto de Todos`);
+  else console.log(`  ok             camada em ${parDaPersonalizacao.camada}`);
+  if (parDaPersonalizacao.semBorda) console.log("  SEM A BORDA    o middleware.ts não chama seguir(req, event) (lib/publicos-da-borda.ts): nenhum visitante cairia numa versão");
+  else console.log("  ok             a borda decide no middleware (seguir)");
+  if (parDaPersonalizacao.semLogin) console.log("  SEM O LOGIN    app/api/account/signin/route.ts não chama publicoNoLogin (lib/publico-do-cliente.ts): as regras de cliente nunca valeriam");
+  else console.log("  ok             o login confere as regras de cliente (publicoNoLogin)");
+  if (parDaPersonalizacao.semLojaPadrao) console.log("  SEM A OPOSIÇÃO a página de privacidade não oferece <LojaPadrao/>: quem não quer a personalização não teria como sair dela");
+  else console.log("  ok             a privacidade oferece a loja padrão (<LojaPadrao/>)");
+  for (const l of parDaPersonalizacao.lps) {
+    if (!l.rota) console.log(`  SEM A ROTA     a loja declara «${l.container}» e nenhuma rota de CONTAINERS_POR_ROTA (lib/rotas-editaveis.ts) o renderiza: o editor ofereceria versão de uma página que não existe`);
+    else if (!l.arquivo) console.log(`  SEM A VERSÃO   ${l.rota}: a loja declara «${l.container}» e não tem app/(loja)/%5Fpublico/[publico]${l.rota}/page.tsx: a borda reescreveria a página para uma rota que responde 404`);
+    else if (!l.junta) console.log(`  SEM A CAMADA   ${l.arquivo} e nada que ela importa junta a versão (${l.doLojista ? "aplicarPublico, na página do lojista" : "<EditablePublico>"}): ela sairia com o texto de Todos`);
+    else console.log(`  ok             ${l.rota.padEnd(18)} versão em ${l.arquivo}`);
+  }
+}
+
+console.log("\nA LANDING PAGE SEM CABEÇALHO E SEM RODAPÉ (a declaração, a casca, o CSS e a barra do rodapé):");
+if (!lpSemChrome.declarada) console.log("  não declarada · lib/paginas-do-lojista.ts não diz ocultaChrome: true: o editor não oferece os dois interruptores");
+else if (lpSemChrome.faltam.length) for (const f of lpSemChrome.faltam) console.log(`  FALTA          ${f}`);
+else console.log("  ok             a casca marca, o CSS esconde e a barra do rodapé (selo e dados da empresa) fica");
+
+console.log("\nA PÁGINA DO CÓDIGO SEM CABEÇALHO E SEM RODAPÉ (a declaração no layout, a marca na página, o CSS e a barra):");
+if (!doCodigoSemChrome.declarada) console.log("  não declarada · o app/layout.tsx não passa ocultaChromeEm: o editor não oferece os interruptores nas páginas do código");
+else {
+  for (const p of doCodigoSemChrome.paginas) {
+    if (!p.rota) console.log(`  SEM A ROTA     a loja declara «${p.container}» e nenhuma rota de CONTAINERS_POR_ROTA (lib/rotas-editaveis.ts) o renderiza`);
+    else if (!p.arquivo) console.log(`  SEM A PÁGINA   ${p.rota}: não achei o page.tsx dela em app/`);
+    else if (!p.onde) console.log(`  SEM A MARCA    ${p.arquivo} e nada que ela importa renderiza <PedidoDeChrome container="${p.container}"/>: o interruptor gravaria e a página continuaria igual`);
+    else console.log(`  ok             ${p.rota.padEnd(18)} marca em ${p.onde}`);
+  }
+  for (const f of doCodigoSemChrome.faltam) console.log(`  FALTA          ${f}`);
 }
 
 if (medidas.length) {
@@ -633,6 +811,7 @@ if (args.json) {
     moldesNaoMedidos,
     prefixoReservadoEmRotaDoCodigo: prefixoIndevido,
     parDoCorteDoDocumento: parDoCorte,
+    parDaPersonalizacao,
     paginas: resultados.map((r) => ({
       rota: r.rota,
       caminho: r.caminho,
@@ -667,6 +846,9 @@ if (divergentes.length) {
 }
 if (semDeclaracao.length) reprovacoes.push(`rota(s) listada(s) pela loja sem declaração de containers: ${semDeclaracao.map((r) => r.rota).join(", ")}`);
 if (prefixoIndevido.length) reprovacoes.push(`container do código com prefixo reservado às páginas do lojista em ${prefixoIndevido.map((x) => `${x.rota} (${x.containers.join(", ")})`).join(", ")}`);
+if (personalizacaoIncompleta) reprovacoes.push(`a loja declara a personalização por público sem ${[parDaPersonalizacao.semPagina ? "a página do público" : "", parDaPersonalizacao.semCamada ? "a camada (<EditablePublico>) na página do público" : "", parDaPersonalizacao.semBorda ? "a decisão no middleware (seguir)" : "", parDaPersonalizacao.semLogin ? "o login que confere as regras de cliente (publicoNoLogin)" : "", parDaPersonalizacao.semLojaPadrao ? "a loja padrão na privacidade (<LojaPadrao/>)" : "", lpsIncompletas.length ? `a página do público de ${lpsIncompletas.map((l) => l.rota ?? `«${l.container}»`).join(", ")}` : ""].filter(Boolean).join(" e ")}: o editor ofereceria versões que ninguém veria`);
+if (doCodigoIncompleto) reprovacoes.push(`a loja declara ocultaChromeEm sem ${[...doCodigoSemChrome.paginas.filter((p) => !p.onde).map((p) => `a marca (<PedidoDeChrome container="${p.container}"/>) em ${p.rota ?? `«${p.container}»`}`), ...doCodigoSemChrome.faltam].join("; ")}: o interruptor da aba Seções não esconderia nada (ou esconderia o selo e os dados da empresa)`);
+if (lpSemChrome.faltam.length) reprovacoes.push(`a loja declara ocultaChrome sem ${lpSemChrome.faltam.length} peça(s): ${lpSemChrome.faltam.join("; ")}: o interruptor da ficha não esconderia nada (ou esconderia o selo e os dados da empresa)`);
 if (parDoCorte.semFatia.length) reprovacoes.push(`rota(s) do lojista sem a fatia do documento: ${parDoCorte.semFatia.map((x) => `${x.rota} (${x.arquivo})`).join(", ")}: a página vai ao ar com o literal do código no lugar do texto do lojista`);
 
 // o par não conferido é NÃO RODOU pelo mesmo motivo dos outros: gate que varre o vazio e diz "limpo"

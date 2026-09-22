@@ -48,5 +48,8 @@ export function declaracaoDoLojista(reservados: readonly string[]): ManifestPagi
     prefixoDePaginas: PREFIXO_DE_PAGINAS,
     colecoesDoCodigo: COLECOES_DO_CODIGO.map((c) => ({ handle: c.handle, titulo: c.titulo })),
     reservados: [...reservados],
+    // a casca da página avulsa marca "sem cabeçalho" / "sem rodapé" e o app/globals.css esconde (landing page): só
+    // declare com as três peças no lugar (a casca, as regras do CSS e a `.rodape-barra` no rodapé); o gate confere
+    ocultaChrome: true,
   };
 }

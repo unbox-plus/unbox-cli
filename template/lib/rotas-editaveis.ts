@@ -70,7 +70,7 @@ export function soChrome(rota: string): boolean {
 export const CONTAINERS_POR_ROTA: Readonly<Record<string, readonly string[]>> = {
   "/": ["home"], // components/home/combos-home.tsx: a home é a dona do container (manda na ordem, oculta e copia)
   "/produtos": ["catalogo"], // components/catalog/catalog-client.tsx: /produtos é a dona do container (manda na ordem)
-  "/categoria/[tagSlug]": ["catalogo"], // a categoria reaproveita o catálogo com layout={false}: mesma copy, ordem editada em /produtos
+  "/categoria/[tagSlug]": ["catalogo"], // a categoria espelha o catálogo (layout="espelho"): mesma copy e mesma lista, editada em /produtos
   "/produto/[productSlug]": ["produto"], // components/product/pdp/*: um molde para todos os produtos
   "/oferta": ["oferta"], // app/(loja)/oferta/page.tsx: a landing tem container PRÓPRIO (mesmos componentes da home, copy própria)
   "/busca": [], // só o chrome: campo de busca e resultados do catálogo não viram primitivo (§8)
@@ -97,7 +97,10 @@ export const CONTAINERS_POR_ROTA: Readonly<Record<string, readonly string[]>> = 
 // Hoje ela vive fora de `app/(loja)/` e a varredura já não a acha. A lista existe assim mesmo porque
 // o robots e a varredura mudam de mão: no dia em que alguém mover a rota para dentro do grupo, ela
 // continua fora da lista, em vez de aparecer no seletor sem ninguém entender por quê.
-export const ROTAS_INTERNAS: readonly string[] = ["/previa-do-editor"];
+// `/_publico` (foundation 18): a versão de cada público (da home, da oferta e das páginas avulsas), que só existe
+// como destino da reescrita do middleware. Não é página da loja, não vai para o sitemap, e o conteúdo dela é o da
+// página de Todos com a versão do público por cima.
+export const ROTAS_INTERNAS: readonly string[] = ["/previa-do-editor", "/_publico"];
 
 /** `rota` é uma rota interna (ferramenta), e não uma página da loja. Prefixo por segmento, como o robots. */
 export function rotaInterna(rota: string): boolean {
@@ -145,7 +148,10 @@ function varrer(dir: string, prefixo: string, saida: string[]) {
       if (nome.startsWith("_") || nome.startsWith("@")) continue;
       const grupo = /^\(.+\)$/.test(nome); // grupo de rotas: não vira segmento de URL
       if (!grupo && nome.includes("(")) continue;
-      varrer(path.join(dir, nome), grupo ? prefixo : `${prefixo}/${nome}`, saida);
+      // `%5Fx` é como se escreve uma pasta de ENDEREÇO que começa com `_` (a pasta com `_` é privada): o Next
+      // serve `/_x`, e é esse o nome da rota (a do público, foundation 18, é `/_publico/[publico]`)
+      const segmento = nome.replace(/^%5F/i, "_");
+      varrer(path.join(dir, nome), grupo ? prefixo : `${prefixo}/${segmento}`, saida);
     } else if (ARQUIVO_DE_PAGINA.test(item.name)) {
       saida.push(prefixo || "/");
     }

@@ -8,6 +8,20 @@ import { conteudoPublicadoAgora } from "@/lib/editable/server";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * AS VERSÕES POR PÚBLICO que um caminho publicado alcança (foundation 18). Cada versão é outra página em cache da
+ * mesma rota: `/` tem `/_publico/[publico]`, `/oferta` tem `/_publico/[publico]/oferta` e cada página avulsa tem
+ * `/_publico/[publico]/paginas/[handle]`. Publicar uma sem a versão dela deixaria o público vendo a versão antiga
+ * até o ISR vencer. `/` leva as três porque é o caminho que o editor manda quando só os PÚBLICOS mudaram (um
+ * público excluído, renomeado ou recriado vale em todas as páginas dele).
+ */
+function versoesDoCaminho(p: string): string[] {
+  if (p === "/") return ["/_publico/[publico]", "/_publico/[publico]/oferta", "/_publico/[publico]/paginas/[handle]"];
+  if (p === "/oferta") return ["/_publico/[publico]/oferta"];
+  if (p === "/paginas/[handle]" || p.startsWith("/paginas/")) return ["/_publico/[publico]/paginas/[handle]"];
+  return [];
+}
+
 export async function POST(req: Request) {
   const secret = new URL(req.url).searchParams.get("secret") ?? req.headers.get("x-revalidate-secret");
   const viaSecret = Boolean(serverEnv.revalidateSecret) && secret === serverEnv.revalidateSecret;
@@ -31,10 +45,23 @@ export async function POST(req: Request) {
   // descobre que aquela página continua no ar com o conteúdo antigo (ver lib/recibo.ts do editor).
   const revalidados: string[] = [];
   const falhas: string[] = [];
+  // A LISTA DOS PÚBLICOS (que a borda usa para decidir, foundation 18) é outra rota em cache, e ela muda com mais
+  // coisa do que os públicos: a primeira troca de um público numa LP põe a LP nas `versoes` dele, e a página feita
+  // para um público entra em `paginas` quando fica visível. Revalidada em TODA publicação do editor (é uma leitura
+  // barata). A tag do conteúdo não basta: gerada no build de uma loja que ainda não tinha publicado nada, a leitura
+  // deu 404 e não entrou no cache com a tag (medido: a lista ficou vazia depois de publicar)
+  if (viaEditor) {
+    try {
+      revalidatePath("/api/unbox/publicos");
+    } catch (err) {
+      falhas.push(`/api/unbox/publicos: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
   for (const p of paths) {
     try {
       if (p.includes("[")) revalidatePath(p, "page");
       else revalidatePath(p);
+      for (const v of versoesDoCaminho(p)) revalidatePath(v, "page");
       revalidados.push(p);
     } catch (err) {
       falhas.push(`${p}: ${err instanceof Error ? err.message : String(err)}`);

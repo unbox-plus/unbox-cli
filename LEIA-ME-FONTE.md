@@ -1,4 +1,4 @@
-# create-unbox-store — código-fonte (v0.23.0)
+# create-unbox-store — código-fonte (v0.25.0)
 
 Este repositório é o **repositório de trabalho**, não o artefato de uso. Quem só quer gerar loja
 roda o pacote publicado: `npx --package=@unbox-plus/cli create-unbox-store`.
@@ -19,7 +19,7 @@ npm pack             # gera o tarball (o prepack roda o gate de neutralidade ant
 | `tools/` | ferramentas do nosso lado, que NÃO vão para a loja gerada |
 
 E um repositório a mais, fora deste: **[`unbox-sdk`](https://github.com/unbox-plus/unbox-sdk)**, o
-pacote `@unbox-plus/sdk`, que é toda a conversa com a API de parceiros. Da v0.23.0 em diante o
+pacote `@unbox-plus/sdk`, que é toda a conversa com a API de parceiros. Da v0.25.0 em diante o
 template não tem mais `lib/unbox/*.ts`: ele declara o pacote como dependência e amarra o ambiente
 a ele em `lib/unbox.ts`, um arquivo só. É o que faz a atualização de uma loja no ar caber num bump
 de versão do `package.json` dela.

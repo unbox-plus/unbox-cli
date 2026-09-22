@@ -97,12 +97,12 @@ Referência do que cada um cobriu, caso precise entender/estender alguma parte e
 |---|--------|----------------------|
 | 00 | **Scaffold** | `package.json`, `next.config.ts`, `app/globals.css`, `lib/unbox.ts`, `lib/config.ts` |
 | 01 | **Layout** | `app/layout.tsx`, `components/site-header.tsx`, `site-footer.tsx`, `mobile-nav.tsx` |
-| 02 | **Homepage** | `app/(loja)/page.tsx`, `components/home/*.tsx` |
+| 02 | **Homepage** | `components/home/pagina-inicial.tsx` (o corpo, que recebe o documento), `components/home/*.tsx`; `app/(loja)/page.tsx` e a versão por público (`app/(loja)/%5Fpublico/[publico]`) são cascas |
 | 03 | **Catalog** | `app/(loja)/produtos/page.tsx`, `app/(loja)/categoria/[tagSlug]/page.tsx`, `app/(loja)/busca/page.tsx`, `components/catalog/*.tsx` |
 | 04 | **PDP** | `app/(loja)/produto/[productSlug]/page.tsx`, `components/product/pdp/*.tsx` |
 | 05 | **Cart** | `app/(loja)/carrinho/page.tsx`, `components/cart/*.tsx`, `app/api/cart/**` (inclui link de recuperação `?id=&token=`) |
 | 06 | **Checkout** | `app/(loja)/checkout/page.tsx`, `components/checkout/checkout-client.tsx`, `app/api/checkout/**` |
-| 07 | **Auth** | `app/(loja)/conta/entrar/page.tsx`, `lib/session.ts`, `app/api/account/{otp,signin,signout}/route.ts` |
+| 07 | **Auth** | `app/(loja)/conta/entrar/page.tsx`, `lib/session.ts`, `app/api/account/{otp,signin,signout}/route.ts` (o signin chama `publicoNoLogin`, de `lib/publico-do-cliente.ts`: o público da conta, com teto de 800 ms; não remova) |
 | 08 | **Customer** | `app/(loja)/conta/**`, `components/account/*.tsx`, `lib/customer-session.ts` |
 | 09 | **Promotions** | `lib/enrichment/combos.ts` (kits), `components/home/combos-*.tsx`, **infra pronta, mas `COMBOS = []` por padrão**, precisa popular |
 | 10 | **Feedback/UX** | `sonner` (toasts), `friendlyError`/`cartEventLabel` do `@unbox-plus/sdk`, `app/error.tsx`, `app/not-found.tsx` |

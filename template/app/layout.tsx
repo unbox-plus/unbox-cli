@@ -28,6 +28,14 @@ import { ROTAS_COM_SEO, SUFIXO_DO_TITULO, TITULO_DA_LOJA } from "@/lib/seo-das-r
 // DADOS DA LOJA (foundation 17): favicon e verificação do Google aqui; empresa e redes no rodapé, nos termos,
 // na privacidade e no dado estruturado. A declaração libera os blocos no editor.
 import { DECLARACAO_DOS_DADOS_DA_LOJA, iconesDaLoja, lerDadosDaLoja } from "@/lib/dados-da-loja";
+// PERSONALIZAÇÃO POR PÚBLICO (foundation 18): a declaração libera os públicos no editor; `<PontoDePublico/>`
+// ouve o evento dos apps (o quiz); a medição empurra o público e o grupo para o dataLayer antes do GTM.
+import { DECLARACAO_DA_PERSONALIZACAO } from "@/lib/personalizacao";
+// CABEÇALHO E RODAPÉ DAS PÁGINAS DO CÓDIGO (foundation 18): a /oferta marca o pedido; a declaração liga os
+// interruptores no editor
+import { OCULTA_CHROME_EM } from "@/lib/chrome-das-paginas";
+import { PontoDePublico } from "@/lib/editable/publico";
+import { scriptDaMedicaoDoPublico } from "@/lib/editable/document";
 
 // UNBOX-FONTS-BEGIN (bloco reescrito pelo create-unbox-store conforme o estilo escolhido — não renomear os markers)
 import { Geist_Mono, Poppins, Plus_Jakarta_Sans } from "next/font/google";
@@ -75,7 +83,7 @@ export async function generateMetadata(): Promise<Metadata> {
   // Router). Com ícone enviado, a lista substitui o arquivo (ver `iconesDaLoja`). Nunca apontar para o
   // logo horizontal: ele fica ilegível na aba.
   ...(icons ? { icons } : {}),
-  // a tag que prova ao Google Search Console que a loja é de quem pediu, colada pelo lojista na aba SEO
+  // a tag que prova ao Google Search Console que a loja é de quem pediu, colada pelo lojista no bloco SEO (Configurações gerais)
   ...(seo?.verificacaoGoogle ? { verification: { google: seo.verificacaoGoogle } } : {}),
   };
 }
@@ -92,9 +100,14 @@ export const viewport: Viewport = {
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const conteudo = await getPublishedContent();
+  const medicaoDoPublico = scriptDaMedicaoDoPublico(conteudo);
   return (
     <html lang="pt-BR">
       <body className={`${sans.variable} ${geistMono.variable} ${displayFont.variable} antialiased`}>
+        {/* A MEDIÇÃO DOS PÚBLICOS, antes de tudo (e antes do GTM do `<Rastreio>`): o público, o grupo (versão ou
+            controle) e a origem vão para o dataLayer como dimensões de todo evento desta página. Sem públicos
+            publicados, nada sai aqui. Nunca vai para Meta, TikTok nem CAPI: fica no dataLayer. */}
+        {medicaoDoPublico ? <script dangerouslySetInnerHTML={{ __html: medicaoDoPublico }} /> : null}
         {/* Header/rodapé/nav da loja NÃO ficam aqui: moram em app/(loja)/layout.tsx (route
             group). Página criada fora de (loja) — acesso, erro, landing — nasce sem chrome. */}
         {/* SÓ O QUE TODA PÁGINA USA. O provider é componente de CLIENTE, então o documento que ele
@@ -103,7 +116,8 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
             página do lojista é 100% documento, e sem este corte cem artigos publicados viajariam
             junto com a página de um produto. Quem renderiza uma página do lojista acrescenta a fatia
             dela na própria rota (`<EditableFatia>`). */}
-        <EditableProvider doc={documentoSemPaginas(conteudo)} shop={STORE_SLUG} tokens={EDITABLE_TOKENS} editorOrigin={EDITOR_ORIGIN || undefined} apps={presencaNoAmbiente(process.env, { unboxGtmId: UNBOX_GTM_ID })} paginasDoLojista={declaracaoDoLojista(reservadosDaLoja())} rotasComSeo={ROTAS_COM_SEO} dadosDaLoja={DECLARACAO_DOS_DADOS_DA_LOJA}>
+        <EditableProvider doc={documentoSemPaginas(conteudo)} shop={STORE_SLUG} tokens={EDITABLE_TOKENS} editorOrigin={EDITOR_ORIGIN || undefined} apps={presencaNoAmbiente(process.env, { unboxGtmId: UNBOX_GTM_ID })} paginasDoLojista={declaracaoDoLojista(reservadosDaLoja())} rotasComSeo={ROTAS_COM_SEO} ocultaChromeEm={OCULTA_CHROME_EM} dadosDaLoja={DECLARACAO_DOS_DADOS_DA_LOJA} personalizacao={DECLARACAO_DA_PERSONALIZACAO}>
+          <PontoDePublico />
           {children}
         </EditableProvider>
         <Toaster position="top-center" />

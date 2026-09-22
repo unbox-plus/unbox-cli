@@ -4,6 +4,7 @@ import { setCustomerToken } from "@/lib/session";
 import { rateLimit, clientIp, LIMITS } from "@/lib/ratelimit";
 import { otpSchema } from "@/lib/schemas";
 import { ok, fail, failFrom } from "@/lib/api";
+import { publicoNoLogin } from "@/lib/publico-do-cliente";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,8 @@ export async function POST(req: Request) {
     );
     if (!accessToken) return fail("Código ou credenciais inválidos.", 401);
     await setCustomerToken(accessToken);
+    // o público da conta (compra, assinatura, estado do endereço), com teto de 800 ms e sem nunca derrubar o login
+    await publicoNoLogin(accessToken);
     return ok({ ok: true, firstAccess });
   } catch (e) {
     return failFrom(e, 401);
