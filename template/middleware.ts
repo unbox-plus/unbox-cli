@@ -20,8 +20,12 @@
 // (e o valor antigo não fica escrito nem em comentário, que viaja no pacote igual a código).
 //
 // O cookie guarda o SHA-256 da chave, nunca a chave em si.
-import { NextResponse, type NextRequest } from "next/server";
+import { NextResponse, type NextFetchEvent, type NextRequest } from "next/server";
 import { verifyEditorToken } from "@/lib/editable/verify";
+// PERSONALIZAÇÃO POR PÚBLICO (foundation 18): a versão da home de cada público é escolhida aqui, antes do
+// cache. Toda saída que libera a loja passa por `seguir`, que devolve o `next()` de sempre ou a reescrita
+// para a página do público. Ver lib/publicos-da-borda.ts.
+import { rotaInternaDoPublico, seguir } from "@/lib/publicos-da-borda";
 import { COOKIE_DA_PREVIA, PARAM_DO_TOKEN, VALIDADE_DO_COOKIE_DA_PREVIA } from "@/lib/previa";
 
 const LOJA = "minhaloja"; // o CLI troca pelo slug da loja no scaffold
@@ -141,16 +145,19 @@ async function comCookieDaPrevia(req: NextRequest): Promise<NextResponse | null>
   return res;
 }
 
-export async function middleware(req: NextRequest) {
+export async function middleware(req: NextRequest, event: NextFetchEvent) {
+  // a página de um público só existe como destino da reescrita: acesso direto é 404, em todo host
+  if (rotaInternaDoPublico(req.nextUrl.pathname)) return new NextResponse(null, { status: 404 });
+
   const comPonteiro = urlDoCheckoutComPonteiro(req);
   if (comPonteiro) return comPonteiro;
 
   const daPrevia = await comCookieDaPrevia(req);
   if (daPrevia) return daPrevia;
 
-  if (process.env.PREVIEW_DISABLED === "1") return NextResponse.next();
+  if (process.env.PREVIEW_DISABLED === "1") return seguir(req, event);
   if (process.env.PREVIEW_FORCE !== "1" && !hostDePreview(req.headers.get("host") ?? "")) {
-    return NextResponse.next();
+    return seguir(req, event);
   }
 
   const { pathname } = req.nextUrl;
@@ -180,11 +187,14 @@ export async function middleware(req: NextRequest) {
   // cobertura, nenhum dos dois com cookie da porta. A rota é pública por contrato e só lê.
   // (/api/unbox/vitrine NÃO entra aqui: quem a chama é a própria página da loja, dentro do iframe do
   // editor, e ela já carrega o cookie que o token de prévia grava logo abaixo.)
+  // /api/unbox/publicos: a lista dos públicos (nome e regras, nunca a descrição), que quem busca é ESTE
+  // middleware, sem cookie da porta, e os apps da loja. Pública por contrato, como a de páginas.
   if (
     pathname === "/api/webhooks/unbox" ||
     pathname === "/api/revalidate" ||
     pathname === "/api/unbox/catalogo" ||
-    pathname === "/api/unbox/paginas"
+    pathname === "/api/unbox/paginas" ||
+    pathname === "/api/unbox/publicos"
   ) return NextResponse.next();
 
   // PRÉVIA DO EDITOR DA UNBOX: a loja abre dentro do iframe do editor com um token assinado por ele
@@ -223,7 +233,7 @@ export async function middleware(req: NextRequest) {
 
   const esperado = await tokenDaSenha(chaveDoCookie());
   if (req.cookies.get(COOKIE)?.value === esperado) {
-    return semCache(NextResponse.next());
+    return semCache(await seguir(req, event));
   }
 
   const url = req.nextUrl.clone();

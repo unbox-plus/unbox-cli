@@ -74,7 +74,9 @@ function useRegistration<T extends EditableValue>(path: string, type: EditableTy
   // é com ele que o primitivo consegue DIZER "o que você colou foi recusado" em vez de mostrar o
   // conteúdo do código calado — trocar em silêncio é o que a casa não faz.
   const guardado = semContainer ? undefined : ctx.doc?.values[full];
-  return { value, ref, attrs, editing, full, style, guardado };
+  // anda quando a edição na PRÓPRIA prévia mexeu no DOM deste caminho por fora do React (ver `geracaoDoInline`)
+  const geracao = ctx.geracaoDoInline?.[full] ?? 0;
+  return { value, ref, attrs, editing, full, style, guardado, geracao };
 }
 
 /** Valor editável que não vira elemento (cor de fundo, href de um botão, flag). */
@@ -93,7 +95,7 @@ type TextProps = {
 } & Omit<React.HTMLAttributes<HTMLElement>, "children">;
 
 function Text({ path, fallback, label, as = "span", multiline = false, style: styleProp, ...rest }: TextProps) {
-  const { value, ref, attrs, style } = useRegistration(path, "text", fallback, label);
+  const { value, ref, attrs, style, geracao } = useRegistration(path, "text", fallback, label);
   const Tag = as as React.ElementType;
   const estilo = style || styleProp ? { ...(styleProp ?? {}), ...(style ?? {}) } : undefined;
   const content = multiline
@@ -104,8 +106,10 @@ function Text({ path, fallback, label, as = "span", multiline = false, style: st
         </React.Fragment>
       ))
     : value;
+  // `key` = a geração da edição na prévia: depois que o `contentEditable` reescreveu este texto por fora, o
+  // elemento remonta com o valor novo, e o React volta a mandar no que está na tela
   return (
-    <Tag ref={ref} {...attrs} {...rest} style={estilo}>
+    <Tag key={geracao} ref={ref} {...attrs} {...rest} style={estilo}>
       {content}
     </Tag>
   );

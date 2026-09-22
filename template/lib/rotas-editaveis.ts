@@ -97,7 +97,9 @@ export const CONTAINERS_POR_ROTA: Readonly<Record<string, readonly string[]>> = 
 // Hoje ela vive fora de `app/(loja)/` e a varredura já não a acha. A lista existe assim mesmo porque
 // o robots e a varredura mudam de mão: no dia em que alguém mover a rota para dentro do grupo, ela
 // continua fora da lista, em vez de aparecer no seletor sem ninguém entender por quê.
-export const ROTAS_INTERNAS: readonly string[] = ["/previa-do-editor"];
+// `/_publico` (foundation 18): a versão da home de cada público, que só existe como destino da reescrita do
+// middleware. Não é página da loja, não vai para o sitemap, e o conteúdo dela é o da home.
+export const ROTAS_INTERNAS: readonly string[] = ["/previa-do-editor", "/_publico"];
 
 /** `rota` é uma rota interna (ferramenta), e não uma página da loja. Prefixo por segmento, como o robots. */
 export function rotaInterna(rota: string): boolean {
@@ -145,7 +147,10 @@ function varrer(dir: string, prefixo: string, saida: string[]) {
       if (nome.startsWith("_") || nome.startsWith("@")) continue;
       const grupo = /^\(.+\)$/.test(nome); // grupo de rotas: não vira segmento de URL
       if (!grupo && nome.includes("(")) continue;
-      varrer(path.join(dir, nome), grupo ? prefixo : `${prefixo}/${nome}`, saida);
+      // `%5Fx` é como se escreve uma pasta de ENDEREÇO que começa com `_` (a pasta com `_` é privada): o Next
+      // serve `/_x`, e é esse o nome da rota (a do público, foundation 18, é `/_publico/[publico]`)
+      const segmento = nome.replace(/^%5F/i, "_");
+      varrer(path.join(dir, nome), grupo ? prefixo : `${prefixo}/${segmento}`, saida);
     } else if (ARQUIVO_DE_PAGINA.test(item.name)) {
       saida.push(prefixo || "/");
     }

@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { lerDadosDaLoja, enderecoEmUmaLinha } from "@/lib/dados-da-loja";
 import { formatarCnpj } from "@/lib/editable/document";
+import { getPublishedContent } from "@/lib/editable/server";
+import { LojaPadrao } from "@/components/personalizacao/loja-padrao";
 
 export const metadata: Metadata = {
   title: "Política de Privacidade",
@@ -15,6 +17,9 @@ export const metadata: Metadata = {
 
 export default async function PrivacidadePage() {
   const { empresa } = await lerDadosDaLoja();
+  // os sinais que ESTA loja usa para escolher a versão da home (foundation 18); sem público, a seção não sai
+  const publicos = Object.values((await getPublishedContent())?.publicos ?? {});
+  const usa = (sinal: "utm" | "site" | "regiao" | "cliente") => publicos.some((p) => Boolean(p.entrada?.[sinal]?.length));
   const nome = empresa?.razaoSocial ?? "[NOME DA LOJA]";
   const cnpj = empresa?.cnpj ? formatarCnpj(empresa.cnpj) : "[CNPJ]";
   const endereco = empresa?.endereco ? enderecoEmUmaLinha(empresa.endereco) : "[ENDEREÇO COMPLETO]";
@@ -75,6 +80,30 @@ export default async function PrivacidadePage() {
         Você pode gerenciar suas preferências a qualquer momento pelo banner de cookies ou nas
         configurações do seu navegador.
       </p>
+
+      {publicos.length ? (
+        <>
+          <h3>Versões da loja por interesse</h3>
+          <p>
+            A página inicial pode aparecer em versões diferentes conforme o interesse de quem visita. Para escolher
+            a sua, usamos:
+          </p>
+          <ul>
+            <li>o link do anúncio que trouxe você{usa("utm") ? ", e a campanha dele" : ""};</li>
+            {usa("site") ? <li>o site de onde você veio (por exemplo, uma rede social);</li> : null}
+            {usa("regiao") ? <li>a região aproximada da sua conexão (estado e cidade), sem guardar o seu IP;</li> : null}
+            <li>as respostas que você der em testes ou quizzes da loja, quando houver;</li>
+            {usa("cliente") ? <li>se você entrar na sua conta: os produtos que comprou aqui, se tem assinatura ativa e o estado do seu endereço.</li> : null}
+          </ul>
+          <p>
+            A escolha fica guardada no cookie <code>unbox_publico</code> por até 90 dias. Parte de quem visita vê a
+            versão padrão, para medirmos o resultado. Essa informação fica nesta loja e nas ferramentas de análise dela,
+            e não é enviada a redes de anúncio. Base legal: legítimo interesse, com o seu direito de oposição a qualquer
+            momento:
+          </p>
+          <LojaPadrao />
+        </>
+      ) : null}
 
       <h2>7. Seus direitos (LGPD, art. 18)</h2>
       <p>Você tem direito a:</p>

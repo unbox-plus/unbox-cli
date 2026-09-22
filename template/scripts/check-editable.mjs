@@ -489,8 +489,11 @@ function arquivoDoImport(alvo, deArquivo, raiz) {
  * fatia da casca. A peneira vale só para a busca; os imports saem do texto cru.
  */
 const semComentarios = (fonte) => fonte.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:\w])\/\/[^\n]*/g, "$1");
-/** a fatia aparece na cadeia de imports desta rota? Devolve o arquivo onde ela está, ou null */
-function ondeEstaAFatia(entrada, raiz) {
+/**
+ * a fatia aparece na cadeia de imports desta rota? Devolve o arquivo onde ela está, ou null. `marca` troca o que
+ * se procura: a camada do público (`<EditablePublico>`, foundation 18) segue a MESMA cadeia que a fatia
+ */
+function ondeEstaAFatia(entrada, raiz, marca = /<\s*(EditableFatia|Editable\.Fatia)[\s>]/) {
   const vistos = new Set();
   const fila = [entrada];
   while (fila.length && vistos.size < 500) {
@@ -502,7 +505,7 @@ function ondeEstaAFatia(entrada, raiz) {
     if (arq.includes(`${path.sep}lib${path.sep}editable${path.sep}`)) continue;
     let fonte = "";
     try { fonte = readFileSync(arq, "utf8"); } catch { continue; }
-    if (/<\s*(EditableFatia|Editable\.Fatia)[\s>]/.test(semComentarios(fonte))) return path.relative(raiz, arq);
+    if (marca.test(semComentarios(fonte))) return path.relative(raiz, arq);
     for (const m of fonte.matchAll(/from\s+["']([^"']+)["']/g)) {
       const prox = arquivoDoImport(m[1], arq, raiz);
       if (prox) fila.push(prox);
@@ -591,6 +594,48 @@ if (prefixoIndevido.length) {
   console.log(`  Os prefixos ${PREFIXOS_DO_LOJISTA.join(", ")} (lidos de ${FONTE_DOS_PREFIXOS}) são dos containers que o lojista cria pelo editor; a loja trata qualquer container assim como página dele. Renomeie o container no código (ou marque a rota com doLojista, se ela for a casca das páginas do lojista).`);
 }
 
+// ── O PAR DA PERSONALIZAÇÃO (foundation 18) ──────────────────────────────────────────────────────────
+//
+// A declaração `personalizacao` no layout é o que LIBERA os públicos no editor. Ela só vale com as outras duas
+// peças: a página do público (`app/(loja)/%5Fpublico/[publico]`, que junta a camada com `<EditablePublico>`) e
+// o middleware que decide na borda (`seguir`, de lib/publicos-da-borda.ts). Faltando uma, o lojista montaria
+// versões da home que ninguém nunca veria (ou que viriam com o texto de Todos), sem erro nenhum na tela. E mais
+// duas: o login que confere as regras de cliente (`publicoNoLogin`), sem o qual elas nunca valeriam, e a loja
+// padrão na página de privacidade (`<LojaPadrao/>`), o direito de oposição de quem não quer a personalização.
+// Conferência de CÓDIGO-FONTE, como a do par do corte: só é cobrada quando o layout declara.
+const parDaPersonalizacao = { declarada: false, pagina: null, camada: null, semPagina: false, semCamada: false, semBorda: false, semLogin: false, semLojaPadrao: false };
+if (RAIZ_DA_LOJA) {
+  const layoutDaLoja = readFileSync(path.join(RAIZ_DA_LOJA, "app", "layout.tsx"), "utf8");
+  if (/personalizacao=\{/.test(semComentarios(layoutDaLoja))) {
+    parDaPersonalizacao.declarada = true;
+    const achada = [...paginasDoApp(RAIZ_DA_LOJA)].find(([rota]) => /^\/(%5F|_)publico\/\[[^\]]+\]$/.test(rota));
+    if (!achada) parDaPersonalizacao.semPagina = true;
+    else {
+      parDaPersonalizacao.pagina = path.relative(RAIZ_DA_LOJA, achada[1]);
+      parDaPersonalizacao.camada = ondeEstaAFatia(achada[1], RAIZ_DA_LOJA, /<\s*EditablePublico[\s>]/);
+      if (!parDaPersonalizacao.camada) parDaPersonalizacao.semCamada = true;
+    }
+    let middleware = "";
+    for (const nome of ["middleware.ts", "middleware.js", path.join("src", "middleware.ts")]) {
+      try {
+        middleware = readFileSync(path.join(RAIZ_DA_LOJA, nome), "utf8");
+        break;
+      } catch {}
+    }
+    if (!/\bseguir\s*\(/.test(semComentarios(middleware))) parDaPersonalizacao.semBorda = true;
+    const fonte = (...partes) => {
+      try {
+        return semComentarios(readFileSync(path.join(RAIZ_DA_LOJA, ...partes), "utf8"));
+      } catch {
+        return "";
+      }
+    };
+    if (!/\bpublicoNoLogin\s*\(/.test(fonte("app", "api", "account", "signin", "route.ts"))) parDaPersonalizacao.semLogin = true;
+    if (!/<\s*LojaPadrao[\s/>]/.test(fonte("app", "(loja)", "privacidade", "page.tsx"))) parDaPersonalizacao.semLojaPadrao = true;
+  }
+}
+const personalizacaoIncompleta = parDaPersonalizacao.semPagina || parDaPersonalizacao.semCamada || parDaPersonalizacao.semBorda || parDaPersonalizacao.semLogin || parDaPersonalizacao.semLojaPadrao;
+
 console.log("\nO PAR DO CORTE DO DOCUMENTO (o layout tira as páginas do lojista; a casca devolve a fatia):");
 if (!parDoCorte.conferido || parDoCorte.motivo) {
   console.log(`  não conferido · ${parDoCorte.motivo}`);
@@ -602,6 +647,20 @@ if (!parDoCorte.conferido || parDoCorte.motivo) {
     console.log("  Sem a fatia, a página vai ao ar com o literal do código no lugar do texto do lojista: título, resumo, imagem e corpo somem do corpo da página, sem erro, sem log e sem 500. E o <head> continua com o texto dele, porque metadados e dado estruturado saem do servidor, que lê o publicado inteiro.");
     console.log("  Envolva o que a rota renderiza em <EditableFatia fatia={fatiaDoDocumento(doc, alvos)}> (no template isso mora nas metades de servidor: components/paginas/pagina-do-lojista.tsx e colecao-do-lojista.tsx), ou devolva o documento inteiro ao provider no app/layout.tsx.");
   }
+}
+
+console.log("\nA PERSONALIZAÇÃO POR PÚBLICO (a declaração no layout, a página do público e a borda):");
+if (!parDaPersonalizacao.declarada) console.log("  não declarada · o app/layout.tsx não passa `personalizacao` ao provider: o editor não oferece públicos nesta loja");
+else {
+  if (parDaPersonalizacao.semPagina) console.log("  SEM A PÁGINA   app/(loja)/%5Fpublico/[publico]/page.tsx não existe: a borda reescreveria para uma rota que responde 404");
+  else if (parDaPersonalizacao.semCamada) console.log(`  SEM A CAMADA   ${parDaPersonalizacao.pagina} e nada que ela importa renderiza <EditablePublico>: a versão sairia com o texto de Todos`);
+  else console.log(`  ok             camada em ${parDaPersonalizacao.camada}`);
+  if (parDaPersonalizacao.semBorda) console.log("  SEM A BORDA    o middleware.ts não chama seguir(req, event) (lib/publicos-da-borda.ts): nenhum visitante cairia numa versão");
+  else console.log("  ok             a borda decide no middleware (seguir)");
+  if (parDaPersonalizacao.semLogin) console.log("  SEM O LOGIN    app/api/account/signin/route.ts não chama publicoNoLogin (lib/publico-do-cliente.ts): as regras de cliente nunca valeriam");
+  else console.log("  ok             o login confere as regras de cliente (publicoNoLogin)");
+  if (parDaPersonalizacao.semLojaPadrao) console.log("  SEM A OPOSIÇÃO a página de privacidade não oferece <LojaPadrao/>: quem não quer a personalização não teria como sair dela");
+  else console.log("  ok             a privacidade oferece a loja padrão (<LojaPadrao/>)");
 }
 
 if (medidas.length) {
@@ -633,6 +692,7 @@ if (args.json) {
     moldesNaoMedidos,
     prefixoReservadoEmRotaDoCodigo: prefixoIndevido,
     parDoCorteDoDocumento: parDoCorte,
+    parDaPersonalizacao,
     paginas: resultados.map((r) => ({
       rota: r.rota,
       caminho: r.caminho,
@@ -667,6 +727,7 @@ if (divergentes.length) {
 }
 if (semDeclaracao.length) reprovacoes.push(`rota(s) listada(s) pela loja sem declaração de containers: ${semDeclaracao.map((r) => r.rota).join(", ")}`);
 if (prefixoIndevido.length) reprovacoes.push(`container do código com prefixo reservado às páginas do lojista em ${prefixoIndevido.map((x) => `${x.rota} (${x.containers.join(", ")})`).join(", ")}`);
+if (personalizacaoIncompleta) reprovacoes.push(`a loja declara a personalização por público sem ${[parDaPersonalizacao.semPagina ? "a página do público" : "", parDaPersonalizacao.semCamada ? "a camada (<EditablePublico>) na página do público" : "", parDaPersonalizacao.semBorda ? "a decisão no middleware (seguir)" : "", parDaPersonalizacao.semLogin ? "o login que confere as regras de cliente (publicoNoLogin)" : "", parDaPersonalizacao.semLojaPadrao ? "a loja padrão na privacidade (<LojaPadrao/>)" : ""].filter(Boolean).join(" e ")}: o editor ofereceria versões que ninguém veria`);
 if (parDoCorte.semFatia.length) reprovacoes.push(`rota(s) do lojista sem a fatia do documento: ${parDoCorte.semFatia.map((x) => `${x.rota} (${x.arquivo})`).join(", ")}: a página vai ao ar com o literal do código no lugar do texto do lojista`);
 
 // o par não conferido é NÃO RODOU pelo mesmo motivo dos outros: gate que varre o vazio e diz "limpo"
