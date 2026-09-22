@@ -11,7 +11,7 @@
 // da rota /api/capi, que não pode mandar conversão para o Pixel do cadastro só
 // porque a leitura do que o lojista publicou falhou (Astra, segunda rodada, 1).
 import { cache } from "react";
-import { documentoUsavel, isHtmlPath, isRichPath, leituraDoPublicado, presencaNoAmbiente as presencaPura, recusaDeHtml, recusaDeTextoRico, type Ambiente, type ContentDocument, type LeituraDoPublicado, type ManifestApps } from "./document";
+import { caminhoBase, documentoUsavel, isHtmlPath, isRichPath, leituraDoPublicado, presencaNoAmbiente as presencaPura, recusaDeHtml, recusaDeTextoRico, type Ambiente, type ContentDocument, type LeituraDoPublicado, type ManifestApps } from "./document";
 import { EDITOR_URL, STORE_SLUG } from "./config";
 
 /**
@@ -59,6 +59,14 @@ export { paginaDaRota, colecaoDaRota, artigosDaColecao, redirecionamentoDe, visi
  * editável passou a cobrar, pelo par (layout que corta, casca que junta).
  */
 export { documentoSemPaginas, fatiaDoDocumento } from "./document";
+
+/**
+ * PERSONALIZAÇÃO POR PÚBLICO (foundation 18). A rota do público (`app/(loja)/%5Fpublico/[publico]`) lê o
+ * publicado, renderiza a home com `aplicarPublico(doc, id)` (é o que faz as vitrines saírem por público) e
+ * entrega a `<EditablePublico>` só `camadaDoPublico(doc, id)`. A rota `/api/unbox/publicos` entrega
+ * `publicosDaBorda(doc)`, que é o que o middleware usa em `decidirPublico`. Puras, testadas no runner do editor.
+ */
+export { aplicarPublico, camadaDoPublico, publicosDaBorda, type CamadaDoPublico, type PublicosDaBorda } from "./document";
 
 /**
  * O DOCUMENTO PUBLICADO DESTE PEDIDO, para quem precisa dele sem o receber por parâmetro. `cache` do React
@@ -124,9 +132,12 @@ export function presencaNoAmbiente(ambiente: Ambiente, opcoes?: { doc?: ContentD
 function blocosRecusadosDoDocumento(doc: ContentDocument): [string, string, string][] {
   const recusados: [string, string, string][] = [];
   for (const [path, v] of Object.entries(doc.values)) {
-    // é o SUFIXO do caminho que diz a régua (a loja lê o publicado sem manifesto): `.html` ou `.rico`
-    const html = isHtmlPath(path);
-    if (!html && !isRichPath(path)) continue;
+    // é o SUFIXO do caminho que diz a régua (a loja lê o publicado sem manifesto): `.html` ou `.rico`. Na camada
+    // de um público (foundation 18) o sufixo fica ANTES da marca (`….html@volume`), e sem `caminhoBase` o bloco
+    // recusado passaria inteiro dentro da versão do público
+    const base = caminhoBase(path);
+    const html = isHtmlPath(base);
+    if (!html && !isRichPath(base)) continue;
     // valor que nem sequer é texto já é lixo neste caminho: as réguas só sabem ler string
     const motivo = typeof v === "string" ? (html ? recusaDeHtml(v) : recusaDeTextoRico(v)) : "o valor gravado não é texto";
     if (motivo) recusados.push([path, motivo, html ? "bloco de HTML" : "texto formatado"]);

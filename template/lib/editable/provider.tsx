@@ -35,7 +35,8 @@ import {
   type ManifestDadosDaLoja,
   type OpcaoDeToken,
   type TipoDeToken,
-  ehFamiliaDeLetra, juntarFatia, normalizarPagina, PESOS_DA_LETRA, resolveValue, type SectionKind, SECTION_KIND_LABEL, tokenAceita, valorDeTokenEmCss, cssDoLojistaEmSeguranca} from "./document";
+  ehFamiliaDeLetra, juntarFatia, normalizarPagina, PESOS_DA_LETRA, resolveValue, type SectionKind, SECTION_KIND_LABEL, tokenAceita, valorDeTokenEmCss, cssDoLojistaEmSeguranca,
+  aplicarPublico, juntarCamada, type CamadaDoPublico, type ManifestPersonalizacao} from "./document";
 
 export interface EditableTokenSpec {
   token: string;
@@ -132,6 +133,14 @@ interface Ctx {
    * lojista veria "não autorizado" sem ter feito nada errado.
    */
   renovarToken: () => void;
+  /**
+   * A GERAÇÃO DE CADA CAMINHO EDITADO NA PRÓPRIA PRÉVIA. O `contentEditable` escreve no DOM por fora do React:
+   * o navegador troca os nós de texto que o React guardava, e dali em diante uma mudança do valor (desfazer, a
+   * troca de visão do "Ver como", outra aba) ia para nós que já não estavam na tela, e a prévia mostrava o texto
+   * velho. O `Text` usa a geração como `key`: quando ela anda, o elemento REMONTA e o React volta a ser dono do
+   * que está na tela. Anda uma vez por edição, junto com o documento seguinte (então não pisca).
+   */
+  geracaoDoInline: Record<string, number>;
 }
 
 const noop = () => () => {};
@@ -150,6 +159,7 @@ const EditableContext = React.createContext<Ctx>({
   foraDeContainer: noop,
   previewToken: null,
   renovarToken: () => {},
+  geracaoDoInline: {},
 });
 
 export function useEditableContext() {
@@ -462,6 +472,7 @@ export function EditableProvider({
   paginasDoLojista,
   rotasComSeo,
   dadosDaLoja,
+  personalizacao,
   children,
 }: {
   doc: ContentDocument | null;
@@ -506,6 +517,13 @@ export function EditableProvider({
    * página continuaria com o marcador.
    */
   dadosDaLoja?: ManifestDadosDaLoja;
+  /**
+   * PERSONALIZAÇÃO POR PÚBLICO (foundation 18): os containers que a loja RENDERIZA por público (a fase 1 é a
+   * home, `{ foundation: 18, containers: ["home"] }`). Mesmo contrato das props acima: só a loja que já tem a
+   * rota do público (`/_publico/[publico]`), a decisão da borda no middleware e a home em `PaginaInicial` a
+   * passa. Sem ela o painel não oferece públicos, e `validateOp` recusa a camada.
+   */
+  personalizacao?: ManifestPersonalizacao;
   children: React.ReactNode;
 }) {
   const [doc, setDoc] = React.useState<ContentDocument>(initialDoc ?? emptyDocument(shop));
@@ -517,6 +535,13 @@ export function EditableProvider({
   const [selectMode, setSelectMode] = React.useState(true);
   // token de prévia: sai da URL e vive só aqui (ver `previewToken` no contexto)
   const [previewToken, setPreviewToken] = React.useState<string | null>(null);
+  // "VER COMO" (foundation 18): o público que o editor está mostrando na prévia. Nulo = Todos. Chega por
+  // `unbox-editor:publico`, e só existe em edição: fora dela o documento do layout já é o de Todos, e a página
+  // de um público junta a camada por `<EditablePublico>`.
+  const [publicoEmVista, setPublicoEmVista] = React.useState<string | null>(null);
+  // os caminhos que a edição na prévia mexeu por fora do React, e a geração de cada um (ver `geracaoDoInline`)
+  const [geracaoDoInline, setGeracaoDoInline] = React.useState<Record<string, number>>({});
+  const inlineSujos = React.useRef(new Set<string>());
   const registry = React.useRef(new Map<string, Registration>());
   // um caminho pode ter VÁRIAS instâncias montadas (ícone absoluto compartilhado pelos itens de uma lista):
   // o registro só some quando a última desmonta; até lá outra instância viva responde (Astra v3, achado 9)
@@ -528,8 +553,24 @@ export function EditableProvider({
   const tiposPorContainer = React.useRef(new Map<string, TipoDeSecaoDeclarado[]>());
   const selectedEl = React.useRef<Element | null>(null);
   const overlayRef = React.useRef<OverlayHandle | null>(null);
-  const docRef = React.useRef(doc);
-  docRef.current = doc;
+  // O DOCUMENTO QUE A PRÉVIA MOSTRA: o rascunho com a camada do público em vista por cima (`aplicarPublico`,
+  // que devolve o mesmo objeto quando não há público). É ele que vai no contexto, no manifesto (`current` e
+  // `hidden` falam da visão), na seleção e na restauração do inline; os tokens e o CSS são de Todos igual.
+  const docEfetivo = React.useMemo(() => aplicarPublico(doc, publicoEmVista), [doc, publicoEmVista]);
+  const docRef = React.useRef(docEfetivo);
+  docRef.current = docEfetivo;
+  // chegou documento novo (ou outra visão): o que a edição na prévia mexeu por fora do React remonta, já com o
+  // valor novo
+  React.useEffect(() => {
+    if (!inlineSujos.current.size) return;
+    const sujos = [...inlineSujos.current];
+    inlineSujos.current.clear();
+    setGeracaoDoInline((g) => {
+      const n = { ...g };
+      for (const p of sujos) n[p] = (n[p] ?? 0) + 1;
+      return n;
+    });
+  }, [docEfetivo]);
 
   // publicado mudou (revalidação ISR + navegação) → segue o servidor, fora do modo edição
   React.useEffect(() => {
@@ -690,8 +731,12 @@ export function EditableProvider({
     // na tela. Então quem responde é a folha DELA, por um marcador que só o bloco da escada declara,
     // e a resposta é lida do valor computado — como já se faz com a cor.
     const letraDaLoja = cs ? cs.getPropertyValue("--unbox-letra-da-loja").trim() === "1" : false;
-    return { shop, capturedAt: new Date().toISOString(), url: pagina, foundation: 17, entries, sections: secs, tipos, semContainer: fora, tokens: toks, ...(fontes.length ? { fontes } : {}), ...(letraDaLoja ? { letraDaLoja } : {}), ...(apps ? { apps } : {}), ...(paginasDoLojista ? { paginasDoLojista } : {}), ...(rotasComSeo?.length ? { rotasComSeo } : {}), ...(dadosDaLoja ? { dadosDaLoja } : {}) };
-  }, [shop, tokens, apps, paginasDoLojista, rotasComSeo, dadosDaLoja]);
+    // 18 = PERSONALIZAÇÃO POR PÚBLICO. A lib sabe aplicar a camada de um público (`aplicarPublico`), mostrar
+    //      a prévia na visão de um público ("Ver como", `unbox-editor:publico`) e juntar a camada na página do
+    //      público (`EditablePublico`); o manifesto diz de que visão ele fala (`publico`). O que LIBERA os
+    //      públicos no painel é `personalizacao` (a prop), pelo mesmo motivo de `paginasDoLojista`.
+    return { shop, capturedAt: new Date().toISOString(), url: pagina, foundation: 18, entries, sections: secs, tipos, semContainer: fora, tokens: toks, ...(fontes.length ? { fontes } : {}), ...(letraDaLoja ? { letraDaLoja } : {}), ...(apps ? { apps } : {}), ...(paginasDoLojista ? { paginasDoLojista } : {}), ...(rotasComSeo?.length ? { rotasComSeo } : {}), ...(dadosDaLoja ? { dadosDaLoja } : {}), ...(personalizacao ? { personalizacao } : {}), ...(publicoEmVista ? { publico: publicoEmVista } : {}) };
+  }, [shop, tokens, apps, paginasDoLojista, rotasComSeo, dadosDaLoja, personalizacao, publicoEmVista]);
 
   // manifesto: publica depois que os registros assentam (debounce)
   const manifestTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -707,6 +752,14 @@ export function EditableProvider({
       conjunto.add(r);
       instancias.current.set(r.path, conjunto);
       registry.current.set(r.path, r);
+      // o elemento REMONTADO (a geração da edição na prévia) é o mesmo campo: se era o selecionado, a marca vai para ele
+      if (selectedEl.current && !selectedEl.current.isConnected && selectedEl.current.getAttribute("data-editor-path") === r.path) {
+        const novo = r.el();
+        if (novo) {
+          selectedEl.current = novo;
+          novo.setAttribute("data-editor-selected", "1");
+        }
+      }
       scheduleManifest();
       return () => {
         conjunto.delete(r);
@@ -809,7 +862,7 @@ export function EditableProvider({
     if (!editing) return;
     const onMessage = (ev: MessageEvent) => {
       if (editorOrigin && ev.origin !== editorOrigin) return;
-      const m = ev.data as { source?: string; type?: string; doc?: ContentDocument; on?: boolean; path?: string; section?: string; container?: string; token?: string } | null;
+      const m = ev.data as { source?: string; type?: string; doc?: ContentDocument; on?: boolean; path?: string; section?: string; container?: string; token?: string; publico?: string | null } | null;
       if (!m || m.source !== "unbox-editor") return;
       switch (m.type) {
         case "unbox-editor:apply":
@@ -817,6 +870,9 @@ export function EditableProvider({
             setDoc(m.doc);
             setRascunhoChegou(true);
           }
+          break;
+        case "unbox-editor:publico":
+          setPublicoEmVista(typeof m.publico === "string" && m.publico ? m.publico : null);
           break;
         case "unbox-editor:token":
           // token de prévia novo (resposta a `renovarToken`). Trocá-lo faz a vitrine que falhou
@@ -845,6 +901,7 @@ export function EditableProvider({
               const reg = registry.current.get(u.path);
               const atual = reg ? resolveValue(docRef.current, u.path, reg.fallback) : undefined;
               u.el.innerText = typeof atual === "string" ? atual : u.original;
+              inlineSujos.current.add(u.path);
             }
             pend.delete(id!);
           }
@@ -898,6 +955,8 @@ export function EditableProvider({
       const novo = e.el.innerText.replace(/\u00a0/g, " ").replace(/\n{3,}/g, "\n\n").trim();
       e.el.removeAttribute("contenteditable");
       e.el.removeAttribute("data-editor-editing");
+      // o texto deste caminho foi escrito por fora do React: remonta com o próximo documento (`geracaoDoInline`)
+      inlineSujos.current.add(e.path);
       if (confirmar && novo && novo !== e.original) {
         const inlineId = ++inlineSeq.current;
         inlinePendentes.current.set(inlineId, e);
@@ -972,13 +1031,13 @@ export function EditableProvider({
   // manifesto também quando o documento muda (hidden/order refletem)
   React.useEffect(() => {
     scheduleManifest();
-  }, [doc, scheduleManifest]);
+  }, [docEfetivo, scheduleManifest]);
 
   const value = React.useMemo<Ctx>(
     // `container: undefined` de propósito: a raiz do provider não é a home. Quem quer editar declara
     // o container da sua página (`Editable.Sections container="sobre"`); quem não declara não edita.
-    () => ({ doc, editing, rascunhoChegou, selectMode, scope: [], container: undefined, layout: true, register, registerSection, registerTipos, select, foraDeContainer, previewToken, renovarToken }),
-    [doc, editing, rascunhoChegou, selectMode, register, registerSection, registerTipos, select, foraDeContainer, previewToken, renovarToken],
+    () => ({ doc: docEfetivo, editing, rascunhoChegou, selectMode, scope: [], container: undefined, layout: true, register, registerSection, registerTipos, select, foraDeContainer, previewToken, renovarToken, geracaoDoInline }),
+    [docEfetivo, editing, rascunhoChegou, selectMode, register, registerSection, registerTipos, select, foraDeContainer, previewToken, renovarToken, geracaoDoInline],
   );
 
   // tokens editados → :root. Só os da allowlist da loja.
@@ -1047,6 +1106,26 @@ export function EditableFatia({ fatia, children }: { fatia: ContentDocument | nu
     // tudo que está dentro
     return doc === ctx.doc ? ctx : { ...ctx, doc };
   }, [ctx, fatia]);
+  return <EditableContext.Provider value={value}>{children}</EditableContext.Provider>;
+}
+
+/**
+ * A CAMADA DE UM PÚBLICO NA PÁGINA DELE (foundation 18) — o par de `EditableFatia` para a personalização.
+ *
+ * O layout entrega o documento de Todos (sem camada nenhuma: ela não viaja com Todos). A rota do público
+ * (`/_publico/[publico]`) renderiza a home dentro deste componente com `camadaDoPublico(doc, id)`: só o que a
+ * versão troca. Aqui a CAMADA vence o contexto, ao contrário da fatia: ela existe para trocar o que Todos diz.
+ *
+ * Cede a vez quando o rascunho chega (`ctx.rascunhoChegou`), pelo motivo da fatia: dali em diante o provider
+ * raiz já mostra o rascunho na visão do público, e a camada do publicado por cima ressuscitaria o que o
+ * lojista acabou de apagar. Nada muda na primeira renderização, então servidor e cliente veem o mesmo documento.
+ */
+export function EditablePublico({ camada, children }: { camada: CamadaDoPublico | null; children: React.ReactNode }) {
+  const ctx = useEditableContext();
+  const value = React.useMemo<Ctx>(() => {
+    const doc = juntarCamada(ctx.doc, camada, ctx.rascunhoChegou);
+    return doc === ctx.doc ? ctx : { ...ctx, doc };
+  }, [ctx, camada]);
   return <EditableContext.Provider value={value}>{children}</EditableContext.Provider>;
 }
 
