@@ -548,6 +548,19 @@ export interface SectionState {
    * junto sem aprender nada de públicos: todas elas movem o estado inteiro do container.
    */
   publicos?: Record<string, CamadaDeSecoes>;
+  /**
+   * A PÁGINA DO CÓDIGO SEM O TOPO (foundation 18): a landing page que veio com a loja (a `/oferta`) esconde a faixa
+   * de avisos e o cabeçalho só nela, como a página avulsa faz pelo registro (`PaginaDoLojista.ocultarCabecalho`). A
+   * página do código não tem registro, e o container É a página: por isso o pedido mora aqui, e vai à loja, à prévia
+   * e ao "usar esta versão" com o resto do estado, e a versão de um público o herda (`aplicarPublico` espalha o
+   * estado). Só `true` é gravado; só em container que a loja declara em `Manifest.ocultaChromeEm`.
+   */
+  ocultarCabecalho?: true;
+  /**
+   * A PÁGINA DO CÓDIGO SEM O RODAPÉ GRANDE: some o rodapé, e FICA a barra de baixo dele (os dados da empresa e o
+   * selo da Unbox), como na página avulsa. Mesmas regras de `ocultarCabecalho`.
+   */
+  ocultarRodape?: true;
 }
 
 /**
@@ -1238,6 +1251,14 @@ export interface ManifestRotaComSeo {
    * como ele escreveu, que é o caso da página inicial.
    */
   sufixoDoTitulo?: string;
+}
+
+/** uma página do código que sabe esconder cabeçalho e rodapé (`Manifest.ocultaChromeEm`) */
+export interface ManifestChromeOcultavel {
+  /** o container da página: "oferta" */
+  container: string;
+  /** o nome que o lojista lê: "Oferta" */
+  nome: string;
 }
 
 export interface PaginaDoLojista {
@@ -2766,6 +2787,12 @@ type OpDoDocumento =
   | { op: "set_css"; css: string | null }
   /** `seo: null` apaga o SEO da rota, e a página volta a emitir o que o código dela emite */
   | { op: "set_seo_da_rota"; rota: string; seo: SeoDaRota | null }
+  /**
+   * CABEÇALHO E RODAPÉ DE UMA PÁGINA DO CÓDIGO (foundation 18): `true` esconde, `null` mostra de novo, ausente não
+   * mexe. O container é a página (`oferta`), declarado pela loja em `Manifest.ocultaChromeEm`. A página avulsa usa o
+   * registro dela (`update_page`), não esta operação.
+   */
+  | { op: "set_chrome"; container: string; ocultarCabecalho?: true | null; ocultarRodape?: true | null }
   /** `valor: null` apaga a parte inteira */
   | { op: "set_dados_da_loja"; parte: ParteDosDadosDaLoja; valor: EmpresaDaLoja | RedesDaLoja | SeoDaLoja | null }
   /** REDIRECIONAMENTO MANUAL (foundation 17): um endereço antigo que passa a levar a um novo */
@@ -2797,7 +2824,7 @@ type OpDoDocumento =
   /** só como INVERSO de remove_section (desfazer): devolve a cópia (com `source`) ou a seção criada
    *  (com `tipo`) — valores, posição e visibilidade juntos. Sem o `tipo`, desfazer a remoção de uma
    *  criada devolveria um id sem tipo nenhum, e a loja não saberia o que renderizar ali. */
-  | { op: "restore_section"; container: string; id: string; source?: string; tipo?: string; values: Record<string, EditableValue>; index: number | null; hidden: boolean; declared?: Record<string, DeclaredEntry>; cloneIndex?: number; sections?: ContentDocument["sections"] }
+  | { op: "restore_section"; container: string; id: string; source?: string; tipo?: string; values: Record<string, EditableValue>; index: number | null; hidden: boolean; declared?: Record<string, DeclaredEntry>; cloneIndex?: number; sections?: ContentDocument["sections"]; /** as camadas dos públicos como estavam antes da remoção (a posição da seção em cada uma) */ camadas?: Record<string, CamadaDeSecoes> }
   /**
    * APPS (foundation 12): UM campo de rastreio (`gtm`, `ga4`, `metaPixel`, `tiktok`, `pinterest`,
    * `whatsapp.numero`, `whatsapp.mensagem`). `null` ou vazio = remover. O inverso é o mesmo `set_app` com
@@ -3117,6 +3144,56 @@ function entradaLimpa(e: EntradaDoPublico): EntradaDoPublico {
 }
 
 /** Aplica UMA operação e devolve o documento novo + a operação inversa (pra desfazer). */
+/**
+ * A SEÇÃO NOVA (cópia ou adicionada) NA ORDEM DE CADA PÚBLICO que tem ordem própria (foundation 18), mexendo no
+ * estado do container no lugar. `anteriores` são as candidatas a vizinha de cima, da mais próxima para a mais
+ * longe: a seção entra logo depois da primeira que a ordem do público cita. Lista vazia = ela é a primeira de Todos,
+ * e entra no começo. Nenhuma candidata citada = ela fica fora da ordem do público, e renderiza no fim, como tudo o
+ * que a ordem não cita (é o que ela faria sem esta regra, e não há vizinha melhor para escolher).
+ */
+function comNaCamada(estado: SectionState, id: string, anteriores: readonly string[]): void {
+  if (!estado.publicos) return;
+  let mudou = false;
+  const camadas: Record<string, CamadaDeSecoes> = {};
+  for (const [pid, camada] of Object.entries(estado.publicos)) {
+    const ordem = camada.order;
+    const vizinha = anteriores.find((x) => ordem?.includes(x));
+    if (!ordem || ordem.includes(id) || (anteriores.length && vizinha === undefined)) {
+      camadas[pid] = camada;
+      continue;
+    }
+    const i = vizinha === undefined ? 0 : ordem.indexOf(vizinha) + 1;
+    camadas[pid] = { ...camada, order: [...ordem.slice(0, i), id, ...ordem.slice(i)] };
+    mudou = true;
+  }
+  if (mudou) estado.publicos = camadas;
+}
+
+/**
+ * As camadas dos públicos SEM a seção `id` (na ordem e nas marcas de ocultar e mostrar). Lista que fica vazia sai,
+ * camada que fica vazia sai, e nenhuma camada sobrando é `undefined`: nada de chave vazia inventando diferença entre
+ * o rascunho e o publicado. Devolve o MESMO objeto quando a seção não estava em camada nenhuma.
+ */
+function semNaCamada(publicos: SectionState["publicos"], id: string): SectionState["publicos"] {
+  if (!publicos) return publicos;
+  let mudou = false;
+  const camadas: Record<string, CamadaDeSecoes> = {};
+  for (const [pid, camada] of Object.entries(publicos)) {
+    const limpa: CamadaDeSecoes = {};
+    for (const k of ["order", "ocultar", "mostrar"] as const) {
+      const lista = camada[k];
+      if (!lista) continue;
+      if (lista.includes(id)) mudou = true;
+      const sem = lista.filter((x) => x !== id);
+      // a ORDEM fica mesmo vazia (ela diz "a ordem deste público é esta"); as marcas vazias não dizem nada
+      if (sem.length || k === "order") limpa[k] = sem;
+    }
+    if (Object.keys(limpa).length) camadas[pid] = limpa;
+  }
+  if (!mudou) return publicos;
+  return Object.keys(camadas).length ? camadas : undefined;
+}
+
 export function applyOp(doc: ContentDocument, op: PatchOp): { doc: ContentDocument; inverse: PatchOp } {
   const next = clone(doc);
   let inverse: PatchOp;
@@ -3175,6 +3252,23 @@ export function applyOp(doc: ContentDocument, op: PatchOp): { doc: ContentDocume
       // mapa que esvaziou some, como os outros
       if (Object.keys(mapa).length) next.seoDasRotas = mapa;
       else delete next.seoDasRotas;
+      break;
+    }
+    case "set_chrome": {
+      // o inverso leva só o que a operação mexeu, com o valor de antes (`null` = não estava escondido)
+      const antes = doc.sections[op.container];
+      const volta: Extract<PatchOp, { op: "set_chrome" }> = { op: "set_chrome", container: op.container };
+      const estado: SectionState = { ...(next.sections[op.container] ?? {}) };
+      for (const k of ["ocultarCabecalho", "ocultarRodape"] as const) {
+        if (op[k] === undefined) continue;
+        volta[k] = antes?.[k] ?? null;
+        if (op[k] === true) estado[k] = true;
+        else delete estado[k];
+      }
+      inverse = volta;
+      // o estado que esvaziou some, como os mapas: desfazer num container que não tinha estado devolve o documento igual
+      if (Object.keys(estado).length) next.sections[op.container] = estado;
+      else delete next.sections[op.container];
       break;
     }
     case "set_css": {
@@ -3267,6 +3361,9 @@ export function applyOp(doc: ContentDocument, op: PatchOp): { doc: ContentDocume
       const base = st.order ?? [];
       const order = base.includes(op.id) ? base.flatMap((x) => (x === op.id ? [x, op.cloneId] : [x])) : undefined;
       next.sections[op.container] = { ...st, clones, ...(order ? { order } : {}) };
+      // e na ORDEM DE CADA PÚBLICO que tem uma (foundation 18): logo depois da origem, como em Todos; sem isso a cópia
+      // ia para o fim da versão dele. O desfazer (`remove_section`) a tira de lá
+      comNaCamada(next.sections[op.container], op.cloneId, [op.id]);
       // a cópia nasce com o que o lojista está VENDO (valores do escopo de origem), não com o código
       const de = `${op.container}.${op.id}.`;
       const para = `${op.container}.${op.cloneId}.`;
@@ -3298,6 +3395,9 @@ export function applyOp(doc: ContentDocument, op: PatchOp): { doc: ContentDocume
         order = [...semId.slice(0, pos), op.id, ...semId.slice(pos)];
       }
       next.sections[op.container] = { ...st, criadas, ...(order ? { order } : {}) };
+      // e na ORDEM DE CADA PÚBLICO que tem uma (foundation 18): depois da mesma vizinha de cima que ela tem em Todos
+      // (a mais próxima que a ordem do público cita). Sem ordem em Todos a criada vai para o fim, e na versão também
+      if (order) comNaCamada(next.sections[op.container], op.id, order.slice(0, order.indexOf(op.id)).reverse());
       // NADA em `values`: a seção criada mostra os literais do componente (os `fallback` dos primitivos)
       inverse = { op: "remove_section", container: op.container, id: op.id, ...(ordemAntesDaSemeadura !== undefined ? { ordemAnterior: ordemAntesDaSemeadura } : {}) };
       break;
@@ -3343,6 +3443,15 @@ export function applyOp(doc: ContentDocument, op: PatchOp): { doc: ContentDocume
       const ocultasSemId = st.hidden?.filter((x) => x !== op.id);
       if (ocultasSemId) estadoLimpo.hidden = ocultasSemId;
       next.sections[op.container] = { ...st, ...estadoLimpo };
+      // A SEÇÃO SAI TAMBÉM DAS CAMADAS DOS PÚBLICOS (foundation 18): da ordem e das marcas de ocultar e mostrar. Sem
+      // isso o id ficava pendurado nelas, e uma seção nova com o mesmo id herdaria a posição e a visibilidade da
+      // antiga na versão do público. O desfazer devolve as camadas exatamente como estavam
+      const camadasAntes = st.publicos ? clone(st.publicos) : undefined;
+      const semNasCamadas = semNaCamada(st.publicos, op.id);
+      if (semNasCamadas !== st.publicos) {
+        if (semNasCamadas) next.sections[op.container].publicos = semNasCamadas;
+        else delete next.sections[op.container].publicos;
+      }
       // desfazendo uma duplicação que semeou a ordem: a ordem volta a ser o que era (inclusive não existir)
       if (op.ordemAnterior !== undefined) {
         if (op.ordemAnterior === null) delete next.sections[op.container].order;
@@ -3353,7 +3462,7 @@ export function applyOp(doc: ContentDocument, op: PatchOp): { doc: ContentDocume
       const aninhados: ContentDocument["sections"] = {};
       for (const c of Object.keys(next.sections)) if (c === raiz || c.startsWith(raiz + ".")) { aninhados[c] = clone(next.sections[c]); delete next.sections[c]; }
       // desfazer devolve a cópia inteira: valores, proveniência, posição, visibilidade e listas de dentro
-      inverse = { op: "restore_section", container: op.container, id: op.id, ...(origem ? { source: origem } : { tipo: tipoCriada }), values, index: index != null && index >= 0 ? index : null, hidden: (st.hidden ?? []).includes(op.id), ...(Object.keys(declared).length ? { declared } : {}), ...(cloneIndex >= 0 ? { cloneIndex } : {}), ...(Object.keys(aninhados).length ? { sections: aninhados } : {}) };
+      inverse = { op: "restore_section", container: op.container, id: op.id, ...(origem ? { source: origem } : { tipo: tipoCriada }), values, index: index != null && index >= 0 ? index : null, hidden: (st.hidden ?? []).includes(op.id), ...(Object.keys(declared).length ? { declared } : {}), ...(cloneIndex >= 0 ? { cloneIndex } : {}), ...(Object.keys(aninhados).length ? { sections: aninhados } : {}), ...(camadasAntes && semNasCamadas !== st.publicos ? { camadas: camadasAntes } : {}) };
       break;
     }
     case "set_app": {
@@ -3768,6 +3877,8 @@ export function applyOp(doc: ContentDocument, op: PatchOp): { doc: ContentDocume
       for (const [k, v] of Object.entries(op.values)) next.values[k] = clone(v);
       if (op.declared) next.declared = { ...(next.declared ?? {}), ...op.declared };
       if (op.sections) for (const [c, estado] of Object.entries(op.sections)) next.sections[c] = clone(estado);
+      // as camadas dos públicos voltam EXATAMENTE como estavam antes da remoção (a posição e as marcas da seção)
+      if (op.camadas) next.sections[op.container].publicos = clone(op.camadas);
       inverse = { op: "remove_section", container: op.container, id: op.id };
       break;
     }
@@ -4107,6 +4218,13 @@ export interface Manifest {
    * `set_seo_da_rota` e o painel não mostra o bloco.
    */
   rotasComSeo?: ManifestRotaComSeo[];
+  /**
+   * PÁGINAS DO CÓDIGO QUE ESCONDEM CABEÇALHO E RODAPÉ (foundation 18): os containers cuja página marca o pedido
+   * (`SectionState.ocultarCabecalho`, `ocultarRodape`) para o CSS da loja esconder (a `/oferta`). Ausente = nenhuma:
+   * `validateOp` recusa esconder (`set_chrome`) e o painel não mostra os interruptores. A página avulsa declara o
+   * mesmo pedido em `paginasDoLojista.ocultaChrome`.
+   */
+  ocultaChromeEm?: ManifestChromeOcultavel[];
   /**
    * DADOS DA LOJA (foundation 17): as partes que a loja LÊ (empresa, redes, SEO da loja) e se ela confere os
    * redirecionamentos em toda rota. Ausente = nenhuma: o painel não mostra os blocos e `validateOp` recusa.
@@ -4575,6 +4693,19 @@ export function validateOp(op: PatchOp, manifest: Manifest, doc?: ContentDocumen
       if (op.seo === null) return SIM;
       const r = recusaDeSeo(op.seo, "rota");
       return r ? { ok: false, reason: r } : SIM;
+    }
+    case "set_chrome": {
+      if (typeof op.container !== "string" || !op.container) return { ok: false, reason: "container inválido" };
+      for (const k of ["ocultarCabecalho", "ocultarRodape"] as const) {
+        if (op[k] !== undefined && op[k] !== null && op[k] !== true) return { ok: false, reason: `«${k}» é true (esconder) ou null (mostrar).` };
+      }
+      if (op.ocultarCabecalho === undefined && op.ocultarRodape === undefined) return { ok: false, reason: "Diga o que muda: o cabeçalho, o rodapé ou os dois." };
+      // ESCONDER pede a loja que sabe esconder NESTA página; MOSTRAR de novo (`null`) passa sempre, como na página
+      // avulsa: a loja que deixou de declarar não pode prender o lojista num pedido que ela já nem cumpre
+      if ((op.ocultarCabecalho === true || op.ocultarRodape === true) && !(manifest.ocultaChromeEm ?? []).some((d) => d.container === op.container)) {
+        return { ok: false, reason: FRASE_SEM_CHROME_OCULTAVEL };
+      }
+      return SIM;
     }
     case "set_css": {
       // a loja precisa saber emitir a folha: numa que só recebeu a lib nova, o valor entraria no

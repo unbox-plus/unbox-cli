@@ -70,7 +70,7 @@ export function soChrome(rota: string): boolean {
 export const CONTAINERS_POR_ROTA: Readonly<Record<string, readonly string[]>> = {
   "/": ["home"], // components/home/combos-home.tsx: a home é a dona do container (manda na ordem, oculta e copia)
   "/produtos": ["catalogo"], // components/catalog/catalog-client.tsx: /produtos é a dona do container (manda na ordem)
-  "/categoria/[tagSlug]": ["catalogo"], // a categoria reaproveita o catálogo com layout={false}: mesma copy, ordem editada em /produtos
+  "/categoria/[tagSlug]": ["catalogo"], // a categoria espelha o catálogo (layout="espelho"): mesma copy e mesma lista, editada em /produtos
   "/produto/[productSlug]": ["produto"], // components/product/pdp/*: um molde para todos os produtos
   "/oferta": ["oferta"], // app/(loja)/oferta/page.tsx: a landing tem container PRÓPRIO (mesmos componentes da home, copy própria)
   "/busca": [], // só o chrome: campo de busca e resultados do catálogo não viram primitivo (§8)

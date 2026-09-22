@@ -19,11 +19,14 @@
 import { landingRecipe } from "@/components/landing/landing-recipe";
 import { SECTIONS, withIds, type HomeData } from "@/components/home/sections/registry";
 import { PurchaseHeroSection } from "@/components/home/sections/purchase-hero";
-import { EditableSection, EditableSections } from "@/lib/editable";
+import { EditableSection } from "@/lib/editable";
+// o catálogo da loja ("+ Adicionar seção") carrega funções de desenho, que não atravessam do servidor: quem monta
+// é este invólucro de cliente, em volta das seções que o servidor já renderizou
+import { SecoesComCatalogo } from "@/components/home/secoes-com-catalogo";
 
 export function OfertaSections({ data }: { data: HomeData }) {
   return (
-    <EditableSections container="oferta">
+    <SecoesComCatalogo container="oferta" data={data}>
       <EditableSection id="compra" kind="produto-em-destaque" label="Bloco de compra">
         <PurchaseHeroSection data={data} />
       </EditableSection>
@@ -35,6 +38,6 @@ export function OfertaSections({ data }: { data: HomeData }) {
           </EditableSection>
         );
       })}
-    </EditableSections>
+    </SecoesComCatalogo>
   );
 }

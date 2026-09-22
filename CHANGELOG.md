@@ -40,9 +40,44 @@ fora dos buscadores, e quem abre esse endereço entra no público, como pelo lin
   WhatsApp fica. O rodapé some MENOS a barra de baixo (`.rodape-barra`), que leva o selo "Powered by Unbox" (contrato)
   e os dados da empresa (a lei do comércio eletrônico os pede à vista). A loja declara `ocultaChrome: true` em
   `lib/paginas-do-lojista.ts`, e o `check-editable` cobra a casca, o CSS e a barra.
+- **A oferta também esconde cabeçalho e rodapé**: a `/oferta` (página do código, sem ficha) ganha os mesmos dois
+  interruptores, na aba Seções do editor, no grupo "Cabeçalho e rodapé". O pedido mora no estado do container da
+  página (`sections.oferta.ocultarCabecalho`, `ocultarRodape`, pela operação `set_chrome`, com desfazer), e a versão
+  de um público o herda. `<PedidoDeChrome container="oferta"/>` (`components/landing/pedido-de-chrome.tsx`) marca o
+  pedido com as mesmas classes da página avulsa, e o CSS é o mesmo: a barra do rodapé com o selo e os dados da
+  empresa fica. A loja declara as páginas em `lib/chrome-das-paginas.ts` (`OCULTA_CHROME_EM`), que o layout passa ao
+  editor (`ocultaChromeEm`); o `check-editable` cobra a marca na rota de cada página declarada, o CSS e a barra.
 - **A prévia do editor ganha a moldura da loja**: `app/previa-do-editor/layout.tsx` usa `components/moldura-da-loja.tsx`,
   a mesma de `app/(loja)/layout.tsx`. A página do lojista aparece na prévia com o cabeçalho e o rodapé, como vai ao ar,
   e o "Ocultar" aparece na hora (o pedido sai do rascunho).
+- **O catálogo da loja em toda página** ("+ Adicionar seção"): a home, a oferta, as páginas e os artigos do lojista,
+  a listagem de uma coleção, o catálogo de produtos e a página de produto oferecem o MESMO catálogo
+  (`catalogoDaLoja`, `components/home/sections/catalogo.ts`; nomes em `components/home/sections/tipos.ts`). Só entra o
+  que aparece: as seções que se desenham sozinhas (texto, banner, benefícios, como funciona, cards, citação, HTML),
+  as de produto (vitrine e bloco de compra sempre; categorias, destaques, economia e kits quando o catálogo tem o que
+  mostrar) e as que dependem de conteúdo real da marca (depoimentos, avaliações, selos, diferenciais, faixa rolante,
+  ficha técnica, vídeos, nossa história, comparativo, números, comunidade, newsletter), que entram quando a receita
+  da loja as traz com conteúdo, e nascem com ele. Nada de depoimento ou número inventado.
+- **O bloco de compra tem o produto escolhido pelo lojista** (a foto é o seletor, o mesmo da vitrine; vale o primeiro
+  com preço), com versão por público como toda escolha. O botão leva o produto ao passo 2
+  (`/carrinho/oferta?…&produto=<endereço>`), que o põe primeiro e já com a quantidade. Cada bloco adicionado ganha a
+  âncora dele (`#comprar-<id>`); o da receita guarda `#comprar`. E o passo 2 cabe no celular: a coluna do grid não
+  tinha tamanho no celular e crescia até o slogan com os selos (medido: 478 px numa tela de 375); agora é
+  `grid-cols-1`, e o nome do produto quebra em até duas linhas em vez de cortar em "Máscara Nu…".
+- **Os dados das seções só vão no HTML quando há seção**: produto, catálogo, listagem e páginas do lojista mandam o
+  `HomeData` só quando o container tem seção adicionada no publicado (`dadosSeHouverSecoes`). Na prévia, a página
+  busca em `GET /api/unbox/secoes` (com o token da prévia) pelo `useDadosDasSecoes`. A oferta e a página de produto
+  montam o catálogo pelo invólucro de cliente `<SecoesComCatalogo>`. A listagem de coleção ganhou a lista de artigos
+  como seção fixa (o que se adiciona entra antes ou depois dela), e as páginas passam a ter os mesmos destaques e
+  kits da home.
+- **A categoria espelha o catálogo de produtos**: `Editable.Sections` ganha `layout="espelho"`, a página que mostra a
+  lista da dona igual a ela (ordem, ocultas, cópias e as seções adicionadas) sem mandar nela: não declara catálogo nem
+  posição, e o manifesto sai com `semLayout`, como no `layout={false}`. `/categoria/[tagSlug]` passa a usá-lo (era
+  `layout={false}`, que só levava a copy): o que o lojista adiciona, move ou oculta em `/produtos` vale em toda
+  categoria, como o painel da categoria já dizia. O "+" continua só em `/produtos`.
+- **A ordem de cada público acompanha a seção nova**: numa versão com ordem própria, a cópia entra logo depois da
+  origem e a seção adicionada depois da mesma vizinha que tem em Todos (antes, as duas caíam no fim da versão); a
+  removida sai das camadas, e desfazer as devolve.
 - **A foundation (`lib/editable`)**: `containerVaria` (o curinga), a operação `duplicate_page` (conteúdo de Todos,
   sem camada, oculta e fora dos buscadores, com desfazer exato), `publico` no registro da página e em
   `update_page`, excluir um público desliga as páginas dele (desfazer religa), e `decidirPublico` recebe o
@@ -56,10 +91,26 @@ não; `/_publico/…/oferta` e `/_publico/…/paginas/…` respondem 404 por ace
 declara a oferta sem a página do público dela. Cabeçalho e rodapé, 19 de 19: os interruptores escondem na prévia na
 hora e na loja depois de publicar (375 e 1440 px, sem rolagem lateral), a barra com o selo fica, as outras páginas
 continuam com cabeçalho, a versão de um público herda o pedido, e o gate reprova a loja que declara sem a regra do
-CSS. A vitrine de uma página avulsa aceita escolha própria por público (camada).
+CSS. A vitrine de uma página avulsa aceita escolha própria por público (camada). Catálogo em toda página, 34 de 34
+(com um catálogo de teste): o "+" das seis páginas oferece os 12 tipos que a loja de teste consegue mostrar e nenhum
+sem conteúdo real; o bloco de compra entra pelo clique na página de produto e aparece na hora; a escolha de produto
+troca na prévia e vale em toda página de produto; na oferta, o bloco adicionado convive com o da receita sem âncora
+repetida e mostra o produto da versão de Cacheados para Cacheados; destaques numa página avulsa, categorias depois
+da lista do blog e benefícios no catálogo; página sem seção não leva o catálogo no HTML; o botão do bloco leva o
+produto ao passo 2, que o mostra primeiro. E o `check-editable` aprova a loja de teste com catálogo (11 páginas).
+Categoria, 24 de 24: o bloco adicionado em `/produtos` aparece na prévia da categoria antes de publicar, com o
+produto escolhido; o painel da categoria diz que a lista é a de `/produtos`, não oferece o "+" e não deixa arrastar;
+publicado, as duas categorias mostram o bloco; subir o bloco e ocultar a faixa de confiança em `/produtos` vale na
+categoria; sem rolagem lateral em 375 e 1440 px. Oferta sem cabeçalho e rodapé, 23 de 23: os interruptores da aba
+Seções escondem na prévia na hora; o que mudou diz qual dos dois e para que lado; a home continua inteira (e não
+mostra os interruptores); publicado, o HTML da `/oferta` já sai marcado do servidor, também na versão de Cacheados;
+em 375 e 1440 px o cabeçalho some, o rodapé fica só com a barra do selo e não há rolagem lateral, e `/produtos`
+continua inteira; desligar volta ao normal. O gate reprova a loja que declara `ocultaChromeEm` sem a marca na página.
 
 Loja já gerada: como na 0.23.0, nada muda sozinho. As LPs por público ligam quando a loja declara `oferta` e
-`pagina-*` e tem as duas rotas do público (o `check-editable` diz o que falta).
+`pagina-*` e tem as duas rotas do público (o `check-editable` diz o que falta). A categoria que espelha `/produtos`
+chega com o `components/catalog/catalog-client.tsx` e a página da categoria novos; o cabeçalho e o rodapé da oferta,
+com o `pedido-de-chrome.tsx`, o `lib/chrome-das-paginas.ts`, a marca em `pagina-da-oferta.tsx` e a prop no layout.
 
 ### v0.23.0 — foundation 18: a home muda para cada público
 

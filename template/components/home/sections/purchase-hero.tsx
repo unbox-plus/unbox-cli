@@ -13,11 +13,19 @@
 // gate por `data-editor-ignore`, o que é DADO ou MECÂNICA (README do editor, §8): foto, nome e preço
 // do produto, os tiers de quantidade (configuração comercial), os cálculos de desconto e a frase do
 // CDC (texto legal). Para o lojista o topo é BANNER ou "bloco de compra", nunca "hero".
+//
+// O PRODUTO É ESCOLHA DO LOJISTA (foundation 18): clicar na foto abre o mesmo seletor da vitrine
+// (`Editable.Vitrine`, caminho `<container>.<id>.vitrine`), e vale o PRIMEIRO produto com preço da escolha.
+// Sem escolha, o de sempre (`data.featured`). Como toda escolha do documento, ela tem versão por público. O
+// botão leva o produto ao passo 2 (`&produto=<endereço>`), que o põe primeiro e já com a quantidade: sem isso,
+// o bloco venderia um produto e o passo 2 mostraria outros. Na prévia, os produtos da escolha chegam pelo 4º
+// argumento do primitivo, como na vitrine (product-showcase.tsx).
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ShieldCheck, CreditCard, Truck, ArrowRight } from "@phosphor-icons/react/dist/ssr";
-import { Editable, EditableScope } from "@/lib/editable";
+import { CAMPO_VITRINE, Editable, EditableScope, joinPath, useEditableContext, type VitrineProdutoResolvido, type VitrineValue } from "@/lib/editable";
+import type { CatalogProductItem } from "@/components/catalog/catalog-client";
 import { Stars } from "./stars";
 import { QUANTITY_TIERS } from "@/lib/store-config";
 import { formatBRL } from "@/lib/format";
@@ -27,10 +35,47 @@ import { Foto } from "@/components/ui/foto";
 type Perk = { tag: string; text: string; icon?: string };
 const PERK_ICONS: Record<string, React.ComponentType<any>> = { shield: ShieldCheck, card: CreditCard, truck: Truck };
 
+/** o que o bloco mostra do produto, venha ele da escolha do lojista ou do destaque do código */
+interface ProdutoDoBloco {
+  titulo: string;
+  slug: string;
+  imagem: string | null;
+  preco: number;
+}
+const doCatalogo = (p: CatalogProductItem): ProdutoDoBloco => ({ titulo: p.title, slug: p.slug, imagem: p.imageUrl, preco: p.price });
+// produto sem preço (sem variante com preço no painel) não vai para um bloco de compra: a conta das quantidades
+// daria "R$ 0,00", que é mentira
+const daEscolha = (p: VitrineProdutoResolvido): ProdutoDoBloco | null => (p.preco == null ? null : { titulo: p.titulo, slug: p.slug, imagem: p.imagem, preco: p.preco });
+
+/** a moldura do bloco SEM produto, só no editor: é onde o lojista clica para escolher (fora do site ela não existe) */
+const MOLDURA_SEM_PRODUTO: React.CSSProperties = {
+  padding: "40px 24px",
+  borderRadius: 16,
+  border: "2px dashed #D1D5DB",
+  background: "#FAFAFA",
+  color: "#374151",
+  textAlign: "center",
+  font: "500 14px/1.5 system-ui, sans-serif",
+  cursor: "pointer",
+};
+
 
 export function PurchaseHeroSection({ data, sectionProps = {} }: SectionComponentProps) {
   const router = useRouter();
-  const product = data.featured;
+  // o MESMO caminho que o primitivo registra lá embaixo: derivado do escopo da seção, nunca escrito à mão (o id
+  // de um bloco adicionado só existe em tempo de execução, `novo-bloco-de-compra-2`)
+  const ctx = useEditableContext();
+  const caminho = joinPath(ctx.scope, CAMPO_VITRINE);
+  const doServidor = data.vitrines?.[caminho] ?? null;
+  const featured = data.featured;
+  // a escolha que o CÓDIGO representa: o produto que o bloco destaca hoje (é o estado que o painel mostra antes
+  // do primeiro clique). Pelo productId, que é estável; o slug fica de reserva, como na vitrine.
+  const fallback: VitrineValue = { modo: "produtos", produtos: featured ? [featured.productId || featured.slug] : [] };
+  // A ÂNCORA: `#comprar` é a do bloco da receita (o id de seção `compra`), para onde os botões "comprar" da página
+  // levam. Um bloco ADICIONADO ganha a dele (`comprar-<id da seção>`): dois `id="comprar"` na mesma página seriam
+  // HTML inválido, e o link iria para qualquer um dos dois.
+  const secao = ctx.scope[ctx.scope.length - 1] ?? "";
+  const ancora = !secao || secao === "compra" ? "comprar" : `comprar-${secao}`;
   const {
     tagline = "",
     description = "",
@@ -47,25 +92,85 @@ export function PurchaseHeroSection({ data, sectionProps = {} }: SectionComponen
   const [sel, setSel] = React.useState(defaultIdx);
   const [busy, setBusy] = React.useState(false);
 
-  if (!product) return null;
+  return (
+    <Editable.Vitrine path={CAMPO_VITRINE} label="Produto do bloco de compra" fallback={fallback}>
+      {(_escolha, attrs, ref, previa) => {
+        // a prévia (rascunho de agora) ganha do que o servidor resolveu (documento publicado); vale o primeiro com preço
+        const resolvidos = previa?.produtos ?? doServidor;
+        const escolhido = resolvidos?.map(daEscolha).find((p): p is ProdutoDoBloco => p !== null) ?? null;
+        const product = escolhido ?? (featured ? doCatalogo(featured) : null);
+        if (!product) {
+          // sem produto nenhum (nem escolhido, nem do código): fora do site. No editor fica a moldura, para o
+          // lojista clicar e escolher o produto
+          if (!ctx.editing) return null;
+          return (
+            <div className="mx-auto max-w-[var(--container-max,1240px)] px-4 pt-[42px] sm:px-6">
+              <div ref={ref as React.Ref<HTMLDivElement>} {...attrs} style={MOLDURA_SEM_PRODUTO}>
+                <b>Bloco de compra sem produto.</b> Clique aqui para escolher o produto dele. Sem produto, ele não aparece no site.
+              </div>
+            </div>
+          );
+        }
+        return (
+          <BlocoComProduto
+            ancora={ancora}
+            product={product}
+            attrs={attrs}
+            fotoRef={ref}
+            sel={sel}
+            setSel={setSel}
+            busy={busy}
+            onComprar={(quantidade) => { setBusy(true); router.push(`/carrinho/oferta?quantity=${quantidade}&produto=${encodeURIComponent(product.slug)}`); }}
+            tagline={tagline}
+            description={description}
+            ctaLabel={ctaLabel}
+            sacEmail={sacEmail}
+            perks={perks}
+            rating={rating}
+          />
+        );
+      }}
+    </Editable.Vitrine>
+  );
+}
+
+/** o bloco desenhado, com o produto já decidido (a escolha do lojista ou o destaque do código) */
+function BlocoComProduto({ ancora, product, attrs, fotoRef, sel, setSel, busy, onComprar, tagline, description, ctaLabel, sacEmail, perks, rating }: {
+  ancora: string;
+  product: ProdutoDoBloco;
+  /** os atributos do seletor de produto (`Editable.Vitrine`): vão na foto, que é onde o lojista clica para trocar */
+  attrs: Record<string, string | undefined>;
+  fotoRef: React.RefCallback<Element>;
+  sel: number;
+  setSel: (i: number) => void;
+  busy: boolean;
+  onComprar: (quantidade: number) => void;
+  tagline: string;
+  description: string;
+  ctaLabel: string;
+  sacEmail: string;
+  perks: Perk[];
+  rating: number | null;
+}) {
   const tier = QUANTITY_TIERS[sel];
-  const unit = product.price;
+  const unit = product.preco;
   const unitOff = unit * (1 - tier.offPct / 100);
   const totalFull = unit * tier.quantity;
   const total = unitOff * tier.quantity;
   const anyOff = QUANTITY_TIERS.some((t) => t.offPct > 0);
 
   return (
-    <div id="comprar" className="mx-auto max-w-[var(--container-max,1240px)] scroll-mt-24 px-4 pt-[42px] sm:px-6">
+    <div id={ancora} className="mx-auto max-w-[var(--container-max,1240px)] scroll-mt-24 px-4 pt-[42px] sm:px-6">
       <div className="grid gap-9 lg:grid-cols-[1.02fr_0.98fr]">
-        {/* galeria (foto do produto: dado do catálogo) */}
-        <div className="lg:sticky lg:top-24 lg:self-start" data-editor-ignore="">
-          <div className="overflow-hidden rounded-2xl bg-[var(--store-surface-2)]">
-            {product.imageUrl
-              ? <Foto src={product.imageUrl} alt={product.title} width={1200} height={1200} sizes="(min-width: 1024px) 600px, 100vw" priority className="aspect-square w-full object-contain p-8" />
+        {/* galeria (foto do produto: dado do catálogo). A FOTO é o seletor do produto no editor: clicar nela abre a
+            escolha (o primitivo só põe atributos de seleção; em produção o HTML é o mesmo) */}
+        <div className="lg:sticky lg:top-24 lg:self-start">
+          <div ref={fotoRef as React.Ref<HTMLDivElement>} {...attrs} className="overflow-hidden rounded-2xl bg-[var(--store-surface-2)]">
+            {product.imagem
+              ? <Foto src={product.imagem} alt={product.titulo} width={1200} height={1200} sizes="(min-width: 1024px) 600px, 100vw" priority className="aspect-square w-full object-contain p-8" />
               : <img src="/brand/ph/photo-a.svg" alt="" className="aspect-square w-full object-cover" />}
           </div>
-          <Link href={`/produto/${encodeURIComponent(product.slug)}`} className="mt-3 inline-block text-[13.5px] font-semibold text-[var(--store-primary,#18181B)] underline underline-offset-2">Ver página do produto</Link>
+          <Link href={`/produto/${encodeURIComponent(product.slug)}`} data-editor-ignore="" className="mt-3 inline-block text-[13.5px] font-semibold text-[var(--store-primary,#18181B)] underline underline-offset-2">Ver página do produto</Link>
         </div>
 
         {/* compra */}
@@ -74,7 +179,7 @@ export function PurchaseHeroSection({ data, sectionProps = {} }: SectionComponen
             <Stars n={rating} className="text-[16px] text-[var(--store-cta-dark)]" />
             {tagline && <Editable.Text path="chapeu" fallback={tagline} label="Chapéu acima do nome do produto" className="text-[12.5px] font-extrabold uppercase tracking-[0.8px] text-[var(--store-primary,#18181B)]" />}
           </div>
-          <h2 className="font-display mt-2.5" data-editor-ignore="">{product.title}</h2>
+          <h2 className="font-display mt-2.5" data-editor-ignore="">{product.titulo}</h2>
           {description && <Editable.Text as="p" path="texto" fallback={description} label="Texto do bloco de compra" multiline className="mt-2.5 text-[15px] leading-[1.55] text-[var(--store-muted)]" />}
 
           <div className="mt-5 store-card rounded-2xl p-5">
@@ -159,7 +264,7 @@ export function PurchaseHeroSection({ data, sectionProps = {} }: SectionComponen
             </div>
             <Editable.Slot path="cta" type="text" fallback={ctaLabel} label="Botão de compra">
               {(v, attrs, ref, estilo) => (
-                <button ref={ref} {...attrs} type="button" disabled={busy} onClick={() => { setBusy(true); router.push(`/carrinho/oferta?quantity=${tier.quantity}`); }}
+                <button ref={ref} {...attrs} type="button" disabled={busy} onClick={() => onComprar(tier.quantity)}
                   className="font-display mt-3.5 flex w-full items-center justify-center gap-2 rounded-full bg-[var(--store-cta,#D97706)] py-4 text-[15.5px] font-extrabold uppercase tracking-[0.5px] text-[var(--store-cta-fg,#1C1207)] transition-colors hover:bg-[var(--store-cta-dark,#B45309)] disabled:opacity-60" style={estilo}>
                   {busy ? "Preparando..." : v} <ArrowRight weight="bold" />
                 </button>

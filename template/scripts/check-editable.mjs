@@ -690,16 +690,47 @@ const lerDaLoja = (...partes) => {
     return "";
   }
 };
+/** o CSS que esconde e a barra do rodapé que fica: as duas peças que a página avulsa e a do código dividem */
+const faltasDoCssEDaBarra = () => {
+  const faltam = [];
+  const css = lerDaLoja("app", "globals.css");
+  const rodape = lerDaLoja("components", "site-footer.tsx");
+  if (!/:has\(\.lp-sem-cabecalho\)[^{]*header\.site-chrome/.test(css)) faltam.push("o app/globals.css não esconde o header.site-chrome com :has(.lp-sem-cabecalho)");
+  if (!/:has\(\.lp-sem-rodape\)[^{]*footer\.site-chrome\s*>\s*:not\(\.rodape-barra\)/.test(css)) faltam.push("o app/globals.css não esconde o rodapé poupando a .rodape-barra (footer.site-chrome > :not(.rodape-barra))");
+  if (!/className=["{`][^\n]*\brodape-barra\b/.test(rodape) || !rodape.includes("<PoweredByUnbox")) faltam.push("o rodapé (components/site-footer.tsx) não marca a barra de baixo com .rodape-barra");
+  return faltam;
+};
 const lpSemChrome = { declarada: /^\s*ocultaChrome\s*:\s*true\b/m.test(soCodigo(lerDaLoja("lib", "paginas-do-lojista.ts"))), faltam: [] };
 if (lpSemChrome.declarada) {
   const casca = soCodigo(lerDaLoja("components", "paginas", "casca-de-pagina.tsx"));
-  const css = lerDaLoja("app", "globals.css");
-  const rodape = lerDaLoja("components", "site-footer.tsx");
   if (!/\blp-sem-cabecalho\b/.test(casca) || !/\blp-sem-rodape\b/.test(casca)) lpSemChrome.faltam.push("a casca (components/paginas/casca-de-pagina.tsx) não marca lp-sem-cabecalho e lp-sem-rodape");
-  if (!/:has\(\.lp-sem-cabecalho\)[^{]*header\.site-chrome/.test(css)) lpSemChrome.faltam.push("o app/globals.css não esconde o header.site-chrome com :has(.lp-sem-cabecalho)");
-  if (!/:has\(\.lp-sem-rodape\)[^{]*footer\.site-chrome\s*>\s*:not\(\.rodape-barra\)/.test(css)) lpSemChrome.faltam.push("o app/globals.css não esconde o rodapé poupando a .rodape-barra (footer.site-chrome > :not(.rodape-barra))");
-  if (!/className=["{`][^\n]*\brodape-barra\b/.test(rodape) || !rodape.includes("<PoweredByUnbox")) lpSemChrome.faltam.push("o rodapé (components/site-footer.tsx) não marca a barra de baixo com .rodape-barra");
+  lpSemChrome.faltam.push(...faltasDoCssEDaBarra());
 }
+
+// ── A PÁGINA DO CÓDIGO SEM CABEÇALHO E SEM RODAPÉ (foundation 18) ───────────────────────────────────────
+//
+// `ocultaChromeEm` no layout (a lista mora em lib/chrome-das-paginas.ts) liga os dois interruptores na aba Seções do
+// editor para uma página do código (a `/oferta`), cujo pedido mora no estado do container dela. Cada container
+// declarado precisa da rota que o renderiza (em CONTAINERS_POR_ROTA) com `<PedidoDeChrome container="…"/>` na cadeia
+// de imports, e do mesmo CSS e da mesma barra do rodapé da página avulsa. Faltando, o interruptor gravaria e a
+// página continuaria com cabeçalho (ou esconderia o selo e os dados da empresa).
+const doCodigoSemChrome = { declarada: false, paginas: [], faltam: [] };
+if (RAIZ_DA_LOJA && /ocultaChromeEm=\{/.test(semComentarios(lerDaLoja("app", "layout.tsx")))) {
+  doCodigoSemChrome.declarada = true;
+  const containers = [...soCodigo(lerDaLoja("lib", "chrome-das-paginas.ts")).matchAll(/container:\s*["']([a-z][a-z0-9-]*)["']/g)].map((m) => m[1]);
+  if (!containers.length) doCodigoSemChrome.faltam.push("a lista das páginas (OCULTA_CHROME_EM, em lib/chrome-das-paginas.ts), que o layout passa em ocultaChromeEm");
+  const tabela = lerDaLoja("lib", "rotas-editaveis.ts");
+  const paginas = paginasDoApp(RAIZ_DA_LOJA);
+  for (const container of containers) {
+    const rota = [...tabela.matchAll(/"(\/[^"]*)"\s*:\s*\[([^\]]*)\]/g)].find((m) => m[2].split(",").map((x) => x.trim().replace(/^["']|["']$/g, "")).includes(container))?.[1] ?? null;
+    const arquivo = rota ? paginas.get(rota) ?? null : null;
+    const marca = new RegExp(`<\\s*PedidoDeChrome[^>]*container=["']${container}["']`);
+    const onde = arquivo ? ondeEstaAFatia(arquivo, RAIZ_DA_LOJA, marca) : null;
+    doCodigoSemChrome.paginas.push({ container, rota, arquivo: arquivo ? path.relative(RAIZ_DA_LOJA, arquivo) : null, onde });
+  }
+  doCodigoSemChrome.faltam.push(...faltasDoCssEDaBarra());
+}
+const doCodigoIncompleto = doCodigoSemChrome.declarada && (doCodigoSemChrome.faltam.length > 0 || doCodigoSemChrome.paginas.some((p) => !p.onde));
 
 console.log("\nO PAR DO CORTE DO DOCUMENTO (o layout tira as páginas do lojista; a casca devolve a fatia):");
 if (!parDoCorte.conferido || parDoCorte.motivo) {
@@ -738,6 +769,18 @@ console.log("\nA LANDING PAGE SEM CABEÇALHO E SEM RODAPÉ (a declaração, a ca
 if (!lpSemChrome.declarada) console.log("  não declarada · lib/paginas-do-lojista.ts não diz ocultaChrome: true: o editor não oferece os dois interruptores");
 else if (lpSemChrome.faltam.length) for (const f of lpSemChrome.faltam) console.log(`  FALTA          ${f}`);
 else console.log("  ok             a casca marca, o CSS esconde e a barra do rodapé (selo e dados da empresa) fica");
+
+console.log("\nA PÁGINA DO CÓDIGO SEM CABEÇALHO E SEM RODAPÉ (a declaração no layout, a marca na página, o CSS e a barra):");
+if (!doCodigoSemChrome.declarada) console.log("  não declarada · o app/layout.tsx não passa ocultaChromeEm: o editor não oferece os interruptores nas páginas do código");
+else {
+  for (const p of doCodigoSemChrome.paginas) {
+    if (!p.rota) console.log(`  SEM A ROTA     a loja declara «${p.container}» e nenhuma rota de CONTAINERS_POR_ROTA (lib/rotas-editaveis.ts) o renderiza`);
+    else if (!p.arquivo) console.log(`  SEM A PÁGINA   ${p.rota}: não achei o page.tsx dela em app/`);
+    else if (!p.onde) console.log(`  SEM A MARCA    ${p.arquivo} e nada que ela importa renderiza <PedidoDeChrome container="${p.container}"/>: o interruptor gravaria e a página continuaria igual`);
+    else console.log(`  ok             ${p.rota.padEnd(18)} marca em ${p.onde}`);
+  }
+  for (const f of doCodigoSemChrome.faltam) console.log(`  FALTA          ${f}`);
+}
 
 if (medidas.length) {
   const lista = (xs) => (xs.length ? xs.join(", ") : "(nenhum)");
@@ -804,6 +847,7 @@ if (divergentes.length) {
 if (semDeclaracao.length) reprovacoes.push(`rota(s) listada(s) pela loja sem declaração de containers: ${semDeclaracao.map((r) => r.rota).join(", ")}`);
 if (prefixoIndevido.length) reprovacoes.push(`container do código com prefixo reservado às páginas do lojista em ${prefixoIndevido.map((x) => `${x.rota} (${x.containers.join(", ")})`).join(", ")}`);
 if (personalizacaoIncompleta) reprovacoes.push(`a loja declara a personalização por público sem ${[parDaPersonalizacao.semPagina ? "a página do público" : "", parDaPersonalizacao.semCamada ? "a camada (<EditablePublico>) na página do público" : "", parDaPersonalizacao.semBorda ? "a decisão no middleware (seguir)" : "", parDaPersonalizacao.semLogin ? "o login que confere as regras de cliente (publicoNoLogin)" : "", parDaPersonalizacao.semLojaPadrao ? "a loja padrão na privacidade (<LojaPadrao/>)" : "", lpsIncompletas.length ? `a página do público de ${lpsIncompletas.map((l) => l.rota ?? `«${l.container}»`).join(", ")}` : ""].filter(Boolean).join(" e ")}: o editor ofereceria versões que ninguém veria`);
+if (doCodigoIncompleto) reprovacoes.push(`a loja declara ocultaChromeEm sem ${[...doCodigoSemChrome.paginas.filter((p) => !p.onde).map((p) => `a marca (<PedidoDeChrome container="${p.container}"/>) em ${p.rota ?? `«${p.container}»`}`), ...doCodigoSemChrome.faltam].join("; ")}: o interruptor da aba Seções não esconderia nada (ou esconderia o selo e os dados da empresa)`);
 if (lpSemChrome.faltam.length) reprovacoes.push(`a loja declara ocultaChrome sem ${lpSemChrome.faltam.length} peça(s): ${lpSemChrome.faltam.join("; ")}: o interruptor da ficha não esconderia nada (ou esconderia o selo e os dados da empresa)`);
 if (parDoCorte.semFatia.length) reprovacoes.push(`rota(s) do lojista sem a fatia do documento: ${parDoCorte.semFatia.map((x) => `${x.rota} (${x.arquivo})`).join(", ")}: a página vai ao ar com o literal do código no lugar do texto do lojista`);
 

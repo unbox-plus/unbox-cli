@@ -691,10 +691,11 @@ function Section({
   // de dentro recusarem a raiz do documento, cada um dizendo por quê.
   const cont = container ?? ctx.container;
   const ref = React.useRef<HTMLDivElement | null>(null);
-  // seção fixa (cabeçalho/rodapé) nunca some, mesmo que um documento diga o contrário
-  const hidden = Boolean(cont) && !fixed && ctx.layout && (ctx.doc.sections[cont as string]?.hidden ?? []).includes(id);
+  // seção fixa (cabeçalho/rodapé) nunca some, mesmo que um documento diga o contrário. O espelho oculta o que a
+  // dona oculta (é a mesma lista); só a página que REAPROVEITA componentes (`layout={false}`) ignora
+  const hidden = Boolean(cont) && !fixed && ctx.layout !== false && (ctx.doc.sections[cont as string]?.hidden ?? []).includes(id);
   const { editing, registerSection } = ctx;
-  const semLayout = !ctx.layout;
+  const semLayout = ctx.layout !== true;
   React.useEffect(() => {
     if (!editing || !cont) return;
     return registerSection({ container: cont, id, label, clone, criada, tipo, fixed, kind, item, ordemNoCodigo, semLayout, el: () => ref.current });
@@ -758,8 +759,17 @@ export type CatalogoDeSecoes = Record<string, TipoDeSecao>;
  * qualquer elemento com prop `id`).
  */
 type SectionsPropsBase = {
-  /** false = renderiza na ordem do código, sem ocultar (ex.: página de produto que reusa a home) */
-  layout?: boolean;
+  /**
+   * QUEM MANDA NA LISTA deste container nesta página:
+   * - `true` (padrão): esta página é a DONA. Segue a ordem, as ocultas, as cópias e as seções adicionadas do
+   *   documento, declara o catálogo ("+ Adicionar seção") e diz ao editor a posição de cada seção no código;
+   * - `"espelho"`: a página mostra a MESMA lista da dona, igual a ela (ordem, ocultas, cópias e adicionadas), sem
+   *   mandar: não declara catálogo nem posição, e o painel manda editar a ordem na dona (ex.: a categoria, que é
+   *   /produtos com um filtro). O catálogo ainda é passado, porque é dele que sai o desenho das adicionadas;
+   * - `false`: só REAPROVEITA componentes, na ordem do código e sem ocultar (ex.: a página de produto que monta
+   *   seções da home).
+   */
+  layout?: boolean | "espelho";
   /**
    * O que o lojista pode ADICIONAR neste container. Sem catálogo, o container não oferece "adicionar
    * seção" — e é o padrão: quem não declara nada continua exatamente como antes.
@@ -813,7 +823,10 @@ function Sections(props: SectionsProps) {
         : `[Editable] <Editable.Sections> sem container: declare o container desta página (<Editable.Sections container="sobre">). A lista aparece na tela, mas nada dentro dela é editável, porque os caminhos cairiam na raiz do documento.`,
     );
   }, [container, nested]);
-  const state = layout && container ? ctx.doc.sections[container] : undefined;
+  // `segue`: a lista obedece ao documento (a dona e o espelho). `manda`: esta página é a dona (catálogo e posição)
+  const segue = layout !== false;
+  const manda = layout === true;
+  const state = segue && container ? ctx.doc.sections[container] : undefined;
   const items = React.Children.toArray(children).filter(React.isValidElement) as React.ReactElement<{ id?: string }>[];
   const ids = items.map((c) => c.props.id).filter((x): x is string => typeof x === "string");
   if (process.env.NODE_ENV !== "production" && ids.length !== items.length) {
@@ -822,7 +835,7 @@ function Sections(props: SectionsProps) {
   const byId = new Map(items.filter((c) => typeof c.props.id === "string").map((c) => [c.props.id as string, c]));
   // cópias do lojista: o MESMO componente da origem, com id (= escopo) próprio → todos
   // os textos/imagens da cópia nascem editáveis, sem código novo
-  const clones = layout ? Object.entries(state?.clones ?? {}).filter(([, src]) => byId.has(src)) : [];
+  const clones = segue ? Object.entries(state?.clones ?? {}).filter(([, src]) => byId.has(src)) : [];
   // seções ADICIONADAS pelo lojista: só as de tipo que ESTA loja tem no catálogo. Um tipo que ela não
   // conhece (catálogo mudou, loja atrás da versão) fica de fora da TELA sem estourar — o painel continua
   // listando a seção, porque `manifestWithClones` a deriva do rascunho, e é lá que ele explica.
@@ -832,7 +845,7 @@ function Sections(props: SectionsProps) {
     const t = catalogo && Object.prototype.hasOwnProperty.call(catalogo, tipo) ? catalogo[tipo] : undefined;
     return t && typeof t.render === "function" ? t : undefined;
   };
-  const criadas = layout && catalogo ? Object.entries(state?.criadas ?? {}).filter(([, tipo]) => Boolean(doCatalogo(tipo))) : [];
+  const criadas = segue && catalogo ? Object.entries(state?.criadas ?? {}).filter(([, tipo]) => Boolean(doCatalogo(tipo))) : [];
   const todos = [...ids, ...clones.map(([id]) => id).filter((id) => !byId.has(id)), ...criadas.map(([id]) => id).filter((id) => !byId.has(id))];
   const order = state?.order ?? [];
   const present = new Set(todos);
@@ -841,9 +854,10 @@ function Sections(props: SectionsProps) {
   const tipoDaCriada = new Map(criadas);
   const value = React.useMemo(() => ({ ...ctx, container, layout }), [ctx, container, layout]);
   // o catálogo vira uma ASSINATURA de texto: o objeto é recriado a cada render da loja, e depender
-  // dele por referência re-registraria os tipos sem parar (o manifesto nunca assentaria)
+  // dele por referência re-registraria os tipos sem parar (o manifesto nunca assentaria). Só a DONA declara: o
+  // espelho oferecendo "+" escreveria na lista da dona a partir de outra página
   const { editing, registerTipos } = ctx;
-  const assinaturaDoCatalogo = catalogo && layout && container ? Object.entries(catalogo).map(([tipo, d]) => [tipo, d.label, d.descricao ?? "", d.kind ?? ""].join("\u0000")).join("\u0001") : "";
+  const assinaturaDoCatalogo = catalogo && manda && container ? Object.entries(catalogo).map(([tipo, d]) => [tipo, d.label, d.descricao ?? "", d.kind ?? ""].join("\u0000")).join("\u0001") : "";
   React.useEffect(() => {
     if (!editing || !assinaturaDoCatalogo || !container) return;
     const tipos = assinaturaDoCatalogo.split("\u0001").map((linha) => {
@@ -874,8 +888,9 @@ function Sections(props: SectionsProps) {
         // `ordemNoCodigo` = posição do filho no CÓDIGO (da origem, no caso de uma cópia): o editor precisa
         // dela para saber a ordem original mesmo lendo um DOM já reordenado (Astra v3.5, achado 1)
         // só com `layout` esta lista MANDA na ordem: a página de produto reusa o container "home" com
-        // layout={false} só para reaproveitar componentes, e não pode ditar a ordem da home (Astra v3.6, 1)
-        const ordemNoCodigo = layout ? ids.indexOf(src ?? id) : undefined;
+        // layout={false} só para reaproveitar componentes, e não pode ditar a ordem da home (Astra v3.6, 1); o
+        // espelho também não: a ordem dele é a da dona
+        const ordemNoCodigo = manda ? ids.indexOf(src ?? id) : undefined;
         return React.cloneElement(el, { key: id, id, container, ordemNoCodigo, ...(src ? { clone: true, label } : {}) } as Partial<{ id: string; container: string; clone: boolean; label: string; item: boolean; ordemNoCodigo: number }>);
       })}
     </EditableContextProvider>
