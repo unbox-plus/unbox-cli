@@ -80,7 +80,7 @@ export async function generateMetadata(): Promise<Metadata> {
   // Router). Com ícone enviado, a lista substitui o arquivo (ver `iconesDaLoja`). Nunca apontar para o
   // logo horizontal: ele fica ilegível na aba.
   ...(icons ? { icons } : {}),
-  // a tag que prova ao Google Search Console que a loja é de quem pediu, colada pelo lojista na aba SEO
+  // a tag que prova ao Google Search Console que a loja é de quem pediu, colada pelo lojista no bloco SEO (Configurações gerais)
   ...(seo?.verificacaoGoogle ? { verification: { google: seo.verificacaoGoogle } } : {}),
   };
 }
