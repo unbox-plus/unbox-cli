@@ -20,7 +20,7 @@ import { fatiaDoDocumento } from "@/lib/editable/server";
 import { DataLayerReady } from "@/components/analytics/data-layer-ready";
 import { CascaDePagina, type Migalha, type RegistroNaCasca } from "@/components/paginas/casca-de-pagina";
 import { tituloDaColecao, tituloDaPaginaOuEndereco } from "@/components/paginas/titulos";
-import { dadosDasPaginas } from "@/lib/paginas-dados";
+import { dadosSeHouverSecoes } from "@/lib/paginas-dados";
 import { jsonLdDaLoja, jsonLdDaPagina, jsonLdDeMigalhas } from "@/lib/paginas-seo";
 import { lerPaginas } from "@/lib/paginas-publicadas";
 import { aplicarPublico, type ContentDocument, type PaginaDoLojista } from "@/lib/editable/document";
@@ -77,7 +77,7 @@ export async function PaginaDoLojistaNaTela({
 }) {
   const publicado = await lerPaginas();
   const doc = publicado && publico ? aplicarPublico(publicado, publico) : publicado;
-  const [dados, migalhas] = await Promise.all([dadosDasPaginas(doc, id), migalhasDaPagina(id, registro, doc)]);
+  const [dados, migalhas] = await Promise.all([dadosSeHouverSecoes(doc, id), migalhasDaPagina(id, registro, doc)]);
   const colecao = registro.tipo === "artigo" && registro.colecao ? tituloDaColecao(doc, registro.colecao) : undefined;
   // a entidade da loja vai JUNTO: `publisher` e `isPartOf` apontam para ela por `@id`, e um `@id` que
   // só existe no JSON-LD da home não é resolvido por quem lê esta página (ver `jsonLdDaLoja`)

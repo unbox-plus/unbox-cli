@@ -31,6 +31,8 @@ import { ProductTabs, FaqList, type KV } from "@/components/product/pdp/interact
 import { TrustStrip, SecurityBar, ReviewsCard, QualidadeCard, QUALIDADE, type ReviewItem } from "@/components/product/pdp/sections";
 import { Newsletter } from "@/components/product/pdp/newsletter";
 import { CatalogGrid, CatalogCta, type CatalogItem } from "@/components/product/pdp/catalog-grid";
+import { SecoesComCatalogo } from "@/components/home/secoes-com-catalogo";
+import type { HomeData } from "@/components/home/sections/registry";
 import type { PerguntaResposta } from "@/components/product/pdp/faq-modelo";
 
 export interface PdpViewProps {
@@ -71,13 +73,21 @@ export interface PdpViewProps {
   /** FAQ do enriquecimento (por produto), dado do catálogo. As perguntas MODELO do molde entram sempre (faq-modelo.ts). */
   faq?: readonly PerguntaResposta[];
   catalogo: CatalogItem[];
+  /**
+   * o que as seções ADICIONADAS pelo lojista mostram (o catálogo e as escolhas de produto do container `produto`);
+   * `null` = o molde não tem seção adicionada, e o catálogo não vai no HTML (a prévia busca quando precisa)
+   */
+  secoes: HomeData | null;
 }
 
-export function PdpView({ produto, compra, detalhes, avaliacoes, faq, catalogo }: PdpViewProps) {
+export function PdpView({ produto, compra, detalhes, avaliacoes, faq, catalogo, secoes }: PdpViewProps) {
   return (
     <div className="full-bleed store-layout bg-white text-[var(--store-ink)]">
       <div className="mx-auto max-w-[1240px] px-4 pb-2 sm:px-6">
-        <EditableSections container="produto">
+        {/* o catálogo da loja ("+ Adicionar seção", foundation 18): as seções que o lojista adicionar aqui valem em TODA
+            página de produto, como o resto do molde (o editor avisa). Invólucro de cliente, porque o catálogo carrega
+            funções de desenho que não atravessam do servidor. */}
+        <SecoesComCatalogo container="produto" data={secoes}>
           {/* FIXA: a galeria e o bloco de compra SÃO a página; reordenar e ocultar valem para o resto. */}
           <EditableSection id="compra" kind="produto-em-destaque" label="Bloco de compra" fixed>
             {/* caminho de navegação: os dois links são copy de navegação da marca; o nome do produto é dado */}
@@ -220,7 +230,7 @@ export function PdpView({ produto, compra, detalhes, avaliacoes, faq, catalogo }
           <EditableSection id="newsletter" kind="newsletter" label="Newsletter">
             <div className="mt-12"><Newsletter /></div>
           </EditableSection>
-        </EditableSections>
+        </SecoesComCatalogo>
       </div>
     </div>
   );

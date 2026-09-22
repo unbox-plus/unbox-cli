@@ -39,6 +39,7 @@ import { Editable, useEditableContext } from "@/lib/editable";
 import { resolveValue, SECAO_CABECALHO, type ImageValue, type PaginaDoLojista } from "@/lib/editable/document";
 import type { HomeData } from "@/components/home/sections/registry";
 import { catalogoDasPaginas } from "@/components/paginas/catalogo";
+import { useDadosDasSecoes } from "@/components/home/secoes-com-catalogo";
 import { dataDoArtigo } from "@/components/paginas/data-do-artigo";
 import { enderecoComoTitulo } from "@/components/paginas/titulos";
 
@@ -74,8 +75,11 @@ export function CascaDePagina({
   /** o container desta página: `pagina-<endereço>` ou `artigo-<coleção>--<endereço>` */
   id: string;
   registro: RegistroNaCasca;
-  /** o mesmo `HomeData` da home: é o que alimenta a vitrine de produtos das seções criadas */
-  data: HomeData;
+  /**
+   * o mesmo `HomeData` da home: é o que alimenta as seções de produto criadas (vitrine, bloco de compra…). `null` =
+   * a página não tem seção criada no publicado, e o catálogo não vai no HTML (na prévia, `useDadosDasSecoes` busca)
+   */
+  data: HomeData | null;
   modo: "pagina" | "artigo";
   /** o caminho de migalhas, montado no servidor (o mesmo que vai para o `BreadcrumbList`) */
   migalhas: Migalha[];
@@ -83,6 +87,7 @@ export function CascaDePagina({
   aviso?: string | null;
 }) {
   const ctx = useEditableContext();
+  const dados = useDadosDasSecoes(id, data);
   const caminhoDaImagem = `${id}.${SECAO_CABECALHO}.imagem`;
   const caminhoDoResumo = `${id}.${SECAO_CABECALHO}.resumo`;
   // com fallback VAZIO: a pergunta é "o lojista pôs alguma?", e um fallback com arte responderia
@@ -100,7 +105,7 @@ export function CascaDePagina({
     // de branco puro de ponta a ponta sobre o fundo do `body`, com emenda visível onde ela acabava.
     // Toda página e todo artigo que o lojista publicasse nasceria nesse branco, fora da marca.
     <div className={`store-layout full-bleed bg-[var(--store-bg)] text-[var(--store-ink)]${semChrome}`}>
-      <Editable.Sections container={id} catalogo={catalogoDasPaginas(data)}>
+      <Editable.Sections container={id} catalogo={catalogoDasPaginas(dados)}>
         <Editable.Section id={SECAO_CABECALHO} kind="banner" label="Cabeçalho da página" fixed>
           <header className="mx-auto w-full max-w-[720px] px-4 pt-7 sm:px-6">
             {ctx.editing && aviso ? (

@@ -3,6 +3,10 @@
 // Catálogo: hero + coleções + sidebar de filtros + grid, tudo client-side sobre o catálogo
 // real (filtra/ordena/pagina em memória). Header/footer/carrinho são globais (layout).
 import * as React from "react";
+// o catálogo da loja ("+ Adicionar seção"): o mesmo da home e de toda página
+import { catalogoDaLoja } from "@/components/home/sections/catalogo";
+import { useDadosDasSecoes } from "@/components/home/secoes-com-catalogo";
+import type { HomeData } from "@/components/home/sections/registry";
 import { trackViewItemList, trackSelectItem, type TrackItem } from "@/lib/analytics";
 import Link from "next/link";
 import Image from "next/image";
@@ -89,6 +93,7 @@ export function CatalogClient({
   // é tão ruim quanto nenhuma.
   titleAs: TituloTag = "h1",
   layout = true,
+  secoes,
 }: {
   items: CatalogProductItem[];
   categories: CatalogCategory[];
@@ -102,8 +107,15 @@ export function CatalogClient({
    * sai com `semLayout`).
    */
   layout?: boolean;
+  /**
+   * EDITOR (foundation 18): o que as seções ADICIONADAS pelo lojista mostram (o catálogo e as escolhas de produto do
+   * container "catalogo"). Só a dona do container passa: numa página que reaproveita (`layout={false}`) o container
+   * ignora o catálogo e as seções adicionadas. `null` = o container não tem seção adicionada (a prévia busca).
+   */
+  secoes?: HomeData | null;
 }) {
   const { add } = useCart();
+  const dadosDasSecoes = useDadosDasSecoes(layout ? "catalogo" : null, secoes);
   const [cats, setCats] = React.useState<Set<string>>(new Set(initialCategory ? [initialCategory] : []));
   const [prices, setPrices] = React.useState<Set<string>>(new Set());
   const [deals, setDeals] = React.useState(false);
@@ -249,7 +261,7 @@ export function CatalogClient({
   return (
     <div className="store-layout full-bleed bg-white text-[var(--store-ink)]">
       <div className="mx-auto max-w-[1240px] px-4 sm:px-6">
-        <Editable.Sections container="catalogo" layout={layout}>
+        <Editable.Sections container="catalogo" layout={layout} catalogo={layout ? catalogoDaLoja(dadosDasSecoes) : undefined}>
           {/* A lista é a espinha da página: `fixed` = a copy edita, a posição e a visibilidade não. O aviso
               de lista vazia vive AQUI, dentro da coluna da grade, e não numa seção própria: uma Section solta
               com container= próprio entraria no "catalogo" sem `ordemNoCodigo` e travaria a reordenação das

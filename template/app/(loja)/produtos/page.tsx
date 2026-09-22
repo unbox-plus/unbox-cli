@@ -7,6 +7,7 @@ import { resolveCombos } from "@/lib/enrichment/combos";
 import { CatalogClient } from "@/components/catalog/catalog-client";
 import { mockupOr } from "@/lib/mockup";
 import { DataLayerReady } from "@/components/analytics/data-layer-ready";
+import { dadosSeHouverSecoes } from "@/lib/paginas-dados";
 
 export const revalidate = 300;
 // Título "Catálogo" e a canônica; o lojista pode reescrever título, descrição e imagem no editor.
@@ -23,6 +24,8 @@ export default async function ProdutosPage() {
   const tagMap = buildTagMap(tags as any[]);
   const bundles = resolveCombos((catalog.nodes ?? []).map((n: any) => n.product ?? n));
   const itens = mapCatalogItems(catalog.nodes ?? [], tagMap);
+  // o que as seções que o lojista ADICIONAR ao catálogo mostram (foundation 18): /produtos é a dona do container
+  const secoes = await dadosSeHouverSecoes(await getPublishedContent(), "catalogo");
   // EDITOR: /produtos é a dona do container "catalogo" (layout padrão: manda na ordem, oculta e copia
   // seções); /categoria/[tagSlug] reaproveita a mesma copy com layout={false}.
   return (
@@ -32,6 +35,7 @@ export default async function ProdutosPage() {
       items={itens}
       categories={buildCategories(tags as any[])}
       bundles={bundles}
+      secoes={secoes}
     />
     </>
   );

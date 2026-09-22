@@ -3,11 +3,15 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // A CASCA DE UMA COLEÇÃO: a listagem dos artigos (`/<coleção>` e `/<coleção>/pagina/N`).
 //
-// Container próprio, `colecao-<endereço>`, com UMA seção fixa: o cabeçalho (título e descrição). É o
-// que o lojista edita aqui. O RESTO da página é derivado dos artigos, e por isso não é editável: os
-// cards mostram o título, o resumo, a foto, a data e a assinatura que cada ARTIGO tem, e trocá-los
-// aqui faria a mesma frase existir em dois lugares, com duas respostas. Tudo isso leva
-// `data-editor-ignore`, o atributo que o gate de cobertura respeita.
+// Container próprio, `colecao-<endereço>`, com DUAS seções fixas: o cabeçalho (título e descrição), que é o
+// que o lojista edita aqui, e a lista de artigos. A lista é derivada dos artigos, e por isso não é editável: os
+// cards mostram o título, o resumo, a foto, a data e a assinatura que cada ARTIGO tem, e trocá-los aqui faria a
+// mesma frase existir em dois lugares, com duas respostas. Tudo isso leva `data-editor-ignore`, o atributo que o
+// gate de cobertura respeita.
+//
+// E, como toda página da loja (foundation 18), a listagem aceita as seções do CATÁLOGO DA LOJA ("+ Adicionar
+// seção": um banner, uma vitrine, o bloco de compra…), antes ou depois da lista: é por isso que a lista é uma
+// seção fixa, e não um bloco solto depois do container.
 //
 // A DESCRIÇÃO DA COLEÇÃO É EDITÁVEL de propósito: uma listagem sem texto próprio é uma página de
 // categoria vazia aos olhos do buscador, e é o único texto que só existe aqui.
@@ -23,6 +27,9 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Editable, useEditableContext } from "@/lib/editable";
+import type { HomeData } from "@/components/home/sections/registry";
+import { catalogoDasPaginas } from "@/components/paginas/catalogo";
+import { useDadosDasSecoes } from "@/components/home/secoes-com-catalogo";
 import { resolveValue, SECAO_CABECALHO, type ImageValue, type PaginaDoLojista } from "@/lib/editable/document";
 import { dataDoArtigo } from "@/components/paginas/data-do-artigo";
 import { enderecoComoTitulo } from "@/components/paginas/titulos";
@@ -41,6 +48,7 @@ export function CascaDeColecao({
   artigos,
   pagina,
   totalDePaginas,
+  data,
 }: {
   /** o endereço da coleção; o container é `colecao-<handle>` */
   handle: string;
@@ -50,16 +58,19 @@ export function CascaDeColecao({
   artigos: ArtigoDaLista[];
   pagina: number;
   totalDePaginas: number;
+  /** o que as seções adicionadas de produto mostram (o catálogo e as escolhas desta página); `null` = nenhuma seção adicionada */
+  data: HomeData | null;
 }) {
   const ctx = useEditableContext();
   const id = `colecao-${handle}`;
+  const dados = useDadosDasSecoes(id, data);
   const temDescricao = Boolean(resolveValue(ctx.doc, `${id}.${SECAO_CABECALHO}.descricao`, "").trim());
   const rotaDaPagina = (n: number) => (n <= 1 ? `/${handle}` : `/${handle}/pagina/${n}`);
 
   return (
     // o fundo da MARCA, pelo motivo escrito em casca-de-pagina.tsx
     <div className="store-layout full-bleed bg-[var(--store-bg)] text-[var(--store-ink)]">
-      <Editable.Sections container={id}>
+      <Editable.Sections container={id} catalogo={catalogoDasPaginas(dados)}>
         <Editable.Section id={SECAO_CABECALHO} kind="banner" label="Cabeçalho da coleção" fixed>
           <header className="mx-auto w-full max-w-[1240px] px-4 pt-7 sm:px-6">
             <nav data-editor-ignore="" aria-label="Você está aqui" className="flex items-center gap-2 text-[13px] font-medium text-[var(--store-muted)]">
@@ -87,42 +98,46 @@ export function CascaDeColecao({
             ) : null}
           </header>
         </Editable.Section>
+
+        {/* A LISTA DE ARTIGOS, seção FIXA: a posição e a visibilidade dela não mudam, e as seções que o lojista
+            adicionar entram antes ou depois. O id é chave primária (a ordem gravada aponta para ele). */}
+        <Editable.Section id="lista" kind="outro" label="Lista de artigos" fixed>
+          <div data-editor-ignore="" className="mx-auto w-full max-w-[1240px] px-4 pb-14 pt-8 sm:px-6">
+            {artigos.length === 0 ? (
+              // A coleção existe (a loja declara o endereço dela) e ainda não tem artigo publicado. Dizer
+              // isso é melhor que 404: a URL é da loja, pode estar no menu, e responder "não existe" em
+              // uma página que existe é o tipo de sinal que tira o endereço do índice do buscador.
+              <p className="rounded-[12px] border border-[var(--store-line)] bg-[var(--store-surface-2)] px-5 py-8 text-center text-[15px] text-[var(--store-ink-2)]">
+                Ainda não há artigos publicados aqui.
+              </p>
+            ) : (
+              <ul className="grid list-none grid-cols-1 gap-7 p-0 sm:grid-cols-2 lg:grid-cols-3">
+                {artigos.map((a) => (
+                  <CardDoArtigo key={a.id} artigo={a} colecao={handle} />
+                ))}
+              </ul>
+            )}
+
+            {totalDePaginas > 1 ? (
+              <nav aria-label="Páginas da listagem" className="mt-10 flex flex-wrap items-center justify-center gap-3 text-[14px] font-medium">
+                {pagina > 1 ? (
+                  <Link href={rotaDaPagina(pagina - 1)} className="rounded-full border border-[var(--store-line)] px-4 py-2 no-underline text-[var(--store-ink)] hover:border-[var(--store-ink)]">Anterior</Link>
+                ) : null}
+                {pagina > 2 ? (
+                  <Link href={rotaDaPagina(1)} className="rounded-full border border-[var(--store-line)] px-4 py-2 no-underline text-[var(--store-ink)] hover:border-[var(--store-ink)]">Primeira página</Link>
+                ) : null}
+                {/* "Página N de M" existe UMA vez na tela, e é aqui: junto de Anterior/Próxima, que é
+                    onde quem navega procura. Havia uma segunda logo abaixo do h1, dizendo o mesmo a
+                    poucos centímetros. Fora do editável: é estado de navegação, não copy. */}
+                <span className="text-[var(--store-muted)]">Página {pagina} de {totalDePaginas}</span>
+                {pagina < totalDePaginas ? (
+                  <Link href={rotaDaPagina(pagina + 1)} className="rounded-full border border-[var(--store-line)] px-4 py-2 no-underline text-[var(--store-ink)] hover:border-[var(--store-ink)]">Próxima</Link>
+                ) : null}
+              </nav>
+            ) : null}
+          </div>
+        </Editable.Section>
       </Editable.Sections>
-
-      <div data-editor-ignore="" className="mx-auto w-full max-w-[1240px] px-4 pb-14 pt-8 sm:px-6">
-        {artigos.length === 0 ? (
-          // A coleção existe (a loja declara o endereço dela) e ainda não tem artigo publicado. Dizer
-          // isso é melhor que 404: a URL é da loja, pode estar no menu, e responder "não existe" em
-          // uma página que existe é o tipo de sinal que tira o endereço do índice do buscador.
-          <p className="rounded-[12px] border border-[var(--store-line)] bg-[var(--store-surface-2)] px-5 py-8 text-center text-[15px] text-[var(--store-ink-2)]">
-            Ainda não há artigos publicados aqui.
-          </p>
-        ) : (
-          <ul className="grid list-none grid-cols-1 gap-7 p-0 sm:grid-cols-2 lg:grid-cols-3">
-            {artigos.map((a) => (
-              <CardDoArtigo key={a.id} artigo={a} colecao={handle} />
-            ))}
-          </ul>
-        )}
-
-        {totalDePaginas > 1 ? (
-          <nav aria-label="Páginas da listagem" className="mt-10 flex flex-wrap items-center justify-center gap-3 text-[14px] font-medium">
-            {pagina > 1 ? (
-              <Link href={rotaDaPagina(pagina - 1)} className="rounded-full border border-[var(--store-line)] px-4 py-2 no-underline text-[var(--store-ink)] hover:border-[var(--store-ink)]">Anterior</Link>
-            ) : null}
-            {pagina > 2 ? (
-              <Link href={rotaDaPagina(1)} className="rounded-full border border-[var(--store-line)] px-4 py-2 no-underline text-[var(--store-ink)] hover:border-[var(--store-ink)]">Primeira página</Link>
-            ) : null}
-            {/* "Página N de M" existe UMA vez na tela, e é aqui: junto de Anterior/Próxima, que é
-                onde quem navega procura. Havia uma segunda logo abaixo do h1, dizendo o mesmo a
-                poucos centímetros. Fora do editável: é estado de navegação, não copy. */}
-            <span className="text-[var(--store-muted)]">Página {pagina} de {totalDePaginas}</span>
-            {pagina < totalDePaginas ? (
-              <Link href={rotaDaPagina(pagina + 1)} className="rounded-full border border-[var(--store-line)] px-4 py-2 no-underline text-[var(--store-ink)] hover:border-[var(--store-ink)]">Próxima</Link>
-            ) : null}
-          </nav>
-        ) : null}
-      </div>
     </div>
   );
 }

@@ -14,6 +14,7 @@ import { jsonLdDaColecao, jsonLdDaLoja, jsonLdDeMigalhas } from "@/lib/paginas-s
 import { artigosVisiveis, lerPaginas } from "@/lib/paginas-publicadas";
 import { ARTIGOS_POR_PAGINA, fatiaDoDocumento } from "@/lib/editable/server";
 import { idDeColecao, SECAO_CABECALHO } from "@/lib/editable/document";
+import { dadosSeHouverSecoes } from "@/lib/paginas-dados";
 
 export interface FatiaDaListagem {
   artigos: ArtigoDaLista[];
@@ -71,7 +72,7 @@ export async function ColecaoNaTela({
           seções próprias, que a casca renderiza. `SECAO_CABECALHO` é a mesma constante que o card usa
           para ler: o corte e o leitor têm uma fonte só. */}
       <EditableFatia fatia={fatiaDoDocumento(doc, [idDeColecao(handle), ...artigos.map((a) => `${a.id}.${SECAO_CABECALHO}.`)])}>
-        <CascaDeColecao handle={handle} titulo={titulo} artigos={artigos} pagina={pagina} totalDePaginas={totalDePaginas} />
+        <CascaDeColecao handle={handle} titulo={titulo} artigos={artigos} pagina={pagina} totalDePaginas={totalDePaginas} data={await dadosSeHouverSecoes(doc, idDeColecao(handle))} />
       </EditableFatia>
     </>
   );

@@ -1,9 +1,11 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // A LANDING DE OFERTA, o corpo (foundation 18).
 //
-// Duas rotas a renderizam: `/oferta` (app/(loja)/oferta/page.tsx) e a versão de cada público
-// (app/(loja)/%5Fpublico/[publico]/oferta/page.tsx), que a envolve na camada dele (`<EditablePublico>`). Por isso
-// o corpo mora aqui e as duas rotas são cascas, como a home em `PaginaInicial`.
+// Duas rotas a renderizam: `/oferta` (app/(loja)/oferta/page.tsx), com o documento publicado, e a versão de cada
+// público (app/(loja)/%5Fpublico/[publico]/oferta/page.tsx), com o documento EFETIVO dele e dentro da camada
+// (`<EditablePublico>`). Por isso o corpo mora aqui e as duas rotas são cascas, como a home em `PaginaInicial`.
+// O documento entra por causa das ESCOLHAS de produto (a vitrine e o bloco de compra, os do código e os que o
+// lojista adicionar): quem as transforma em produto é o servidor, aqui, e por público.
 //
 // Mesma seção purchase-hero usada na home (componente do registry), com a pilha de convencimento por receita
 // (components/landing/landing-recipe.ts) abaixo. A página existe como deep-link de campanha; nas receitas dos
@@ -11,7 +13,9 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import type { Metadata } from "next";
 import { getCatalog, getTopTags } from "@/lib/queries";
-import { buildTagMap, buildCategories, mapCatalogItems } from "@/lib/catalog-map";
+import { buildTagMap, buildCategories, mapCatalogItems, catalogoDasVitrines } from "@/lib/catalog-map";
+import { resolverVitrinesDoDocumento } from "@/lib/vitrine";
+import type { ContentDocument } from "@/lib/editable/document";
 import { FREE_SHIPPING_THRESHOLD } from "@/lib/store-config";
 import { resolveCombos } from "@/lib/enrichment/combos";
 import type { HomeData } from "@/components/home/sections/registry";
@@ -29,7 +33,7 @@ export const METADADOS_DA_OFERTA: Metadata = {
 
 const isCombo = (s: string) => /kit|combo/i.test(s);
 
-export async function PaginaDaOferta() {
+export async function PaginaDaOferta({ doc }: { doc: ContentDocument | null }) {
   const [catalog, tags] = await Promise.all([
     mockupOr(getCatalog({ first: 100 }), { nodes: [] as any[] }, "oferta/getCatalog"),
     mockupOr(getTopTags(), [], "oferta/getTopTags"),
@@ -43,12 +47,13 @@ export async function PaginaDaOferta() {
     combos = deals.length >= 2 ? deals : items.slice(0, 8);
   }
   combos = combos.slice(0, 10);
+  // as escolhas de produto desta página (o bloco de compra e as vitrines que o lojista adicionar), já em produto
+  const vitrines = await resolverVitrinesDoDocumento(doc, "oferta");
 
   const data: HomeData = {
     combos,
-    // /oferta não oferece vitrine para escolher (a pilha não tem seção adicionável): não há escolha a resolver.
-    // O que a versão de um público muda aqui é texto, imagem, ordem e seções ocultas, e isso vem da camada.
-    catalogo: [],
+    catalogo: catalogoDasVitrines(items, vitrines),
+    vitrines,
     featured: combos[0] ?? items[0] ?? null,
     bundles: resolveCombos((catalog.nodes ?? []).map((n: any) => n.product ?? n)),
     categories: buildCategories(tags as any[]),

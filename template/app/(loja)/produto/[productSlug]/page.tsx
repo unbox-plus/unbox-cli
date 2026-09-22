@@ -11,6 +11,7 @@ import type { CatalogItem } from "@/components/product/pdp/catalog-grid";
 // A PDP é um MOLDE: a view recebe tudo por prop (components/product/pdp/pdp-view.tsx) e é ela que
 // declara o container `produto` e as seções. Aqui só se busca e se prepara o dado.
 import { PdpView } from "@/components/product/pdp/pdp-view";
+import { dadosSeHouverSecoes } from "@/lib/paginas-dados";
 import { faqNaTela } from "@/components/product/pdp/faq-modelo";
 import { mockupOr } from "@/lib/mockup";
 import { hasUnboxCredentials } from "@/lib/config";
@@ -304,7 +305,10 @@ export default async function ProductPage({ params }: { params: Promise<{ produc
   // do dado estruturado junto. Pergunta que a loja não responde não vira schema. Com o editor, o que
   // o accordion renderiza depende do publicado (seção oculta, pergunta reordenada, reescrita ou
   // duplicada), então a lista é lida do documento, do mesmo jeito que os primitivos a leem.
-  const faqPublicado = faqNaTela(await getPublishedContent(), faq);
+  const publicado = await getPublishedContent();
+  const faqPublicado = faqNaTela(publicado, faq);
+  // o que as seções que o lojista ADICIONAR à página de produto mostram (o molde é um só para todos os produtos)
+  const secoes = await dadosSeHouverSecoes(publicado, "produto");
   const faqJsonLd = faqPublicado.length > 0 ? {
     "@context": "https://schema.org",
     "@type": "FAQPage",
@@ -366,6 +370,7 @@ export default async function ProductPage({ params }: { params: Promise<{ produc
         avaliacoes={rstats && enr?.reviews?.length ? { ratingCount: Number(rstats.count), average: Number(rstats.average), reviews: enr.reviews } : null}
         faq={faq}
         catalogo={catalogItems}
+        secoes={secoes}
       />
     </>
   );

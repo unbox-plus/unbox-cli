@@ -5,7 +5,7 @@
 // (ordem, variantes, props), edite a RECEITA — não este arquivo nem o JSX das seções.
 import { homeRecipe } from "@/components/home/home-recipe";
 import { SECTIONS, withIds, type HomeData } from "@/components/home/sections/registry";
-import { catalogoDaHome } from "@/components/home/sections/catalogo";
+import { catalogoDaLoja } from "@/components/home/sections/catalogo";
 import { Editable } from "@/lib/editable";
 import type { CatalogProductItem, CatalogCategory } from "@/components/catalog/catalog-client";
 import type { ResolvedCombo } from "@/lib/enrichment/combos";
@@ -52,7 +52,7 @@ export function CombosHome({
           editor não tem catálogo próprio. Não precisa de guarda por `layoutEditavel`: o próprio
           container ignora catálogo e seções criadas quando `layout` é false (uma página que reusa
           este container só para reaproveitar componentes não pode ganhar seção nova). */}
-      <Editable.Sections container="home" layout={layoutEditavel} catalogo={catalogoDaHome(data)}>
+      <Editable.Sections container="home" layout={layoutEditavel} catalogo={catalogoDaLoja(data)}>
         {withIds(homeRecipe).map((entry) => {
           const Section = SECTIONS[entry.section];
           return (

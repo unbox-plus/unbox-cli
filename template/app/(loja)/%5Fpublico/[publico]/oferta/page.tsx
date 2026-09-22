@@ -10,7 +10,7 @@
 // Em cache como `/oferta` (ISR de 300 s), revalidada junto com ela na publicação. A canônica é `/oferta`.
 // ═══════════════════════════════════════════════════════════════════════════
 import type { Metadata } from "next";
-import { camadaDoPublico, getPublishedContent } from "@/lib/editable/server";
+import { aplicarPublico, camadaDoPublico, getPublishedContent } from "@/lib/editable/server";
 import { EditablePublico } from "@/lib/editable";
 import { LimparPublico } from "@/lib/editable/publico";
 import { METADADOS_DA_OFERTA, PaginaDaOferta } from "@/components/landing/pagina-da-oferta";
@@ -27,19 +27,22 @@ export const metadata: Metadata = METADADOS_DA_OFERTA;
 
 export default async function OfertaDoPublico({ params }: { params: Promise<{ publico: string }> }) {
   const { publico } = await params;
-  const camada = camadaDoPublico(await getPublishedContent(), decodeURIComponent(publico), ["oferta"]);
+  const id = decodeURIComponent(publico);
+  const doc = await getPublishedContent();
+  const camada = camadaDoPublico(doc, id, ["oferta"]);
   // o público não existe mais (excluído depois de a pessoa ganhar o cookie): Todos, e o cookie velho sai
-  if (!camada) {
+  if (!doc || !camada) {
     return (
       <>
         <LimparPublico />
-        <PaginaDaOferta />
+        <PaginaDaOferta doc={doc} />
       </>
     );
   }
+  // o documento EFETIVO do público: as escolhas de produto da versão dele (o bloco de compra, as vitrines)
   return (
     <EditablePublico camada={camada}>
-      <PaginaDaOferta />
+      <PaginaDaOferta doc={aplicarPublico(doc, id)} />
     </EditablePublico>
   );
 }
