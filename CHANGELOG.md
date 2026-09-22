@@ -63,6 +63,14 @@ fora dos buscadores, e quem abre esse endereço entra no público, como pelo lin
   montam o catálogo pelo invólucro de cliente `<SecoesComCatalogo>`. A listagem de coleção ganhou a lista de artigos
   como seção fixa (o que se adiciona entra antes ou depois dela), e as páginas passam a ter os mesmos destaques e
   kits da home.
+- **A categoria espelha o catálogo de produtos**: `Editable.Sections` ganha `layout="espelho"`, a página que mostra a
+  lista da dona igual a ela (ordem, ocultas, cópias e as seções adicionadas) sem mandar nela: não declara catálogo nem
+  posição, e o manifesto sai com `semLayout`, como no `layout={false}`. `/categoria/[tagSlug]` passa a usá-lo (era
+  `layout={false}`, que só levava a copy): o que o lojista adiciona, move ou oculta em `/produtos` vale em toda
+  categoria, como o painel da categoria já dizia. O "+" continua só em `/produtos`.
+- **A ordem de cada público acompanha a seção nova**: numa versão com ordem própria, a cópia entra logo depois da
+  origem e a seção adicionada depois da mesma vizinha que tem em Todos (antes, as duas caíam no fim da versão); a
+  removida sai das camadas, e desfazer as devolve.
 - **A foundation (`lib/editable`)**: `containerVaria` (o curinga), a operação `duplicate_page` (conteúdo de Todos,
   sem camada, oculta e fora dos buscadores, com desfazer exato), `publico` no registro da página e em
   `update_page`, excluir um público desliga as páginas dele (desfazer religa), e `decidirPublico` recebe o
@@ -83,6 +91,10 @@ troca na prévia e vale em toda página de produto; na oferta, o bloco adicionad
 repetida e mostra o produto da versão de Cacheados para Cacheados; destaques numa página avulsa, categorias depois
 da lista do blog e benefícios no catálogo; página sem seção não leva o catálogo no HTML; o botão do bloco leva o
 produto ao passo 2, que o mostra primeiro. E o `check-editable` aprova a loja de teste com catálogo (11 páginas).
+Categoria, 24 de 24: o bloco adicionado em `/produtos` aparece na prévia da categoria antes de publicar, com o
+produto escolhido; o painel da categoria diz que a lista é a de `/produtos`, não oferece o "+" e não deixa arrastar;
+publicado, as duas categorias mostram o bloco; subir o bloco e ocultar a faixa de confiança em `/produtos` vale na
+categoria; sem rolagem lateral em 375 e 1440 px.
 
 Loja já gerada: como na 0.23.0, nada muda sozinho. As LPs por público ligam quando a loja declara `oferta` e
 `pagina-*` e tem as duas rotas do público (o `check-editable` diz o que falta).

@@ -26,8 +26,8 @@ export default async function ProdutosPage() {
   const itens = mapCatalogItems(catalog.nodes ?? [], tagMap);
   // o que as seções que o lojista ADICIONAR ao catálogo mostram (foundation 18): /produtos é a dona do container
   const secoes = await dadosSeHouverSecoes(await getPublishedContent(), "catalogo");
-  // EDITOR: /produtos é a dona do container "catalogo" (layout padrão: manda na ordem, oculta e copia
-  // seções); /categoria/[tagSlug] reaproveita a mesma copy com layout={false}.
+  // EDITOR: /produtos é a dona do container "catalogo" (layout padrão: manda na ordem, oculta, copia e adiciona
+  // seções); /categoria/[tagSlug] espelha a mesma lista com layout="espelho".
   return (
     <>
     <DataLayerReady pageType="category" products={itens.slice(0, 12).map((i) => ({ id: i.productId, name: i.title, price: i.price }))} />

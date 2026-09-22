@@ -60,8 +60,11 @@ export function SecoesComCatalogo({
   container: string;
   /** o que a página buscou no servidor; `null` = a página não tem seção adicionada (a prévia busca quando precisa) */
   data: HomeData | null;
-  /** `false` numa página que só REAPROVEITA o container (a ordem e as seções adicionadas são da dona dele) */
-  layout?: boolean;
+  /**
+   * `false` numa página que só REAPROVEITA o container (a ordem e as seções adicionadas são da dona dele);
+   * `"espelho"` numa que mostra a lista da dona igual a ela, sem mandar (ver `Editable.Sections`)
+   */
+  layout?: boolean | "espelho";
   children: React.ReactNode;
 }) {
   const dados = useDadosDasSecoes(layout === false ? null : container, data);

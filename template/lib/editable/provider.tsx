@@ -84,7 +84,7 @@ interface SectionRegistration {
   item?: boolean;
   /** posição no CÓDIGO (não muda com a reordenação do lojista) */
   ordemNoCodigo?: number;
-  /** a página reaproveita o container sem mandar nele (`Editable.Sections layout={false}`) */
+  /** a página reaproveita o container sem mandar nele (`Editable.Sections layout={false}` ou `layout="espelho"`) */
   semLayout?: boolean;
   el: () => Element | null;
 }
@@ -108,8 +108,11 @@ interface Ctx {
    */
   container?: string;
   section?: string;
-  /** false = ignora ordem/ocultas do documento (páginas que reaproveitam a receita da home) */
-  layout: boolean;
+  /**
+   * false = ignora ordem/ocultas do documento (páginas que reaproveitam a receita da home); "espelho" = segue a
+   * ordem e as ocultas da página DONA do container sem mandar nelas (a categoria que espelha /produtos)
+   */
+  layout: boolean | "espelho";
   register: (r: Registration) => () => void;
   registerSection: (r: SectionRegistration) => () => void;
   /** o CATÁLOGO daquele container: os tipos que esta loja sabe instanciar (`Editable.Sections catalogo`) */

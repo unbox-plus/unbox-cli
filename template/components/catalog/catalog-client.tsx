@@ -23,8 +23,8 @@ import type { ResolvedCombo } from "@/lib/enrichment/combos";
 // EDITOR: a copy de marca desta página (nome no caminho, título da lista, aviso de lista vazia,
 // cabeçalho dos kits, faixa de confiança, newsletter) mora no container "catalogo", que /produtos e
 // /categoria/[tagSlug] declaram DE PROPÓSITO: é a mesma copy nas duas, e o painel diz "estas seções
-// também aparecem em…". Só /produtos manda na ordem (`layout`); a categoria reaproveita com
-// layout={false}. O que é catálogo (card, preço, filtro, ordenação, contador, paginação) não vira
+// também aparecem em…". Só /produtos manda na ordem (`layout`); a categoria a espelha com
+// layout="espelho". O que é catálogo (card, preço, filtro, ordenação, contador, paginação) não vira
 // primitivo (README §8); esses blocos levam `data-editor-ignore`, que é o atributo que o gate respeita
 // para não cobrar o que ficou fora por decisão.
 import { Editable } from "@/lib/editable";
@@ -101,21 +101,21 @@ export function CatalogClient({
   initialCategory?: string;
   titleAs?: "h1" | "h2";
   /**
-   * EDITOR: se esta página MANDA na ordem do container "catalogo" (README §3, `Editable.Sections`).
-   * /produtos manda; /categoria/[tagSlug] reaproveita com `layout={false}`: a copy editada vale nas
-   * duas, mas ordem, ocultas e cópias de seção se editam só em /produtos (o manifesto da categoria
-   * sai com `semLayout`).
+   * EDITOR: se esta página MANDA na lista do container "catalogo" (README §3, `Editable.Sections`).
+   * /produtos manda; /categoria/[tagSlug] a espelha com `layout="espelho"`: mostra a mesma lista de /produtos
+   * (ordem, ocultas, cópias e as seções adicionadas) e a copy editada vale nas duas, mas a lista se edita só em
+   * /produtos (o manifesto da categoria sai com `semLayout`).
    */
-  layout?: boolean;
+  layout?: boolean | "espelho";
   /**
    * EDITOR (foundation 18): o que as seções ADICIONADAS pelo lojista mostram (o catálogo e as escolhas de produto do
-   * container "catalogo"). Só a dona do container passa: numa página que reaproveita (`layout={false}`) o container
+   * container "catalogo"). A dona e o espelho passam; numa página que só reaproveita (`layout={false}`) o container
    * ignora o catálogo e as seções adicionadas. `null` = o container não tem seção adicionada (a prévia busca).
    */
   secoes?: HomeData | null;
 }) {
   const { add } = useCart();
-  const dadosDasSecoes = useDadosDasSecoes(layout ? "catalogo" : null, secoes);
+  const dadosDasSecoes = useDadosDasSecoes(layout !== false ? "catalogo" : null, secoes);
   const [cats, setCats] = React.useState<Set<string>>(new Set(initialCategory ? [initialCategory] : []));
   const [prices, setPrices] = React.useState<Set<string>>(new Set());
   const [deals, setDeals] = React.useState(false);
@@ -261,7 +261,7 @@ export function CatalogClient({
   return (
     <div className="store-layout full-bleed bg-white text-[var(--store-ink)]">
       <div className="mx-auto max-w-[1240px] px-4 sm:px-6">
-        <Editable.Sections container="catalogo" layout={layout} catalogo={layout ? catalogoDaLoja(dadosDasSecoes) : undefined}>
+        <Editable.Sections container="catalogo" layout={layout} catalogo={layout !== false ? catalogoDaLoja(dadosDasSecoes) : undefined}>
           {/* A lista é a espinha da página: `fixed` = a copy edita, a posição e a visibilidade não. O aviso
               de lista vazia vive AQUI, dentro da coluna da grade, e não numa seção própria: uma Section solta
               com container= próprio entraria no "catalogo" sem `ordemNoCodigo` e travaria a reordenação das
