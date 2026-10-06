@@ -1,6 +1,6 @@
 ## Changelog
 
-### Não lançado (v0.25.0) — a integração com a Unbox saiu do template e virou pacote
+### v0.25.0 — a integração com a Unbox saiu do template e virou pacote
 
 Até aqui, toda chamada à API de parceiros vivia dentro do template, em `lib/unbox/*.ts`, e era
 **copiada** para cada loja gerada. Isso fazia com que atualizar a integração, inclusive as
