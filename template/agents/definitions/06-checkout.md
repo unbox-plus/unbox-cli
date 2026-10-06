@@ -48,7 +48,7 @@ com enum `type`:
   automaticamente quando `device` é omitido.
 
 `timezoneOffset` em **minutos** (`getTimezoneOffset()`, BRT → 180) — ponto aberto com a
-Unbox se seria em horas; ver `lib/unbox/types.ts`.
+Unbox se seria em horas; ver `DeviceInput` no `@unbox-plus/sdk`.
 
 ## AddressInput — campos obrigatórios
 

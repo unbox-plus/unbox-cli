@@ -20,7 +20,7 @@ Nenhuma — este agente roda primeiro.
 | `next.config.ts` | Minimal, domains de imagem em branco |
 | `app/globals.css` | `@import "tailwindcss"` + variáveis CSS de tema |
 | `app/layout.tsx` | RootLayout shell (providers placeholder) |
-| `lib/unbox.ts` | UnboxClient singleton server-only |
+| `lib/unbox.ts` | a fiação do `@unbox-plus/sdk` com o `.env` desta loja, server-only |
 | `lib/auth.ts` | getCustomerToken/setCustomerToken/clearCustomerToken |
 | `lib/feedback.ts` | Re-export friendlyError, cartEventLabel do SDK |
 | `lib/metadata.ts` | buildMetadata(product) → Metadata do Next.js |

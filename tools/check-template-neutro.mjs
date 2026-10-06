@@ -428,12 +428,31 @@ function publicosDoRepositorio() {
 /** A lista de verdade do que seria publicado, perguntada ao npm. */
 function arquivosDoPacote() {
   const npm = process.env.npm_execpath;
+  // maxBuffer explícito: o default de 1 MB estoura (ENOBUFS) quando existe um `template/node_modules`
+  // na máquina de quem roda o gate, e desde que a integração virou pacote isso é comum — testar a
+  // loja contra um `@unbox-plus/sdk` local exige um install ali dentro. O estouro bloqueava o pack
+  // com "não consegui listar", que é a mensagem de um gate quebrado e não a do problema real: o
+  // npm NÃO ignora um node_modules dentro de `template/` (medido: `files: ["template"]` leva a
+  // pasta inteira), então o tarball ia de fato levar as dependências da loja de teste. Com a lista
+  // em mãos, quem recusa é a checagem logo abaixo, dizendo o que apagar.
+  const opcoes = { cwd: RAIZ, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], maxBuffer: 256 * 1024 * 1024 };
   const saida = npm && /\.c?js$/.test(npm)
-    ? execFileSync(process.execPath, [npm, "pack", "--dry-run", "--ignore-scripts", "--json"], { cwd: RAIZ, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] })
-    : execFileSync("npm", ["pack", "--dry-run", "--ignore-scripts", "--json"], { cwd: RAIZ, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+    ? execFileSync(process.execPath, [npm, "pack", "--dry-run", "--ignore-scripts", "--json"], opcoes)
+    : execFileSync("npm", ["pack", "--dry-run", "--ignore-scripts", "--json"], opcoes);
   const lista = JSON.parse(saida)?.[0]?.files?.map((f) => f.path);
   // Gate que varre o vazio e diz "limpo" aprova sem ter olhado: sem lista, não há aprovação.
   if (!lista?.length) throw new Error("npm pack --dry-run não devolveu arquivo nenhum");
+  // DEPENDÊNCIA INSTALADA NÃO VIAJA NO PACOTE. `files: ["template"]` leva a pasta inteira, e o
+  // npm só ignora o node_modules da RAIZ: um install feito dentro de `template/` para testar a
+  // loja (contra um `@unbox-plus/sdk` local, por exemplo) entra no tarball com centenas de
+  // pacotes, e a loja gerada nasceria com um node_modules de outra máquina dentro.
+  const instalados = lista.filter((p) => /(^|\/)node_modules\//.test(p));
+  if (instalados.length) {
+    throw new Error(
+      `${instalados.length} arquivo(s) de node_modules entrariam no tarball (ex.: ${instalados[0]}).\n` +
+      "  Apague o node_modules de dentro do template antes de empacotar: rm -rf template/node_modules",
+    );
+  }
   return lista;
 }
 
@@ -448,8 +467,13 @@ let doPacote;
 try {
   doPacote = arquivosDoPacote();
 } catch (e) {
-  console.error(`\n✗ PACK BLOQUEADO: o gate não conseguiu listar o que seria publicado. ${e.message}`);
-  console.error("  Sem a lista o gate varreria o vazio e aprovaria sem ter olhado.\n");
+  console.error(`\n✗ PACK BLOQUEADO: ${e.message}`);
+  // A recusa por node_modules diz o que fazer na própria mensagem; a genérica precisa do motivo.
+  if (!/node_modules/.test(e.message)) {
+    console.error("  O gate não conseguiu listar o que seria publicado, e sem a lista ele varreria");
+    console.error("  o vazio e aprovaria sem ter olhado.");
+  }
+  console.error("");
   process.exit(2);
 }
 const soNoRepositorio = publicosDoRepositorio().filter((f) => !doPacote.includes(f));

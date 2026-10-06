@@ -1,5 +1,5 @@
 import type { MetadataRoute } from "next";
-import { loadAllCatalogItems } from "@/lib/dataloader";
+import { loadAllCatalogItems } from "@/lib/unbox";
 import { getTopTags } from "@/lib/queries";
 // PÁGINAS DO LOJISTA (foundation 13): o que ele publicou entra aqui, e só o que está no ar.
 import { artigosVisiveis, colecoesEmProducao, pararSeALeituraFalhou, todasAsPaginasVisiveis } from "@/lib/paginas-publicadas";

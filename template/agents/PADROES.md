@@ -235,7 +235,7 @@ do agente 15, os anti-tells de copy (5) e a medição de composição (`npm run 
   EXPLÍCITA do lojista registrada (`marca/honestidade-permitido.txt`). Nunca por omissão.
 - Hex solto no JSX; fonte fora do bloco UNBOX-FONTS; receita reescrita como JSX.
 - Editar destrutivamente variante existente da biblioteca (crie uma nova).
-- Mexer no motor (`lib/unbox`, `app/api`, checkout) por causa de layout.
+- Mexer no motor (`lib/unbox.ts`, `@unbox-plus/sdk`, `app/api`, checkout) por causa de layout.
 - **Copy que denuncia texto de IA** (some com ela; se a marca quiser algo assim, tem que ser
   decisão declarada dela): verbos de enchimento ("Elevate", "Seamless", "Unleash",
   "Revolucione"), eyebrows numeradas ("001 · Recursos"), rótulos de etapa por número

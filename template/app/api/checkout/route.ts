@@ -6,7 +6,7 @@
 //  - em erro: NÃO retenta cegamente (poderia gerar cobrança dupla)
 //  - sucesso: grava token de posse (cookie) e INVALIDA o carrinho
 //  - RECUSA ANTES DE COBRAR quando falta SESSION_SECRET (ver a primeira guarda do handler)
-import { withStoreClient } from "@/lib/unbox/store";
+import { withStoreClient } from "@/lib/unbox";
 import { serverEnv } from "@/lib/config";
 import { getCartRef, setOrderToken, clearCartRef, getRecurFreq } from "@/lib/session";
 import { acquireCheckoutLock, releaseCheckoutLock } from "@/lib/checkout-lock";
@@ -14,7 +14,7 @@ import { rateLimit, clientIp, LIMITS } from "@/lib/ratelimit";
 import { dispatchCrm } from "@/lib/crm";
 import { placeOrderSchema } from "@/lib/schemas";
 import { ok, fail, failFrom } from "@/lib/api";
-import { isUnboxTimeout } from "@/lib/unbox/client";
+import { isUnboxTimeout } from "@unbox-plus/sdk";
 
 export const dynamic = "force-dynamic";
 

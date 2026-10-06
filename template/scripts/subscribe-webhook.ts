@@ -4,7 +4,7 @@
 //   npm run unbox:webhook:subscribe -- https://SEU-DOMINIO/api/webhooks/unbox
 //   (em dev, exponha localhost com um túnel, ex.: ngrok/cloudflared)
 import "./load-env"; // SEMPRE o primeiro import — parser de env idêntico ao do app
-import { UnboxClient } from "../lib/unbox/client";
+import { UnboxClient } from "@unbox-plus/sdk";
 
 const endpoint = process.argv[2] || process.env.WEBHOOK_ENDPOINT;
 if (!endpoint) {

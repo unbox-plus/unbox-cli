@@ -3,7 +3,7 @@
 import "server-only";
 import { cache } from "react";
 import { unstable_cache } from "next/cache";
-import { withStoreClient, getShopContext } from "./unbox/store";
+import { withStoreClient, getShopContext } from "./unbox";
 
 const TTL = 300; // 5 min
 

@@ -17,8 +17,7 @@ import {
   type ContentDocument, type CookieDePublico, type DadosDoCliente,
 } from "@/lib/editable/document";
 import { getPublishedContent } from "@/lib/editable/server";
-import { UnboxCustomerClient } from "@/lib/unbox/customer";
-import { getStoreClient } from "@/lib/unbox/store";
+import { getCustomerClientFor } from "@/lib/unbox";
 
 /** o máximo que o login espera pela conta: a personalização nunca pode ser o motivo de um login lento */
 export const TETO_DO_PUBLICO_NO_LOGIN_MS = 800;
@@ -47,13 +46,17 @@ async function escolhaDaConta(token: string, cookie: string | undefined): Promis
   return escolhaDoLogin(publicoDoCliente(await dadosDaConta(token, doc), doc), cookie, sortear);
 }
 
+/** nenhum sinal: o login segue sem público, que é o pior caso previsto */
+const SEM_DADOS: DadosDoCliente = { produtos: [], assinante: false, ufs: [] };
+
 /** só o que as regras da loja perguntam: sem regra de compra, nenhum pedido é lido (e assim por diante) */
 async function dadosDaConta(token: string, doc: ContentDocument | null): Promise<DadosDoCliente> {
   const regras = Object.values(doc?.publicos ?? {}).flatMap((p) => p.entrada?.cliente ?? []);
   const pede = (tipo: string) => regras.some((r) => r.tipo === tipo);
-  const c = new UnboxCustomerClient({ customerToken: token, loja: await getStoreClient() });
+  const c = await getCustomerClientFor(token);
+  if (!c) return SEM_DADOS;
   const [produtos, assinaturas, conta] = await Promise.all([
-    pede("comprou") ? c.produtosComprados().catch((e) => (registrar("pedidos", e), [] as string[])) : ([] as string[]),
+    pede("comprou") ? c.purchasedProducts().catch((e) => (registrar("pedidos", e), [] as string[])) : ([] as string[]),
     pede("assinante") ? c.subscriptions({ first: 1, status: ["ACTIVE"] }).catch((e) => (registrar("assinaturas", e), null)) : null,
     pede("uf") ? c.me().catch((e) => (registrar("conta", e), null)) : null,
   ]);

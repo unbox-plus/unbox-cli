@@ -1,5 +1,5 @@
 // "Calcule o frete" na PDP (fora do checkout): cota o frete de 1 produto para um CEP.
-import { withStoreClient } from "@/lib/unbox/store";
+import { withStoreClient } from "@/lib/unbox";
 import { ok, fail, failFrom } from "@/lib/api";
 
 export const dynamic = "force-dynamic";

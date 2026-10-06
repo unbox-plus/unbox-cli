@@ -143,7 +143,7 @@ export function resolveCombos(catalogProducts: any[]): ResolvedCombo[] {
       const e = getEnrichmentByName(cp.title);
       const qty = it.qty ?? 1;
       // O preço final de um item é sempre o do catálogo: o servidor recalcula o carrinho a
-      // partir dele (lib/unbox/types.ts). Um "preço do kit" calculado aqui vira promessa que o
+      // partir dele (ver CartItemInput no @unbox-plus/sdk). Um "preço do kit" calculado aqui vira promessa que o
       // carrinho desmente. Desconto de kit real se configura como regra de preço/cupom no painel.
       const discountedPrice = round2(rp.price);
       items.push({

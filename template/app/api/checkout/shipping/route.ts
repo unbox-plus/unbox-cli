@@ -1,5 +1,5 @@
 // Frete: POST cota TODOS os grupos (doc 11 — N grupos, não 1); PUT seleciona o método por grupo.
-import { withStoreClient } from "@/lib/unbox/store";
+import { withStoreClient } from "@/lib/unbox";
 import { getCartRef } from "@/lib/session";
 import { cartResponse } from "@/lib/cart-response";
 import { ok, fail, failFrom } from "@/lib/api";

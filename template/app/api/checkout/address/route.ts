@@ -1,5 +1,5 @@
 // Define o endereço de entrega no carrinho → devolve os ids dos fulfillmentGroups.
-import { withStoreClient } from "@/lib/unbox/store";
+import { withStoreClient } from "@/lib/unbox";
 import { getCartRef } from "@/lib/session";
 import { ok, fail, failFrom } from "@/lib/api";
 import { addressSchema } from "@/lib/schemas";

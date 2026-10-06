@@ -7,7 +7,7 @@
 // 2) ?produtos=SKU:qtd,...&cupom=CODE — monta um carrinho NOVO a partir de SKUs (products.json).
 //
 // Não redireciona; devolve JSON.
-import { withStoreClient } from "@/lib/unbox/store";
+import { withStoreClient } from "@/lib/unbox";
 import { getCatalog } from "@/lib/queries";
 import { getCartRef, setCartRef, setRecurFreq } from "@/lib/session";
 import { parseProdutosParam, resolveSkusToItems } from "@/lib/cart-link";
