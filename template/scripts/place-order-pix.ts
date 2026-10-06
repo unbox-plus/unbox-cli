@@ -3,7 +3,7 @@
 //
 //   npm run unbox:order:pix -- --confirm
 import "./load-env"; // SEMPRE o primeiro import — parser de env idêntico ao do app
-import { UnboxClient } from "../lib/unbox/client";
+import { UnboxClient } from "@unbox-plus/sdk";
 
 if (!process.argv.includes("--confirm")) {
   console.error("Recusado. Isto cria um pedido REAL (Pix PENDING). Rode com: npm run unbox:order:pix -- --confirm");

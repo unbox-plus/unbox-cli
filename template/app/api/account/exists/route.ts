@@ -1,5 +1,5 @@
 // Verifica se há conta para o e-mail nesta loja (login vs. primeiro acesso). Rate-limit anti-enumeração.
-import { withStoreClient } from "@/lib/unbox/store";
+import { withStoreClient } from "@/lib/unbox";
 import { rateLimit, clientIp, LIMITS } from "@/lib/ratelimit";
 import { emailSchema } from "@/lib/schemas";
 import { ok, fail, failFrom } from "@/lib/api";

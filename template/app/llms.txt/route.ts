@@ -6,7 +6,7 @@
 // servindo isso justamente aos crawlers que o robots.txt convida.
 //
 // O formato mora em lib/llms-txt.ts (função pura, testável). Aqui só buscamos os dados.
-import { loadAllCatalogItems } from "@/lib/dataloader";
+import { loadAllCatalogItems } from "@/lib/unbox";
 import { getTopTags } from "@/lib/queries";
 import { buildTagMap, mapCatalogItems } from "@/lib/catalog-map";
 import { montarLlmsTxt } from "@/lib/llms-txt";

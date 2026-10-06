@@ -1,6 +1,6 @@
 // Aplicar (POST) e remover (DELETE) cupom de desconto no carrinho.
 // ⚠️ doc 04/05: aplicar o cupom ANTES de selecionar o frete (cupom depois do frete → total divergente).
-import { withStoreClient } from "@/lib/unbox/store";
+import { withStoreClient } from "@/lib/unbox";
 import { getCartRef } from "@/lib/session";
 import { cartResponse } from "@/lib/cart-response";
 import { ok, fail, failFrom } from "@/lib/api";

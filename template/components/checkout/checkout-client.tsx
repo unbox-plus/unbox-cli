@@ -548,7 +548,7 @@ export function CheckoutClient({
   // device (antifraude/3DS Unbox) — 8 campos coletados do navegador real do comprador.
   // Vai no corpo do POST /api/checkout; o BFF repassa ao placeOrder no ROOT do PlaceOrderInput.
   // timezoneOffset em MINUTOS (BRT → 180) — se a Unbox confirmar que espera HORAS, dividir
-  // por 60 aqui (um lugar só). Ver lib/unbox/types.ts.
+  // por 60 aqui (um lugar só). Ver DeviceInput no @unbox-plus/sdk.
   function collectDevice() {
     try {
       return {

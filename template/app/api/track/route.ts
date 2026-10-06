@@ -1,6 +1,6 @@
 // Acompanhamento de pedido por convidado: exige referenceId + e-mail CORRESPONDENTE.
 // Mitiga a enumeração por referenceId (doc 09): conhecer o código não basta — tem que bater o e-mail.
-import { withStoreClient } from "@/lib/unbox/store";
+import { withStoreClient } from "@/lib/unbox";
 import { shapeOrder } from "@/lib/orders";
 import { rateLimit, clientIp } from "@/lib/ratelimit";
 import { emailSchema } from "@/lib/schemas";

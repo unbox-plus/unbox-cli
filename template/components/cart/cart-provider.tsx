@@ -6,7 +6,7 @@
 import * as React from "react";
 import { toast } from "sonner";
 import type { UiCart } from "@/lib/cart-normalize";
-import { cartEventLabel } from "@/lib/unbox/errors";
+import { cartEventLabel } from "@unbox-plus/sdk";
 import { formatBRL } from "@/lib/format";
 import { trackAddToCart, trackRemoveFromCart, trackViewCart } from "@/lib/analytics";
 

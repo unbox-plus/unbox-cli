@@ -6,7 +6,7 @@ protegido por sessão via cookie httpOnly (token do **cliente**, distinto do tok
 
 ## Dependências
 - Agente 07 (Auth) — `lib/session.ts` (`getCustomerToken`), fluxo de login OTP
-- Agente 00 (Scaffold) — `lib/unbox/customer.ts` (`UnboxCustomerClient`)
+- Agente 00 (Scaffold) — `UnboxCustomerClient` do `@unbox-plus/sdk`
 
 ## Arquivos proprietários
 
@@ -28,7 +28,7 @@ protegido por sessão via cookie httpOnly (token do **cliente**, distinto do tok
 
 ## Regra de ouro — dois tokens
 `lib/customer-session.ts` usa o token do **cliente** (cookie httpOnly, setado pelo Agente 07),
-nunca o `serverEnv.apiKey`/token de loja do Agente 00 (`lib/unbox/store.ts`). Misturar os dois
+nunca o `serverEnv.apiKey`/token de loja do Agente 00 (`lib/unbox.ts`). Misturar os dois
 client factories é o erro mais comum nessa área — sempre confirme qual client está sendo importado.
 
 ```ts

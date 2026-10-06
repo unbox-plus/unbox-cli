@@ -1,5 +1,5 @@
 // Parcelas (sem juros) para um valor — exibição no checkout (cartão, não assinatura).
-import { withStoreClient } from "@/lib/unbox/store";
+import { withStoreClient } from "@/lib/unbox";
 import { ok, fail, failFrom } from "@/lib/api";
 
 export const dynamic = "force-dynamic";

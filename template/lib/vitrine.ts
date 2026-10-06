@@ -19,7 +19,7 @@
 import "server-only";
 import { unstable_cache } from "next/cache";
 import { getCatalog, getProductBySlug } from "./queries";
-import { withStoreClient } from "./unbox/store";
+import { withStoreClient } from "./unbox";
 import { resolveProductPrice } from "./format";
 import { CAMPO_VITRINE, VITRINE_MAX, vitrineValida, type ContentDocument, type VitrineValue } from "./editable/document";
 

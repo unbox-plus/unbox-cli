@@ -1,6 +1,6 @@
 // Cria um Payment Link hospedado pela Unbox (compartilhar carrinho / WhatsApp).
 // ⚠️ Operação de loja (admin-ish). Protegida por REVALIDATE_SECRET (header x-admin-secret) por padrão.
-import { withStoreClient } from "@/lib/unbox/store";
+import { withStoreClient } from "@/lib/unbox";
 import { serverEnv } from "@/lib/config";
 import { ok, fail, failFrom } from "@/lib/api";
 

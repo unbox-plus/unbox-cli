@@ -8,7 +8,7 @@
 Contexto global do carrinho, drawer lateral, página `/carrinho`, API route server-side e input de cupom.
 
 ## Dependências
-- Agente 00 (Scaffold) — `lib/unbox.ts`
+- Agente 00 (Scaffold) — `lib/unbox.ts` (a fiação do `@unbox-plus/sdk`)
 
 ## Arquivos proprietários
 
@@ -65,10 +65,10 @@ function readCartCookies() {
 
 ```ts
 // POST /api/cart — actions: create | add | update | remove | get | discount | clear
-import { getUnboxClient } from "@/lib/unbox"
+import { getStoreClient } from "@/lib/unbox"
 
 export async function POST(req: Request) {
-  const client = await getUnboxClient()
+  const client = await getStoreClient()
   const body = await req.json()
 
   switch (body.action) {
