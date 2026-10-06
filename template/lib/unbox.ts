@@ -15,7 +15,7 @@
 // PARCEIRO vale para todas as lojas dele, e o token da loja abre qualquer pedido dela. Um import
 // deste módulo num componente de cliente tem que quebrar o build, não vazar as duas.
 import "server-only";
-import { createUnboxStore, type UnboxClient, type UnboxCustomerClient } from "@unbox-plus/sdk";
+import { connectUnboxStore, type UnboxClient, type UnboxCustomerClient } from "@unbox-plus/sdk";
 import { serverEnv } from "./config";
 
 /**
@@ -27,7 +27,7 @@ import { serverEnv } from "./config";
  * PROD (várias lambdas): passe `{ tokenStore }` com Vercel KV / Edge Config e o signIn passa a
  * ser um por LOJA em vez de um por lambda fria. É o único ponto que muda.
  */
-export const unbox = createUnboxStore(() => ({
+export const unbox = connectUnboxStore(() => ({
   partnerApiKey: serverEnv.partnerApiKey,
   partnerGqlUrl: serverEnv.partnerGqlUrl,
   user: serverEnv.user,

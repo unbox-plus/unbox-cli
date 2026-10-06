@@ -7,7 +7,7 @@ smoke test HTTP do BFF (carrinho→endereço→frete) **200** em todas as etapas
 
 | Método | Onde |
 |---|---|
-| `signIn` + cache/re-signin | `@unbox-plus/sdk` (`createUnboxStore`), fiado em `lib/unbox.ts` (`getStoreClient`/`withStoreClient`) |
+| `signIn` + cache/re-signin | `@unbox-plus/sdk` (`connectUnboxStore`), fiado em `lib/unbox.ts` (`getStoreClient`/`withStoreClient`) |
 | `gql` (x-api-key + Authorization da loja + `x-customer-token` opcional) | `@unbox-plus/sdk` (`UnboxClient`) |
 | `getCatalog` (first/offset/search/tagIds/sort) | `lib/queries.ts` → home, `/produtos`, `/busca`, `/categoria/[tagSlug]` |
 | `getProductBySlug` | `app/(loja)/produto/[productSlug]/page.tsx` |
@@ -67,7 +67,7 @@ smoke test HTTP do BFF (carrinho→endereço→frete) **200** em todas as etapas
 - **08 Feedback/erros** — ordem de sinais (errors→failures→cartEvents), `friendlyError`, rótulos de status, reconciliação de preço → `lib/api.ts`, `cart-provider`, `order-status`.
 - **09 Segurança** — BFF, isolamento de tokens (cookies httpOnly), posse de pedido, rate-limit/anti-enumeração, headers/Referrer-Policy, PCI (PAN só passa pelo BFF) → `lib/session.ts`, `lib/ratelimit.ts`, `next.config.ts`, `app/api/**`.
 - **10 URLs/SEO/carrinho** — `generateMetadata`, canonical (`publishedUrl`), `sitemap.ts` (paginado, só visíveis), `robots.ts`, JSON-LD, ISR, persistência/recuperação de carrinho → PDP, `app/sitemap.ts`, `app/robots.ts`, `lib/crm.ts`, `scripts/abandoned-cart.ts`.
-- **11 Produção/resiliência** — idempotência (lock por cartId, anti-duplo-clique, sem retry cego), N grupos, releitura antes do placeOrder, confirmação de Pix (webhook + polling), cache de token + re-signin, CDC art. 49, a11y → `lib/checkout-lock.ts`, `app/api/checkout`, `/checkout/pix/[ref]`, `@unbox-plus/sdk` (`createUnboxStore`), `/devolucoes`.
+- **11 Produção/resiliência** — idempotência (lock por cartId, anti-duplo-clique, sem retry cego), N grupos, releitura antes do placeOrder, confirmação de Pix (webhook + polling), cache de token + re-signin, CDC art. 49, a11y → `lib/checkout-lock.ts`, `app/api/checkout`, `/checkout/pix/[ref]`, `@unbox-plus/sdk` (`connectUnboxStore`), `/devolucoes`.
 
 ## Limitações conhecidas (da API, não da implementação)
 

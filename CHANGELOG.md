@@ -18,7 +18,7 @@ O que mudou na loja gerada:
 
 - **`lib/unbox/` deixou de existir; no lugar entrou `lib/unbox.ts`**, um arquivo só, com
   `import "server-only"` na primeira linha, que amarra o `.env` desta instalação ao pacote
-  (`createUnboxStore`) e exporta `withStoreClient`, `getStoreClient`, `getShopContext`,
+  (`connectUnboxStore`) e exporta `withStoreClient`, `getStoreClient`, `getShopContext`,
   `getCustomerClientFor` e `loadAllCatalogItems`. É o único ponto da loja que conhece credencial
   da Unbox, e é o que torna a atualização um bump de versão.
 - **`lib/dataloader.ts` foi absorvido.** A paginação por offset do catálogo inteiro (a que não
