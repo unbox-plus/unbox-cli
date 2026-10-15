@@ -12,6 +12,8 @@ smoke test HTTP do BFF (carrinho→endereço→frete) **200** em todas as etapas
 | `getCatalog` (first/offset/search/tagIds/sort) | `lib/queries.ts` → home, `/produtos`, `/busca`, `/categoria/[tagSlug]` |
 | `getProductBySlug` | `app/(loja)/produto/[productSlug]/page.tsx` |
 | `getProductById` | `@unbox-plus/sdk` (fallback/deep link) |
+| `getProductsByIds` (vários ids, preço de assinatura, variantes) | `@unbox-plus/sdk` — edição de itens da assinatura (use `mockupOr`) |
+| `getSubscribableCatalog` (`recurrenceAllowed` + categorias) | `@unbox-plus/sdk` — itens que podem entrar na assinatura (use `mockupOr`) |
 | `getTags` | `components/site-header.tsx`, home, categoria |
 | `getShop` (shopSales, política de assinatura, settings) | `lib/queries.ts` → header, home, PDP, checkout |
 | `getPaymentMethods` | `app/(loja)/checkout/page.tsx` |
