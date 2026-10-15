@@ -40,6 +40,8 @@ import {
 } from "@/components/address-fields";
 import { QuantityStepper } from "@/components/quantity-stepper";
 import { InlineAlert } from "@/components/account/subscription-editor/inline-alert";
+import { PriceCompare } from "@/components/account/subscription-editor/price-compare";
+import { VariantChips } from "@/components/account/subscription-editor/variant-chips";
 import { ItemStatusTag } from "@/components/account/subscription-editor/item-status-tag";
 import { nameKey } from "@/lib/subscription-items";
 import { formatBRL } from "@/lib/format";
@@ -70,6 +72,7 @@ export interface ItemDetalhe {
   foto?: string;
   unit: number | null;
   riscado: number | null;
+  variantes?: { id: string; label: string; esgotado?: boolean }[];
 }
 interface Item {
   productId: string;
@@ -98,6 +101,7 @@ export function SubscriptionActions({
   const [addrOpen, setAddrOpen] = React.useState(false);
   const [cardOpen, setCardOpen] = React.useState(false);
   const [itemsOpen, setItemsOpen] = React.useState(false);
+  const [trocando, setTrocando] = React.useState<number | null>(null); // item com o painel de variação aberto
 
   const [addr, setAddr] = React.useState<AddressValue>(emptyAddress);
   const [card, setCard] = React.useState({
@@ -386,7 +390,7 @@ export function SubscriptionActions({
               const before = items.find((x) => nameKey(x) === nameKey(it))?.quantity;
               return (
                 <li
-                  key={nameKey(it)}
+                  key={`${it.productId}:${i}`}
                   className="flex items-start gap-3 py-3.5 first:pt-0 text-sm"
                 >
                   <div className="size-14 shrink-0 overflow-hidden rounded-lg bg-[var(--store-surface-2)]">
@@ -408,17 +412,19 @@ export function SubscriptionActions({
                           {titulo}
                         </p>
                         {d?.variacao && (
-                          <p className="text-[var(--store-muted)]">
-                            {d.variacao}
-                          </p>
-                        )}
-                        {d?.unit != null && (
-                          <p className="text-[13px] text-[var(--store-muted)]">
-                            {formatBRL(d.unit)} cada
-                            {d.riscado != null && (
+                          <p className="flex flex-wrap items-baseline gap-x-1.5 text-[13px] text-[var(--store-muted)]">
+                            <span>{d.variacao}</span>
+                            {d.variantes && (
                               <>
-                                {" "}
-                                <s>{formatBRL(d.riscado)}</s>
+                                <span aria-hidden>·</span>
+                                <button
+                                  type="button"
+                                  aria-expanded={trocando === i}
+                                  className="cursor-pointer border-none bg-transparent p-0 text-[13px] font-bold text-[var(--store-ink)] underline underline-offset-3"
+                                  onClick={() => setTrocando(trocando === i ? null : i)}
+                                >
+                                  {trocando === i ? "Fechar" : "Trocar"}
+                                </button>
                               </>
                             )}
                           </p>
@@ -430,6 +436,29 @@ export function SubscriptionActions({
                         </p>
                       )}
                     </div>
+                    {d?.variantes && trocando === i && (
+                      <VariantChips
+                        className="mt-2 rounded-lg bg-[var(--store-surface-2)] p-3"
+                        hideLegend
+                        legend="Variação"
+                        value={it.variantId}
+                        options={d.variantes.map((o) => {
+                          const jaTem = editItems.some((x, j) => j !== i && x.productId === it.productId && x.variantId === o.id);
+                          return {
+                            id: o.id,
+                            label: o.label,
+                            disabled: jaTem || o.esgotado,
+                            disabledReason: jaTem ? "Já está na sua assinatura" : o.esgotado ? "Esgotado" : undefined,
+                          };
+                        })}
+                        onChange={(v) => setEditItems((arr) => arr.map((x, j) => (j === i ? { ...x, variantId: v } : x)))}
+                      />
+                    )}
+                    {d?.unit != null && (
+                      <p className="mt-1 text-[13px] text-[var(--store-muted)]">
+                        <PriceCompare price={d.unit} compareAtPrice={d.riscado} className="font-normal" /> cada
+                      </p>
+                    )}
                     {before != null && before !== it.quantity && (
                       <ItemStatusTag status="picksChanged" className="mt-1">
                         Antes: {before}
