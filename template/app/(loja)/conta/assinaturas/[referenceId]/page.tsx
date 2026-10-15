@@ -127,6 +127,7 @@ export default async function AssinaturaDetalhePage({ params }: { params: Promis
         recurringOrderId={sub._id}
         status={status}
         detalhes={detalhes}
+        proximaEntrega={sub.cyclesInformation?.nextCycleDate ? formatarData(sub.cyclesInformation.nextCycleDate) : undefined}
         actions={actions}
         items={(sub.items ?? []).map((it: any) => ({ productId: it.productId, variantId: it.variantId, quantity: it.quantity }))}
       />
