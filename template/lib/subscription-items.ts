@@ -30,3 +30,6 @@ export function checkItemsChange(current: SubscriptionItem[], next: Subscription
   }
   return null;
 }
+
+/** Chave do mapa de nomes (produto + variação) da tela de assinatura. */
+export const nameKey = (it: { productId: string; variantId?: string | null }) => `${it.productId}:${it.variantId ?? ""}`;
