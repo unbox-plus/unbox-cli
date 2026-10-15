@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { Calendar } from "@/lib/icons";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -10,9 +11,9 @@ import {
   XCircle,
   MapPin,
   CreditCard,
-  ListChecks,
   CircleNotch,
   Trash,
+  ListChecks,
 } from "@phosphor-icons/react/dist/ssr";
 import {
   Dialog,
@@ -38,6 +39,8 @@ import {
   type AddressValue,
 } from "@/components/address-fields";
 import { QuantityStepper } from "@/components/quantity-stepper";
+import { InlineAlert } from "@/components/account/subscription-editor/inline-alert";
+import { ItemStatusTag } from "@/components/account/subscription-editor/item-status-tag";
 import { nameKey } from "@/lib/subscription-items";
 import { formatBRL } from "@/lib/format";
 import { Foto } from "@/components/ui/foto";
@@ -80,12 +83,14 @@ export function SubscriptionActions({
   actions,
   items,
   detalhes = {},
+  proximaEntrega,
 }: {
   recurringOrderId: string;
   status: string;
   actions: Actions;
   items: Item[];
   detalhes?: Record<string, ItemDetalhe>;
+  proximaEntrega?: string;
 }) {
   const router = useRouter();
   const [busy, setBusy] = React.useState<string | null>(null);
@@ -371,10 +376,14 @@ export function SubscriptionActions({
               Ajuste as quantidades dos próximos ciclos.
             </DialogDescription>
           </DialogHeader>
+          <InlineAlert variant="info" icon={Calendar} title={`As mudanças valem a partir da próxima entrega${proximaEntrega ? `, em ${proximaEntrega}` : ""}.`}>
+            A entrega que já está a caminho não muda.
+          </InlineAlert>
           <ul className="flex flex-col divide-y divide-[var(--store-surface-2)]">
             {editItems.map((it, i) => {
               const d = detalhes[nameKey(it)];
               const titulo = d?.titulo ?? it.productId;
+              const before = items.find((x) => nameKey(x) === nameKey(it))?.quantity;
               return (
                 <li
                   key={nameKey(it)}
@@ -421,6 +430,11 @@ export function SubscriptionActions({
                         </p>
                       )}
                     </div>
+                    {before != null && before !== it.quantity && (
+                      <ItemStatusTag status="picksChanged" className="mt-1">
+                        Antes: {before}
+                      </ItemStatusTag>
+                    )}
                     <div className="mt-3 flex items-center justify-between gap-3">
                       <QuantityStepper
                         value={it.quantity}
