@@ -1,1 +1,3 @@
 node_modules/
+template/.env.local
+template/.next/
