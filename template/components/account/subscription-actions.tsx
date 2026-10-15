@@ -3,39 +3,89 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Pause, Play, SkipForward, XCircle, MapPin, CreditCard, ListChecks, CircleNotch } from "@phosphor-icons/react/dist/ssr";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
+  Pause,
+  Play,
+  SkipForward,
+  XCircle,
+  MapPin,
+  CreditCard,
+  ListChecks,
+  CircleNotch,
+  Trash,
+} from "@phosphor-icons/react/dist/ssr";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import {
-  AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription,
-  AlertDialogFooter, AlertDialogAction, AlertDialogCancel,
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogAction,
+  AlertDialogCancel,
 } from "@/components/ui/alert-dialog";
-import { AddressFields, emptyAddress, type AddressValue } from "@/components/address-fields";
+import {
+  AddressFields,
+  emptyAddress,
+  type AddressValue,
+} from "@/components/address-fields";
 import { QuantityStepper } from "@/components/quantity-stepper";
+import { nameKey } from "@/lib/subscription-items";
+import { formatBRL } from "@/lib/format";
+import { Foto } from "@/components/ui/foto";
 
-const BTN_PRIMARY = "font-display inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-xl bg-[var(--store-primary,#18181B)] px-5 text-[14px] font-bold text-white transition-colors hover:bg-[var(--store-primary-dark,#09090B)] disabled:opacity-60";
-const BTN_OUTLINE = "inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border-[1.5px] border-[var(--store-line-2)] bg-white px-4 text-[14px] font-bold text-[var(--store-ink-2)] transition-colors hover:border-[var(--store-primary,#18181B)] hover:text-[var(--store-primary,#18181B)]";
-const CHIP = "inline-flex h-10 cursor-pointer items-center gap-2 rounded-xl border-[1.5px] border-[var(--store-line-2)] bg-white px-3.5 text-[13.5px] font-bold text-[var(--store-ink-2)] transition-colors hover:border-[var(--store-primary,#18181B)] hover:text-[var(--store-primary,#18181B)] disabled:opacity-60";
-const CHIP_DANGER = "inline-flex h-10 cursor-pointer items-center gap-2 rounded-xl border-[1.5px] border-[var(--store-sale-soft)] bg-white px-3.5 text-[13.5px] font-bold text-[var(--store-sale)] transition-colors hover:border-[var(--store-sale)] hover:bg-[var(--store-sale-soft)]";
-const INPUT = "h-11 w-full rounded-xl border-[1.5px] border-[var(--store-line-2)] bg-white px-3.5 text-[14px] font-medium text-[var(--store-ink)] outline-none transition-colors focus:border-[var(--store-primary,#18181B)]";
+const BTN_PRIMARY =
+  "font-display inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-xl bg-[var(--store-primary,#18181B)] px-5 text-[14px] font-bold text-white transition-colors hover:bg-[var(--store-primary-dark,#09090B)] disabled:opacity-60";
+const BTN_OUTLINE =
+  "inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border-[1.5px] border-[var(--store-line-2)] bg-white px-4 text-[14px] font-bold text-[var(--store-ink-2)] transition-colors hover:border-[var(--store-primary,#18181B)] hover:text-[var(--store-primary,#18181B)]";
+const CHIP =
+  "inline-flex h-10 cursor-pointer items-center gap-2 rounded-xl border-[1.5px] border-[var(--store-line-2)] bg-white px-3.5 text-[13.5px] font-bold text-[var(--store-ink-2)] transition-colors hover:border-[var(--store-primary,#18181B)] hover:text-[var(--store-primary,#18181B)] disabled:opacity-60";
+const CHIP_DANGER =
+  "inline-flex h-10 cursor-pointer items-center gap-2 rounded-xl border-[1.5px] border-[var(--store-sale-soft)] bg-white px-3.5 text-[13.5px] font-bold text-[var(--store-sale)] transition-colors hover:border-[var(--store-sale)] hover:bg-[var(--store-sale-soft)]";
+const INPUT =
+  "h-11 w-full rounded-xl border-[1.5px] border-[var(--store-line-2)] bg-white px-3.5 text-[14px] font-medium text-[var(--store-ink)] outline-none transition-colors focus:border-[var(--store-primary,#18181B)]";
 
 interface Actions {
-  canPause?: boolean; canSkipCycle?: boolean; canChangeAddress?: boolean;
-  canChangeProductQuantity?: boolean; canAddProducts?: boolean; canRemoveProducts?: boolean;
+  canPause?: boolean;
+  canSkipCycle?: boolean;
+  canChangeAddress?: boolean;
+  canChangeProductQuantity?: boolean;
+  canAddProducts?: boolean;
+  canRemoveProducts?: boolean;
 }
-interface Item { productId: string; variantId: string; quantity: number }
+export interface ItemDetalhe {
+  titulo: string;
+  variacao: string | null;
+  foto?: string;
+  unit: number | null;
+  riscado: number | null;
+}
+interface Item {
+  productId: string;
+  variantId: string;
+  quantity: number;
+}
 
 export function SubscriptionActions({
   recurringOrderId,
   status,
   actions,
   items,
+  detalhes = {},
 }: {
   recurringOrderId: string;
   status: string;
   actions: Actions;
   items: Item[];
+  detalhes?: Record<string, ItemDetalhe>;
 }) {
   const router = useRouter();
   const [busy, setBusy] = React.useState<string | null>(null);
@@ -45,13 +95,23 @@ export function SubscriptionActions({
   const [itemsOpen, setItemsOpen] = React.useState(false);
 
   const [addr, setAddr] = React.useState<AddressValue>(emptyAddress);
-  const [card, setCard] = React.useState({ cardHolder: "", cardNumber: "", expirationMonth: "", expirationYear: "", securityCode: "" });
+  const [card, setCard] = React.useState({
+    cardHolder: "",
+    cardNumber: "",
+    expirationMonth: "",
+    expirationYear: "",
+    securityCode: "",
+  });
   const [editItems, setEditItems] = React.useState<Item[]>(items);
 
   const canceled = status === "CANCELED";
   const paused = status === "PAUSED";
 
-  async function run(action: string, payload: Record<string, any> = {}, label = "Pronto") {
+  async function run(
+    action: string,
+    payload: Record<string, any> = {},
+    label = "Pronto",
+  ) {
     setBusy(action);
     try {
       const res = await fetch(`/api/subscriptions/${recurringOrderId}`, {
@@ -73,33 +133,94 @@ export function SubscriptionActions({
   }
 
   if (canceled) {
-    return <p className="mt-4 text-sm text-[var(--store-muted)]">Esta assinatura está cancelada.</p>;
+    return (
+      <p className="mt-4 text-sm text-[var(--store-muted)]">
+        Esta assinatura está cancelada.
+      </p>
+    );
   }
 
   return (
     <div className="mt-6">
-      <h4 className="font-display mb-3 text-[var(--store-ink)]">Gerenciar assinatura</h4>
+      <h4 className="font-display mb-3 text-[var(--store-ink)]">
+        Gerenciar assinatura
+      </h4>
       <div className="flex flex-wrap gap-2">
         {actions.canPause && (
-          <button type="button" className={CHIP} disabled={!!busy} onClick={() => run("pause", {}, paused ? "Assinatura retomada." : "Assinatura pausada.")}>
-            {busy === "pause" ? <CircleNotch className="animate-spin" /> : paused ? <Play weight="fill" /> : <Pause weight="bold" />} {paused ? "Retomar" : "Pausar"}
+          <button
+            type="button"
+            className={CHIP}
+            disabled={!!busy}
+            onClick={() =>
+              run(
+                "pause",
+                {},
+                paused ? "Assinatura retomada." : "Assinatura pausada.",
+              )
+            }
+          >
+            {busy === "pause" ? (
+              <CircleNotch className="animate-spin" />
+            ) : paused ? (
+              <Play weight="fill" />
+            ) : (
+              <Pause weight="bold" />
+            )}{" "}
+            {paused ? "Retomar" : "Pausar"}
           </button>
         )}
         {actions.canSkipCycle && (
-          <button type="button" className={CHIP} disabled={!!busy} onClick={() => run("skip", {}, "Próximo ciclo adiado.")}>
-            {busy === "skip" ? <CircleNotch className="animate-spin" /> : <SkipForward weight="bold" />} Pular próximo ciclo
+          <button
+            type="button"
+            className={CHIP}
+            disabled={!!busy}
+            onClick={() => run("skip", {}, "Próximo ciclo adiado.")}
+          >
+            {busy === "skip" ? (
+              <CircleNotch className="animate-spin" />
+            ) : (
+              <SkipForward weight="bold" />
+            )}{" "}
+            Pular próximo ciclo
           </button>
         )}
         {actions.canChangeAddress && (
-          <button type="button" className={CHIP} onClick={() => setAddrOpen(true)}><MapPin weight="bold" /> Trocar endereço</button>
+          <button
+            type="button"
+            className={CHIP}
+            onClick={() => setAddrOpen(true)}
+          >
+            <MapPin weight="bold" /> Trocar endereço
+          </button>
         )}
-        <button type="button" className={CHIP} onClick={() => setCardOpen(true)}><CreditCard weight="bold" /> Trocar cartão</button>
-        {(actions.canChangeProductQuantity || actions.canAddProducts || actions.canRemoveProducts) && (
-          <button type="button" className={CHIP} onClick={() => { setEditItems(items); setItemsOpen(true); }}>
+        <button
+          type="button"
+          className={CHIP}
+          onClick={() => setCardOpen(true)}
+        >
+          <CreditCard weight="bold" /> Trocar cartão
+        </button>
+        {(actions.canChangeProductQuantity ||
+          actions.canAddProducts ||
+          actions.canRemoveProducts) && (
+          <button
+            type="button"
+            className={CHIP}
+            onClick={() => {
+              setEditItems(items);
+              setItemsOpen(true);
+            }}
+          >
             <ListChecks weight="bold" /> Alterar itens
           </button>
         )}
-        <button type="button" className={CHIP_DANGER} onClick={() => setCancelOpen(true)}><XCircle weight="bold" /> Cancelar</button>
+        <button
+          type="button"
+          className={CHIP_DANGER}
+          onClick={() => setCancelOpen(true)}
+        >
+          <XCircle weight="bold" /> Cancelar
+        </button>
       </div>
 
       {/* Cancelar */}
@@ -107,13 +228,22 @@ export function SubscriptionActions({
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Cancelar assinatura?</AlertDialogTitle>
-            <AlertDialogDescription>Você deixará de receber os próximos ciclos. Esta ação não pode ser desfeita.</AlertDialogDescription>
+            <AlertDialogDescription>
+              Você deixará de receber os próximos ciclos. Esta ação não pode ser
+              desfeita.
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className={BTN_OUTLINE}>Voltar</AlertDialogCancel>
+            <AlertDialogCancel className={BTN_OUTLINE}>
+              Voltar
+            </AlertDialogCancel>
             <AlertDialogAction
               className="font-display inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-xl bg-[var(--store-sale)] px-5 text-[14px] font-bold text-white transition-colors hover:bg-[var(--store-sale)]"
-              onClick={() => run("cancel", {}, "Assinatura cancelada.").then((ok) => ok && setCancelOpen(false))}
+              onClick={() =>
+                run("cancel", {}, "Assinatura cancelada.").then(
+                  (ok) => ok && setCancelOpen(false),
+                )
+              }
             >
               Cancelar assinatura
             </AlertDialogAction>
@@ -126,13 +256,33 @@ export function SubscriptionActions({
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Trocar endereço de entrega</DialogTitle>
-            <DialogDescription>O novo endereço valerá para os próximos ciclos.</DialogDescription>
+            <DialogDescription>
+              O novo endereço valerá para os próximos ciclos.
+            </DialogDescription>
           </DialogHeader>
           <AddressFields value={addr} onChange={setAddr} />
           <DialogFooter>
-            <button type="button" className={BTN_OUTLINE} onClick={() => setAddrOpen(false)}>Voltar</button>
-            <button type="button" className={BTN_PRIMARY} disabled={busy === "address"} onClick={() => run("address", { address: addr }, "Endereço atualizado.").then((ok) => ok && setAddrOpen(false))}>
-              {busy === "address" ? <CircleNotch className="animate-spin" /> : null} Salvar
+            <button
+              type="button"
+              className={BTN_OUTLINE}
+              onClick={() => setAddrOpen(false)}
+            >
+              Voltar
+            </button>
+            <button
+              type="button"
+              className={BTN_PRIMARY}
+              disabled={busy === "address"}
+              onClick={() =>
+                run("address", { address: addr }, "Endereço atualizado.").then(
+                  (ok) => ok && setAddrOpen(false),
+                )
+              }
+            >
+              {busy === "address" ? (
+                <CircleNotch className="animate-spin" />
+              ) : null}{" "}
+              Salvar
             </button>
           </DialogFooter>
         </DialogContent>
@@ -143,21 +293,70 @@ export function SubscriptionActions({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Trocar cartão</DialogTitle>
-            <DialogDescription>O novo cartão será usado nas próximas cobranças.</DialogDescription>
+            <DialogDescription>
+              O novo cartão será usado nas próximas cobranças.
+            </DialogDescription>
           </DialogHeader>
           <div className="grid gap-3">
-            <Field id="s-ch" label="Nome no cartão" value={card.cardHolder} onChange={(v) => setCard({ ...card, cardHolder: v })} />
-            <Field id="s-cn" label="Número" inputMode="numeric" value={card.cardNumber} onChange={(v) => setCard({ ...card, cardNumber: v })} />
+            <Field
+              id="s-ch"
+              label="Nome no cartão"
+              value={card.cardHolder}
+              onChange={(v) => setCard({ ...card, cardHolder: v })}
+            />
+            <Field
+              id="s-cn"
+              label="Número"
+              inputMode="numeric"
+              value={card.cardNumber}
+              onChange={(v) => setCard({ ...card, cardNumber: v })}
+            />
             <div className="grid grid-cols-3 gap-2">
-              <Field id="s-mm" label="Mês" inputMode="numeric" value={card.expirationMonth} onChange={(v) => setCard({ ...card, expirationMonth: v })} />
-              <Field id="s-yy" label="Ano" inputMode="numeric" value={card.expirationYear} onChange={(v) => setCard({ ...card, expirationYear: v })} />
-              <Field id="s-cvv" label="CVV" inputMode="numeric" value={card.securityCode} onChange={(v) => setCard({ ...card, securityCode: v })} />
+              <Field
+                id="s-mm"
+                label="Mês"
+                inputMode="numeric"
+                value={card.expirationMonth}
+                onChange={(v) => setCard({ ...card, expirationMonth: v })}
+              />
+              <Field
+                id="s-yy"
+                label="Ano"
+                inputMode="numeric"
+                value={card.expirationYear}
+                onChange={(v) => setCard({ ...card, expirationYear: v })}
+              />
+              <Field
+                id="s-cvv"
+                label="CVV"
+                inputMode="numeric"
+                value={card.securityCode}
+                onChange={(v) => setCard({ ...card, securityCode: v })}
+              />
             </div>
           </div>
           <DialogFooter>
-            <button type="button" className={BTN_OUTLINE} onClick={() => setCardOpen(false)}>Voltar</button>
-            <button type="button" className={BTN_PRIMARY} disabled={busy === "card"} onClick={() => run("card", { card }, "Cartão atualizado.").then((ok) => ok && setCardOpen(false))}>
-              {busy === "card" ? <CircleNotch className="animate-spin" /> : null} Salvar
+            <button
+              type="button"
+              className={BTN_OUTLINE}
+              onClick={() => setCardOpen(false)}
+            >
+              Voltar
+            </button>
+            <button
+              type="button"
+              className={BTN_PRIMARY}
+              disabled={busy === "card"}
+              onClick={() =>
+                run("card", { card }, "Cartão atualizado.").then(
+                  (ok) => ok && setCardOpen(false),
+                )
+              }
+            >
+              {busy === "card" ? (
+                <CircleNotch className="animate-spin" />
+              ) : null}{" "}
+              Salvar
             </button>
           </DialogFooter>
         </DialogContent>
@@ -168,24 +367,114 @@ export function SubscriptionActions({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Alterar itens</DialogTitle>
-            <DialogDescription>Ajuste as quantidades dos próximos ciclos.</DialogDescription>
+            <DialogDescription>
+              Ajuste as quantidades dos próximos ciclos.
+            </DialogDescription>
           </DialogHeader>
-          <ul className="flex flex-col gap-3">
-            {editItems.map((it, i) => (
-              <li key={i} className="flex items-center justify-between gap-3 text-sm">
-                <span className="truncate font-medium text-[var(--store-ink-2)]">{it.productId}</span>
-                <QuantityStepper
-                  value={it.quantity}
-                  min={0}
-                  onChange={(q) => setEditItems((arr) => arr.map((x, j) => (j === i ? { ...x, quantity: q } : x)))}
-                />
-              </li>
-            ))}
+          <ul className="flex flex-col divide-y divide-[var(--store-surface-2)]">
+            {editItems.map((it, i) => {
+              const d = detalhes[nameKey(it)];
+              const titulo = d?.titulo ?? it.productId;
+              return (
+                <li
+                  key={nameKey(it)}
+                  className="flex items-start gap-3 py-3.5 first:pt-0 text-sm"
+                >
+                  <div className="size-14 shrink-0 overflow-hidden rounded-lg bg-[var(--store-surface-2)]">
+                    {d?.foto && (
+                      <Foto
+                        src={d.foto}
+                        alt=""
+                        width={56}
+                        height={56}
+                        sizes="56px"
+                        className="size-full object-cover"
+                      />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="font-bold text-[var(--store-ink)]">
+                          {titulo}
+                        </p>
+                        {d?.variacao && (
+                          <p className="text-[var(--store-muted)]">
+                            {d.variacao}
+                          </p>
+                        )}
+                        {d?.unit != null && (
+                          <p className="text-[13px] text-[var(--store-muted)]">
+                            {formatBRL(d.unit)} cada
+                            {d.riscado != null && (
+                              <>
+                                {" "}
+                                <s>{formatBRL(d.riscado)}</s>
+                              </>
+                            )}
+                          </p>
+                        )}
+                      </div>
+                      {d?.unit != null && (
+                        <p className="font-display whitespace-nowrap font-extrabold tabular-nums text-[var(--store-ink)]">
+                          {formatBRL(d.unit * it.quantity)}
+                        </p>
+                      )}
+                    </div>
+                    <div className="mt-3 flex items-center justify-between gap-3">
+                      <QuantityStepper
+                        value={it.quantity}
+                        label={
+                          d?.variacao ? `${titulo} · ${d.variacao}` : titulo
+                        }
+                        readOnly={!actions.canChangeProductQuantity}
+                        onChange={(q) =>
+                          setEditItems((arr) =>
+                            arr.map((x, j) =>
+                              j === i ? { ...x, quantity: q } : x,
+                            ),
+                          )
+                        }
+                      />
+                      {actions.canRemoveProducts && editItems.length > 1 && (
+                        <button
+                          type="button"
+                          className="inline-flex cursor-pointer items-center gap-1.5 border-none bg-transparent p-1.5 text-[13px] font-bold text-[var(--store-muted)]"
+                          onClick={() =>
+                            setEditItems((arr) => arr.filter((_, j) => j !== i))
+                          }
+                        >
+                          <Trash weight="bold" /> Remover
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
           <DialogFooter>
-            <button type="button" className={BTN_OUTLINE} onClick={() => setItemsOpen(false)}>Voltar</button>
-            <button type="button" className={BTN_PRIMARY} disabled={busy === "items"} onClick={() => run("items", { items: editItems }, "Itens atualizados.").then((ok) => ok && setItemsOpen(false))}>
-              {busy === "items" ? <CircleNotch className="animate-spin" /> : null} Salvar
+            <button
+              type="button"
+              className={BTN_OUTLINE}
+              onClick={() => setItemsOpen(false)}
+            >
+              Voltar
+            </button>
+            <button
+              type="button"
+              className={BTN_PRIMARY}
+              disabled={busy === "items"}
+              onClick={() =>
+                run("items", { items: editItems }, "Itens atualizados.").then(
+                  (ok) => ok && setItemsOpen(false),
+                )
+              }
+            >
+              {busy === "items" ? (
+                <CircleNotch className="animate-spin" />
+              ) : null}{" "}
+              Salvar
             </button>
           </DialogFooter>
         </DialogContent>
@@ -194,11 +483,33 @@ export function SubscriptionActions({
   );
 }
 
-function Field({ id, label, value, onChange, ...rest }: { id: string; label: string; value: string; onChange: (v: string) => void } & Omit<React.InputHTMLAttributes<HTMLInputElement>, "value" | "onChange" | "id">) {
+function Field({
+  id,
+  label,
+  value,
+  onChange,
+  ...rest
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+} & Omit<
+  React.InputHTMLAttributes<HTMLInputElement>,
+  "value" | "onChange" | "id"
+>) {
   return (
     <label htmlFor={id} className="flex flex-col gap-1.5">
-      <span className="text-[13px] font-bold text-[var(--store-ink-2)]">{label}</span>
-      <input id={id} value={value} onChange={(e) => onChange(e.target.value)} className={INPUT} {...rest} />
+      <span className="text-[13px] font-bold text-[var(--store-ink-2)]">
+        {label}
+      </span>
+      <input
+        id={id}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className={INPUT}
+        {...rest}
+      />
     </label>
   );
 }
