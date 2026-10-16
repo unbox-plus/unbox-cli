@@ -38,7 +38,7 @@ import {
   type AddressValue,
 } from "@/components/address-fields";
 import { InlineAlert } from "@/components/account/subscription-editor/inline-alert";
-import { VariantChips } from "@/components/account/subscription-editor/variant-chips";
+import { VariantSwitcher, variantName } from "@/components/account/subscription-editor/variant-switcher";
 import { SubscriptionEditorItem } from "@/components/account/subscription-editor/subscription-editor-item";
 import { nameKey } from "@/lib/subscription-items";
 
@@ -97,7 +97,6 @@ export function SubscriptionActions({
   const [cardOpen, setCardOpen] = React.useState(false);
   const [itemsOpen, setItemsOpen] = React.useState(false);
   const [removidos, setRemovidos] = React.useState<Set<number>>(new Set()); // índices marcados; só saem ao salvar
-  const [trocando, setTrocando] = React.useState<number | null>(null); // item com o painel de variação aberto
 
   const [addr, setAddr] = React.useState<AddressValue>(emptyAddress);
   const [card, setCard] = React.useState({
@@ -109,6 +108,7 @@ export function SubscriptionActions({
   });
   const [editItems, setEditItems] = React.useState<Item[]>(items);
 
+  const temVariantes = Object.values(detalhes).some((d) => d.variantes && d.variantes.length > 1); // trocar variante vale mesmo sem nenhuma flag
   const canceled = status === "CANCELED";
   const paused = status === "PAUSED";
 
@@ -207,7 +207,8 @@ export function SubscriptionActions({
         </button>
         {(actions.canChangeProductQuantity ||
           actions.canAddProducts ||
-          actions.canRemoveProducts) && (
+          actions.canRemoveProducts ||
+          temVariantes) && (
           <button
             type="button"
             className={CHIP}
@@ -388,62 +389,51 @@ export function SubscriptionActions({
               const removido = removidos.has(i);
               return (
                 <li key={`${it.productId}:${i}`} className="py-3.5 first:pt-0">
-                  <SubscriptionEditorItem
-                    item={{
-                      name: titulo,
-                      image: d?.foto,
-                      variant: d?.variacao,
-                      quantity: it.quantity,
-                      price: d?.unit,
-                      compareAtPrice: d?.riscado,
-                      previousQuantity: before,
-                      status: d?.variantes?.find((v) => v.id === it.variantId)?.esgotado ? "outOfStock" : undefined,
-                    }}
-                    canChangeQuantity={actions.canChangeProductQuantity}
-                    canRemove={actions.canRemoveProducts}
-                    isLastActiveItem={editItems.length - removidos.size <= 1 && !removido}
-                    isRemoved={removido}
-                    variantAction={
-                      d?.variantes && (
-                        <button
-                          type="button"
-                          aria-expanded={trocando === i}
-                          className="cursor-pointer border-none bg-transparent p-0 text-[13px] font-bold text-[var(--store-ink)] underline underline-offset-3"
-                          onClick={() => setTrocando(trocando === i ? null : i)}
-                        >
-                          {trocando === i ? "Fechar" : "Trocar"}
-                        </button>
-                      )
-                    }
-                    onQuantityChange={(q) => setEditItems((arr) => arr.map((x, j) => (j === i ? { ...x, quantity: q } : x)))}
-                    onRemove={() => setRemovidos((s) => new Set(s).add(i))}
-                    onUndo={() =>
-                      setRemovidos((s) => {
-                        const n = new Set(s);
-                        n.delete(i);
-                        return n;
-                      })
-                    }
+                  <VariantSwitcher
+                    name={d?.variacao ? variantName(d.variacao) : ""}
+                    value={it.variantId}
+                    options={(d?.variantes ?? []).map((o) => {
+                      const jaTem = editItems.some((x, j) => j !== i && x.productId === it.productId && x.variantId === o.id);
+                      return {
+                        id: o.id,
+                        label: o.label,
+                        disabled: jaTem || o.esgotado,
+                        disabledReason: jaTem ? "Já está na sua assinatura" : o.esgotado ? "Esgotado" : undefined,
+                      };
+                    })}
+                    onSwap={(v) => setEditItems((arr) => arr.map((x, j) => (j === i ? { ...x, variantId: v } : x)))}
                   >
-                    {d?.variantes && trocando === i && (
-                      <VariantChips
-                        className="mt-2 rounded-lg bg-[var(--store-surface-2)] p-3"
-                        hideLegend
-                        legend="Variação"
-                        value={it.variantId}
-                        options={d.variantes.map((o) => {
-                          const jaTem = editItems.some((x, j) => j !== i && x.productId === it.productId && x.variantId === o.id);
-                          return {
-                            id: o.id,
-                            label: o.label,
-                            disabled: jaTem || o.esgotado,
-                            disabledReason: jaTem ? "Já está na sua assinatura" : o.esgotado ? "Esgotado" : undefined,
-                          };
-                        })}
-                        onChange={(v) => setEditItems((arr) => arr.map((x, j) => (j === i ? { ...x, variantId: v } : x)))}
-                      />
+                    {({ link, panel }) => (
+                      <SubscriptionEditorItem
+                        item={{
+                          name: titulo,
+                          image: d?.foto,
+                          variant: d?.variacao,
+                          quantity: it.quantity,
+                          price: d?.unit,
+                          compareAtPrice: d?.riscado,
+                          previousQuantity: before,
+                          status: d?.variantes?.find((v) => v.id === it.variantId)?.esgotado ? "outOfStock" : undefined,
+                        }}
+                        canChangeQuantity={actions.canChangeProductQuantity}
+                        canRemove={actions.canRemoveProducts}
+                        isLastActiveItem={editItems.length - removidos.size <= 1 && !removido}
+                        isRemoved={removido}
+                        variantAction={link}
+                        onQuantityChange={(q) => setEditItems((arr) => arr.map((x, j) => (j === i ? { ...x, quantity: q } : x)))}
+                        onRemove={() => setRemovidos((s) => new Set(s).add(i))}
+                        onUndo={() =>
+                          setRemovidos((s) => {
+                            const n = new Set(s);
+                            n.delete(i);
+                            return n;
+                          })
+                        }
+                      >
+                        {panel}
+                      </SubscriptionEditorItem>
                     )}
-                  </SubscriptionEditorItem>
+                  </VariantSwitcher>
                 </li>
               );
             })}
