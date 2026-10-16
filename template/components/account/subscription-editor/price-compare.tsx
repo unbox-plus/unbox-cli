@@ -12,10 +12,10 @@ export function PriceCompare({
   className?: string
 }) {
   return (
-    <span className={cn("inline-flex items-baseline gap-1.5", className)}>
-      <span className="font-semibold tabular-nums">{formatBRL(price)}</span>
+    <span className={cn("inline-flex flex-wrap items-baseline gap-x-1.5", className)}>
+      <span className="font-semibold whitespace-nowrap tabular-nums">{formatBRL(price)}</span>
       {compareAtPrice != null && compareAtPrice > price && (
-        <s className="text-[0.85em] text-[var(--store-muted)] tabular-nums">
+        <s className="text-[0.85em] whitespace-nowrap text-[var(--store-muted)] tabular-nums">
           <span className="sr-only">Preço avulso: </span>
           {formatBRL(compareAtPrice)}
         </s>
