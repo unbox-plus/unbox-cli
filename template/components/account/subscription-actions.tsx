@@ -10,8 +10,8 @@ import {
   XCircle,
   MapPin,
   CreditCard,
-  CircleNotch,
   ListChecks,
+  CircleNotch,
 } from "@phosphor-icons/react/dist/ssr";
 import {
   Dialog,
@@ -36,8 +36,7 @@ import {
   emptyAddress,
   type AddressValue,
 } from "@/components/address-fields";
-import { SubscriptionItemsEditor, type ItemDetalhe } from "@/components/account/subscription-editor/subscription-items-editor";
-import type { CatalogProduct } from "@/components/account/subscription-editor/catalog-product-card";
+import { CANCEL_EVENT, EDIT_ITEMS_BUTTON_ID, EDIT_ITEMS_EVENT } from "@/components/account/subscription-items-section";
 
 const BTN_PRIMARY =
   "font-display inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-xl bg-[var(--store-primary,#18181B)] px-5 text-[14px] font-bold text-white transition-colors hover:bg-[var(--store-primary-dark,#09090B)] disabled:opacity-60";
@@ -58,37 +57,22 @@ interface Actions {
   canAddProducts?: boolean;
   canRemoveProducts?: boolean;
 }
-export type { ItemDetalhe };
-interface Item {
-  productId: string;
-  variantId: string;
-  quantity: number;
-}
-
 export function SubscriptionActions({
   recurringOrderId,
   status,
   actions,
-  items,
-  detalhes = {},
-  catalogo = [],
-  proximaEntrega,
+  canEditItems = false,
 }: {
   recurringOrderId: string;
   status: string;
   actions: Actions;
-  items: Item[];
-  detalhes?: Record<string, ItemDetalhe>;
-  catalogo?: CatalogProduct[];
-  proximaEntrega?: string;
+  canEditItems?: boolean; // alguma flag ligada, ou produto com variações para trocar
 }) {
   const router = useRouter();
   const [busy, setBusy] = React.useState<string | null>(null);
   const [cancelOpen, setCancelOpen] = React.useState(false);
   const [addrOpen, setAddrOpen] = React.useState(false);
   const [cardOpen, setCardOpen] = React.useState(false);
-  const [itemsOpen, setItemsOpen] = React.useState(false);
-  const [itemsError, setItemsError] = React.useState<string | null>(null);
 
   const [addr, setAddr] = React.useState<AddressValue>(emptyAddress);
   const [card, setCard] = React.useState({
@@ -99,7 +83,13 @@ export function SubscriptionActions({
     securityCode: "",
   });
 
-  const temVariantes = Object.values(detalhes).some((d) => d.variantes && d.variantes.length > 1); // trocar variante vale mesmo sem nenhuma flag
+  // o modal de itens pede o cancelamento pelo aviso do último produto (ver SubscriptionItemsSection)
+  React.useEffect(() => {
+    const open = () => setCancelOpen(true);
+    window.addEventListener(CANCEL_EVENT, open);
+    return () => window.removeEventListener(CANCEL_EVENT, open);
+  }, []);
+
   const canceled = status === "CANCELED";
   const paused = status === "PAUSED";
 
@@ -109,7 +99,6 @@ export function SubscriptionActions({
     label = "Pronto",
   ) {
     setBusy(action);
-    if (action === "items") setItemsError(null);
     try {
       const res = await fetch(`/api/subscriptions/${recurringOrderId}`, {
         method: "POST",
@@ -122,9 +111,7 @@ export function SubscriptionActions({
       router.refresh();
       return true;
     } catch (e: any) {
-      // os itens mostram o erro dentro do modal (com "Tentar de novo"); as outras ações, em toast
-      if (action === "items") setItemsError(e.message);
-      else toast.error(e.message);
+      toast.error(e.message);
       return false;
     } finally {
       setBusy(null);
@@ -140,7 +127,7 @@ export function SubscriptionActions({
   }
 
   return (
-    <div className="mt-6">
+    <div id="gerenciar" className="mt-6 scroll-mt-6">
       <h4 className="font-display mb-3 text-[var(--store-ink)]">
         Gerenciar assinatura
       </h4>
@@ -199,17 +186,12 @@ export function SubscriptionActions({
         >
           <CreditCard weight="bold" /> Trocar cartão
         </button>
-        {(actions.canChangeProductQuantity ||
-          actions.canAddProducts ||
-          actions.canRemoveProducts ||
-          temVariantes) && (
+        {canEditItems && status === "ACTIVE" && (
           <button
+            id={EDIT_ITEMS_BUTTON_ID}
             type="button"
             className={CHIP}
-            onClick={() => {
-              setItemsError(null);
-              setItemsOpen(true);
-            }}
+            onClick={() => window.dispatchEvent(new Event(EDIT_ITEMS_EVENT))}
           >
             <ListChecks weight="bold" /> Alterar itens
           </button>
@@ -361,24 +343,6 @@ export function SubscriptionActions({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Itens */}
-      <SubscriptionItemsEditor
-        open={itemsOpen}
-        savedItems={items}
-        details={detalhes}
-        catalog={catalogo}
-        permissions={actions}
-        nextDeliveryDate={proximaEntrega}
-        saving={busy === "items"}
-        saveError={itemsOpen ? itemsError : null}
-        onSave={(payload) => run("items", { items: payload }, "Itens atualizados.").then((ok) => ok && setItemsOpen(false))}
-        onClose={() => setItemsOpen(false)}
-        onCancelSubscription={() => {
-          setItemsOpen(false);
-          setCancelOpen(true);
-        }}
-      />
     </div>
   );
 }
