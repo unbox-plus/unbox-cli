@@ -11,7 +11,9 @@ import { subscriptionStatusLabel } from "@unbox-plus/sdk";
 import { AccountShell } from "@/components/account/account-shell";
 import { EmptyState } from "@/components/empty-state";
 import { StatusBadge } from "@/components/order-status";
-import { SubscriptionActions, type ItemDetalhe } from "@/components/account/subscription-actions";
+import { SubscriptionActions } from "@/components/account/subscription-actions";
+import { SubscriptionItemsSection, type ItemDetalhe } from "@/components/account/subscription-items-section";
+import { InlineAlert } from "@/components/account/subscription-editor/inline-alert";
 import { nameKey } from "@/lib/subscription-items";
 import type { CatalogProduct } from "@/components/account/subscription-editor/catalog-product-card";
 import { mockupOr } from "@/lib/mockup";
@@ -115,6 +117,11 @@ export default async function AssinaturaDetalhePage({ params }: { params: Promis
 
   return (
     <AccountShell title={`Assinatura #${sub.referenceId}`}>
+      {status === "ERROR" && (
+        <InlineAlert variant="error" title="Atualize a forma de pagamento." action={{ label: "Trocar cartão", href: "#gerenciar" }} className="mb-4">
+          Há um problema com o pagamento desta assinatura. Troque o cartão para ela voltar ao normal.
+        </InlineAlert>
+      )}
       <div className="rounded-xl border border-[var(--store-line)] bg-white p-6">
         <div className="flex items-center justify-between gap-3">
           <div>
@@ -138,7 +145,15 @@ export default async function AssinaturaDetalhePage({ params }: { params: Promis
         {sub.items?.length > 0 && (
           <>
             <div className="my-4 border-t border-[var(--store-surface-2)]" />
-            <p className="mb-2 text-[13px] font-bold text-[var(--store-ink-2)]">Itens</p>
+            <SubscriptionItemsSection
+              recurringOrderId={sub._id}
+              status={status}
+              actions={actions}
+              savedItems={(sub.items ?? []).map((it: any) => ({ productId: it.productId, variantId: it.variantId, quantity: it.quantity }))}
+              details={detalhes}
+              catalog={catalogo}
+              nextDeliveryDate={sub.cyclesInformation?.nextCycleDate ? formatarData(sub.cyclesInformation.nextCycleDate) : undefined}
+            >
             <ul className="flex flex-col divide-y divide-[var(--store-surface-2)]">
               {linhas.map((l: any, i: number) => (
                 <li key={i} className="flex items-start gap-3 py-3.5 first:pt-0">
@@ -167,6 +182,7 @@ export default async function AssinaturaDetalhePage({ params }: { params: Promis
                 {comDesconto && <p className="text-[13px] text-[var(--store-muted)]">Já com desconto de assinatura</p>}
               </div>
             )}
+            </SubscriptionItemsSection>
           </>
         )}
       </div>
@@ -174,11 +190,8 @@ export default async function AssinaturaDetalhePage({ params }: { params: Promis
       <SubscriptionActions
         recurringOrderId={sub._id}
         status={status}
-        detalhes={detalhes}
-        proximaEntrega={sub.cyclesInformation?.nextCycleDate ? formatarData(sub.cyclesInformation.nextCycleDate) : undefined}
         actions={actions}
-        catalogo={catalogo}
-        items={(sub.items ?? []).map((it: any) => ({ productId: it.productId, variantId: it.variantId, quantity: it.quantity }))}
+        canEditItems={!!(actions.canChangeProductQuantity || actions.canRemoveProducts || (actions.canAddProducts && catalogo.length > 0) || Object.values(detalhes).some((d) => d.variantes && d.variantes.length > 1))}
       />
 
       {cycles.nodes?.length > 0 && (
