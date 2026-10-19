@@ -38,4 +38,15 @@ assert.equal(changeCount(saved, d), 0);
 assert.equal(changeCount(saved, swapVariant(d, 0, "a2")), 1, "trocar variante conta 1");
 assert.equal(changeCount(saved, setQuantity(removeItem(d, 1), 0, 5)), 2, "remover um e mudar a quantidade de outro");
 assert.equal(changeCount(saved, addItem(d, { productId: "C", variantId: "c1", quantity: 1 })), 1);
+// kit: os itens escolhidos viajam no payload e contam como mudança quando mudam
+const kitA = { productKitId: "K", picks: [{ productId: "x", productVariantId: "x1", quantity: 2 }, { productId: "y", productVariantId: "y1", quantity: 1 }] };
+const kitB = { productKitId: "K", picks: [{ productId: "x", productVariantId: "x1", quantity: 3 }] };
+const savedKit = [{ productId: "K", variantId: "k1", quantity: 1, kit: kitA }];
+d = createDraft(savedKit);
+assert.equal(isDirty(savedKit, d), false, "kit igual ao salvo");
+assert.deepEqual(toPayload(d)[0].kit, kitA, "o kit vai no payload");
+const novo = addItem(createDraft(saved), { productId: "K2", variantId: "k2", quantity: 1, kit: kitB });
+assert.deepEqual(toPayload(novo)[2].kit, kitB, "kit adicionado mantém os itens escolhidos");
+assert.equal(changeCount(savedKit, [{ ...savedKit[0], kit: kitB }]), 1, "trocar os itens do kit é 1 alteração");
+assert.equal(isDirty(savedKit, [{ ...savedKit[0], kit: { ...kitA, picks: [...kitA.picks].reverse() } }]), false, "ordem dos itens não conta");
 console.log("ok");

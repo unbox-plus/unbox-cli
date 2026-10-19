@@ -98,7 +98,9 @@ export function SubscriptionItemsSection({
       if (signature(fresh.items ?? []) !== signature(basis.current)) {
         throw new SaveBlocked("Os itens desta assinatura mudaram desde que você abriu a edição. Recarregamos a página para você ver a versão atual.", true);
       }
-      await post(recurringOrderId, { action: "items", items: payload });
+      // o kit vai no formato da API: productKitId + os itens escolhidos
+      const items = payload.map(({ kit, ...item }) => (kit ? { ...item, productKitId: kit.productKitId, productKitItemsConfigurations: kit.picks } : item));
+      await post(recurringOrderId, { action: "items", items });
       toast.success("Itens atualizados.");
       setOpen(false);
       router.refresh(); // só depois da resposta 200: nada muda na página antes disso

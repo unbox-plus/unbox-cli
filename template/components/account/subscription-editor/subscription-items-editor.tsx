@@ -47,6 +47,7 @@ export interface ItemDetalhe {
   unit: number | null // preço de assinatura
   riscado: number | null // preço avulso
   variantes?: { id: string; label: string; esgotado?: boolean }[]
+  kitNames?: Record<string, string> // kit: nome de cada componente, por productVariantId
 }
 
 export type EditorPermissions = {
@@ -145,6 +146,8 @@ export function SubscriptionItemsEditor({
           className={cn(
             "grid-cols-[minmax(0,1fr)] sm:max-w-2xl",
             canAdd && "lg:max-w-4xl",
+            // desktop: o modal nunca passa da tela; só o miolo rola, e o rodapé (Salvar) fica sempre à vista
+            "lg:max-h-[calc(100dvh-2rem)] lg:grid-rows-[auto_auto_minmax(0,1fr)_auto]",
             // mobile: tela cheia nas duas etapas, então abrir, fechar e trocar de etapa não muda o tamanho do modal.
             // Sem animação de zoom (em tela cheia ela só pisca); cabeçalho, miolo e rodapé são faixas.
             "max-lg:top-0 max-lg:left-0 max-lg:flex max-lg:h-dvh max-lg:max-w-none! max-lg:translate-x-0 max-lg:translate-y-0 max-lg:flex-col max-lg:gap-0 max-lg:rounded-none max-lg:p-0 max-lg:data-open:animate-none max-lg:data-closed:animate-none",
@@ -176,7 +179,7 @@ export function SubscriptionItemsEditor({
             disabled={saving}
             aria-busy={saving}
             className={cn(
-              "m-0 flex min-h-0 min-w-0 flex-col gap-6 border-0 p-0 max-lg:flex-1 lg:flex-row",
+              "m-0 flex min-h-0 min-w-0 flex-col gap-6 border-0 p-0 max-lg:flex-1 lg:flex-row lg:overflow-y-auto",
               step === "list" ? "max-lg:overflow-y-auto max-lg:p-4" : "max-lg:overflow-hidden",
             )}
           >
@@ -215,6 +218,7 @@ export function SubscriptionItemsEditor({
                               price: d?.unit,
                               compareAtPrice: d?.riscado,
                               previousQuantity: before,
+                              kitPicks: it.kit?.picks.map((p) => ({ title: d?.kitNames?.[p.productVariantId] ?? "Item", quantity: p.quantity })),
                               status: swappable.find((v) => v.id === it.variantId)?.esgotado ? "outOfStock" : undefined,
                             }}
                             canChangeQuantity={permissions.canChangeProductQuantity}

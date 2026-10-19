@@ -71,6 +71,7 @@ export default async function AssinaturaDetalhePage({ params }: { params: Promis
   const actions = shop?.recurringOrdersPolicy?.customerActions ?? {};
   // catálogo do "Adicionar produto": só com a flag ligada; já filtrado por recurrenceAllowed pelo SDK
   const catalogo: CatalogProduct[] = [];
+  const kitIds = new Set<string>(); // produtos de kit do catálogo
   if (actions.canAddProducts) {
     const assinaveis = await mockupOr(withStoreClient((c) => c.getSubscribableCatalog()), [], "assinatura/getSubscribableCatalog");
     for (const p of assinaveis) {
@@ -83,7 +84,9 @@ export default async function AssinaturaDetalhePage({ params }: { params: Promis
       const [v0] = p.variants;
       const { unit, riscado } = preco(v0);
       if (unit == null) continue;
-      const multiplas = p.variants.length > 1;
+      const isKit = p.productType === "KIT"; // kit tem uma variante só; o que o cliente escolhe são os componentes
+      if (isKit) kitIds.add(p.productId);
+      const multiplas = !isKit && p.variants.length > 1;
       // títulos no formato "Moagem: Em grãos": o prefixo comum vira a legenda dos chips e sai do rótulo
       const prefixos = new Set(p.variants.map((x: any) => (x.title?.includes(":") ? x.title.split(":")[0].trim() : "")));
       const legenda = prefixos.size === 1 ? [...prefixos][0] : "";
@@ -99,11 +102,44 @@ export default async function AssinaturaDetalhePage({ params }: { params: Promis
       for (const x of p.variants as any[]) {
         const u = preco(x);
         detalhes[nameKey({ productId: p.productId, variantId: x._id })] ??= {
-          titulo: p.title, variacao: x.title && x.title !== p.title ? x.title : null, foto: p.imageUrls?.[0], unit: u.unit, riscado: u.riscado,
+          titulo: p.title, variacao: !isKit && x.title && x.title !== p.title ? x.title : null, foto: p.imageUrls?.[0], unit: u.unit, riscado: u.riscado,
           variantes: multiplas ? p.variants.map((y: any) => ({ id: y._id, label: y.title, esgotado: !!y.isSoldOut })) : undefined,
         };
       }
     }
+  }
+  // Kits: os componentes e a cota vêm de getProductKit. Servem tanto ao card de "Adicionar" quanto ao nome dos itens
+  // já escolhidos nos kits da assinatura.
+  const kitsDaAssinatura = (sub.items ?? []).filter((it: any) => it.productKitId).map((it: any) => it.productKitId as string);
+  const kitInfo = new Map<string, any>();
+  await Promise.all(
+    [...new Set([...kitIds, ...kitsDaAssinatura])].map(async (id) => {
+      const k = await mockupOr(withStoreClient((c) => c.getProductKit(id)), null, "assinatura/getProductKit");
+      if (k) kitInfo.set(id, k);
+    }),
+  );
+  const componentes = (k: any) => ((k?.kitComponents ?? []) as any[]).filter((c) => c.productId && c.productVariantId);
+  const nomes = (k: any) => Object.fromEntries(componentes(k).map((c) => [c.productVariantId, c.productTitle ?? c.label ?? "Item"]));
+  for (const e of catalogo) {
+    if (!kitIds.has(e.productId)) continue;
+    const k = kitInfo.get(e.productId);
+    const comps = componentes(k);
+    if (!k || !(k.requiredPicksPerGroup > 0) || !comps.length) continue; // sem cota ou sem componentes não dá para montar o kit
+    e.kit = {
+      requiredPicks: k.requiredPicksPerGroup,
+      components: comps.map((c) => ({
+        productId: c.productId, variantId: c.productVariantId, title: c.productTitle ?? c.label ?? "Item",
+        subtitle: c.label && c.label !== c.productTitle ? c.label : null, imageUrl: c.kitLabelImage,
+      })),
+    };
+    const dk = detalhes[nameKey({ productId: e.productId, variantId: e.variantId })];
+    if (dk) dk.kitNames = nomes(k); // o modal nomeia os itens escolhidos a partir daqui
+  }
+  // kit sem dados completos sai do catálogo de adicionar
+  catalogo.splice(0, catalogo.length, ...catalogo.filter((e) => !kitIds.has(e.productId) || e.kit));
+  for (const it of sub.items ?? []) {
+    const d = it.productKitId && detalhes[nameKey(it)];
+    if (d) d.kitNames = { ...d.kitNames, ...nomes(kitInfo.get(it.productKitId)) };
   }
   const totalItens = linhas.every((l: any) => l.unit != null) ? linhas.reduce((t: number, l: any) => t + l.unit * l.it.quantity, 0) : null;
   const comDesconto = linhas.some((l: any) => l.riscado != null);
@@ -149,7 +185,11 @@ export default async function AssinaturaDetalhePage({ params }: { params: Promis
               recurringOrderId={sub._id}
               status={status}
               actions={actions}
-              savedItems={(sub.items ?? []).map((it: any) => ({ productId: it.productId, variantId: it.variantId, quantity: it.quantity }))}
+              savedItems={(sub.items ?? []).map((it: any) => ({
+                productId: it.productId, variantId: it.variantId, quantity: it.quantity,
+                // o que o cliente já escolheu no kit tem de voltar no salvar; sem isso o kit perderia os itens
+                ...(it.productKitId ? { kit: { productKitId: it.productKitId, picks: (it.productKitItemsConfigurations ?? []).map((c: any) => ({ productId: c.productId, productVariantId: c.productVariantId, quantity: c.quantity })) } } : {}),
+              }))}
               details={detalhes}
               catalog={catalogo}
               nextDeliveryDate={sub.cyclesInformation?.nextCycleDate ? formatarData(sub.cyclesInformation.nextCycleDate) : undefined}

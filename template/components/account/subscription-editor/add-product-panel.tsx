@@ -86,7 +86,7 @@ export function AddProductPanel({
       </span>
     </label>
   )
-  const lista = visible.length > 0 && <div className="lg:max-h-[55vh] lg:overflow-y-auto lg:pr-1">{list}</div>
+  const lista = visible.length > 0 && <div>{list}</div>
 
   // Mobile: tela cheia com três faixas. Cabeçalho e rodapé brancos e fixos; só o miolo (abas, busca, lista), em fundo
   // diferente, rola. A partir de 1024px vira um cartão com borda ao lado da lista.

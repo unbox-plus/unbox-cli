@@ -10,10 +10,14 @@ import { Button } from "@/components/ui/button"
 import { Foto } from "@/components/ui/foto"
 import { formatBRL } from "@/lib/format"
 import { InfoIcon } from "@/lib/icons"
+import type { KitSelection } from "@/lib/subscription-draft"
 import { nameKey } from "@/lib/subscription-items"
 import { cn } from "@/lib/utils"
 
 export type CatalogVariant = { id: string; label: string; soldOut?: boolean }
+
+// Um componente do kit: o cliente escolhe quantas unidades de cada um até fechar a cota.
+export type KitComponent = { productId: string; variantId: string; title: string; subtitle?: string | null; imageUrl?: string | null }
 
 // Produto do catálogo no formato que o painel precisa. Sem `variants` o produto tem uma variante só, em `variantId`.
 export type CatalogProduct = {
@@ -27,9 +31,10 @@ export type CatalogProduct = {
   variantId?: string | null
   variantsLegend?: string // "Moagem"
   variants?: CatalogVariant[]
+  kit?: { requiredPicks: number; components: KitComponent[] } // só em produto de kit; `variantId` é a variante do próprio kit
 }
 
-export type AddedItem = { productId: string; variantId: string; quantity: number }
+export type AddedItem = { productId: string; variantId: string; quantity: number; kit?: KitSelection }
 
 const PILL = "h-10 shrink-0 cursor-pointer rounded-full px-5 text-[14px] font-bold"
 
@@ -50,7 +55,11 @@ export function CatalogProductCard({
   const [open, setOpen] = React.useState(false)
   const [picked, setPicked] = React.useState<string | null>(null)
   const [quantity, setQuantity] = React.useState(1)
+  const [picks, setPicks] = React.useState<Record<string, number>>({}) // kit: quantidade por componente
   const bodyId = React.useId()
+  const kit = product.kit
+  const picked_ = kit ? Object.values(picks).reduce((a, b) => a + b, 0) : 0
+  const remaining = kit ? kit.requiredPicks - picked_ : 0
 
   const has = (variantId: string | null | undefined) => subscribedKeys.has(nameKey({ productId, variantId }))
   const options = variants?.map((v) => ({
@@ -63,14 +72,23 @@ export function CatalogProductCard({
   const variantId = variants ? picked : (product.variantId ?? null)
   const inSubscription = variants ? variants.some((v) => has(v.id)) : has(product.variantId)
   const allSubscribed = variants ? variants.every((v) => has(v.id)) : has(product.variantId)
-  const canAdd = !product.soldOut && variantId != null && !has(variantId)
+  const canAdd = !product.soldOut && variantId != null && !has(variantId) && (!kit || remaining === 0)
 
   const add = () => {
     if (!canAdd || variantId == null) return
-    onAdd({ productId, variantId, quantity })
+    if (kit) {
+      const chosen = kit.components.filter((c) => (picks[c.variantId] ?? 0) > 0)
+      onAdd({
+        productId,
+        variantId,
+        quantity: 1,
+        kit: { productKitId: productId, picks: chosen.map((c) => ({ productId: c.productId, productVariantId: c.variantId, quantity: picks[c.variantId] })) },
+      })
+    } else onAdd({ productId, variantId, quantity })
     setOpen(false)
     setPicked(null)
     setQuantity(1)
+    setPicks({})
   }
 
   return (
@@ -88,6 +106,7 @@ export function CatalogProductCard({
         <div className="min-w-0 flex-1">
           <p className="font-bold text-[var(--store-ink)]">{title}</p>
           <PriceCompare price={product.price} compareAtPrice={product.compareAtPrice} className="text-[13px]" />
+          {kit && <p className="text-[13px] text-[var(--store-muted)]">Kit · monte com {kit.requiredPicks} {kit.requiredPicks === 1 ? "item" : "itens"}</p>}
           {variants && !open && (
             <p className="text-[13px] text-[var(--store-muted)]">
               {variants.length} opções de {legend.toLowerCase()}
@@ -115,7 +134,48 @@ export function CatalogProductCard({
       {product.soldOut && <ItemStatusTag status="outOfStock" className="mt-2" />}
       {inSubscription && !allSubscribed && <ItemStatusTag status="alreadySubscribed" className="mt-2" />}
 
-      {open && !allSubscribed && (
+      {open && !allSubscribed && kit && (
+        <div id={bodyId} className="mt-3 flex flex-col gap-3 border-t border-[var(--store-surface-2)] pt-3">
+          <p role="status" className="text-xs font-bold text-[var(--store-ink-2)]">
+            {picked_} de {kit.requiredPicks} {kit.requiredPicks === 1 ? "item escolhido" : "itens escolhidos"}
+          </p>
+          <ul className="flex flex-col divide-y divide-[var(--store-surface-2)]">
+            {kit.components.map((c) => {
+              const n = picks[c.variantId] ?? 0
+              return (
+                <li key={c.variantId} className="flex items-center gap-3 py-3">
+                  <div className="size-10 shrink-0 overflow-hidden rounded-lg bg-[var(--store-surface-2)]">
+                    {c.imageUrl && <Foto src={c.imageUrl} alt="" width={40} height={40} sizes="40px" className="size-full object-cover" />}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-bold text-[var(--store-ink)]">{c.title}</p>
+                    {c.subtitle && <p className="text-[13px] text-[var(--store-muted)]">{c.subtitle}</p>}
+                  </div>
+                  <QuantityStepper
+                    value={n}
+                    min={0}
+                    max={n + remaining}
+                    label={c.title}
+                    onChange={(v) => setPicks((p) => ({ ...p, [c.variantId]: v }))}
+                    className="rounded-xl"
+                  />
+                </li>
+              )
+            })}
+          </ul>
+          <Button
+            type="button"
+            className="h-12 w-full rounded-full bg-[var(--store-primary)] text-[15px] font-bold text-white hover:bg-[var(--store-primary-dark)] disabled:bg-[var(--store-primary)]/25 disabled:opacity-100"
+            disabled={!canAdd}
+            onClick={add}
+          >
+            Adicionar · {formatBRL(product.price)}
+          </Button>
+          <p className="text-center text-xs text-[var(--store-muted)]">Entra na assinatura quando você salvar as alterações.</p>
+        </div>
+      )}
+
+      {open && !allSubscribed && !kit && (
         <div id={bodyId} className="mt-3 flex flex-col gap-3 border-t border-[var(--store-surface-2)] pt-3">
           {options && <VariantChips legend={legend} options={options} value={picked} onChange={setPicked} />}
           <div className="flex items-center justify-between gap-3">
