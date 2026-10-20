@@ -9,7 +9,7 @@ const TAGS = {
   outOfStock: { Icon: Clock, label: "Esgotado", cls: `${STRIP} bg-amber-50 text-amber-950` },
   ineligible: { Icon: TriangleAlertIcon, label: "Indisponível para assinatura", cls: `${STRIP} bg-destructive/10 text-destructive` },
   alreadySubscribed: { Icon: Check, label: "Já está na sua assinatura", cls: `${INLINE} text-emerald-700` },
-  picksChanged: { Icon: Pencil, label: "Sabores alterados", cls: `${INLINE} text-[var(--store-primary)]` },
+  picksChanged: { Icon: Pencil, label: "Itens alterados", cls: `${INLINE} text-[var(--store-primary)]` },
   willBeRemoved: { Icon: Trash2, label: "Será removido ao salvar", cls: `${STRIP} bg-[var(--store-surface-2)] text-[var(--store-ink)] font-semibold` },
 }
 

@@ -3,11 +3,13 @@
 import * as React from "react"
 
 import { ItemStatusTag } from "@/components/account/subscription-editor/item-status-tag"
+import { KitPicksBuilder, type KitComponent } from "@/components/account/subscription-editor/kit-picks-builder"
 import { PriceCompare } from "@/components/account/subscription-editor/price-compare"
 import { formatBRL } from "@/lib/format"
 import { QuantityStepper } from "@/components/quantity-stepper"
 import { Foto } from "@/components/ui/foto"
-import { Trash2 } from "@/lib/icons"
+import { ChevronDownIcon, ChevronUpIcon, Trash2 } from "@/lib/icons"
+import type { KitPick } from "@/lib/subscription-draft"
 import { cn } from "@/lib/utils"
 
 export type EditorItem = {
@@ -19,6 +21,7 @@ export type EditorItem = {
   compareAtPrice?: number | null
   status?: "outOfStock" | "ineligible"
   previousQuantity?: number // quantidade salva, para o aviso "Antes: N"
+  badge?: string // etiqueta ao lado do nome, ex.: "Kit"
   kitPicks?: { title: string; quantity: number }[] // kit: o que o cliente escolheu dentro dele
 }
 
@@ -36,6 +39,8 @@ export function SubscriptionEditorItem({
   onRemove,
   onUndo,
   variantAction,
+  kitEdit,
+  picksChanged,
   children,
 }: {
   item: EditorItem
@@ -48,9 +53,13 @@ export function SubscriptionEditorItem({
   onRemove: () => void
   onUndo: () => void
   variantAction?: React.ReactNode // ao lado da variante, ex.: "Trocar"
+  kitEdit?: { cap: number; options: KitComponent[]; initialPicks: KitPick[]; onConfirm: (picks: KitPick[]) => void } // kit: "Editar itens"
+  picksChanged?: boolean // kit: os itens escolhidos mudaram em relação ao salvo
   children?: React.ReactNode // abaixo do cabeçalho: painel de troca de variante, "Editar sabores"
 }) {
   const [picksOpen, setPicksOpen] = React.useState(false)
+  const [editingKit, setEditingKit] = React.useState(false)
+  const editKitRef = React.useRef<HTMLButtonElement>(null)
   const removeRef = React.useRef<HTMLButtonElement>(null)
   const undoRef = React.useRef<HTMLButtonElement>(null)
   const moveFocus = React.useRef(false) // só depois de um clique, não na primeira renderização
@@ -73,7 +82,12 @@ export function SubscriptionEditorItem({
       <div className="min-w-0 flex-1">
         <div className={cn("flex items-start justify-between gap-3", isRemoved && "line-through opacity-60")}>
           <div className="min-w-0">
-            <p className="font-bold text-[var(--store-ink)]">{item.name}</p>
+            <p className="font-bold text-[var(--store-ink)]">
+              {item.name}
+              {item.badge && (
+                <span className="ml-2 inline-block rounded-md bg-[var(--store-surface-2)] px-2 py-0.5 align-middle text-[11px] font-semibold text-[var(--store-ink-2)]">{item.badge}</span>
+              )}
+            </p>
             {item.variant && (
               <p className="flex flex-wrap items-baseline gap-x-1.5 text-[13px] text-[var(--store-muted)]">
                 <span>{item.variant}</span>
@@ -112,33 +126,69 @@ export function SubscriptionEditorItem({
           />
         ) : (
           <>
-            {item.kitPicks && item.kitPicks.length > 0 && (
-              <div className="mt-1">
-                <button
-                  type="button"
-                  aria-expanded={picksOpen}
-                  className="cursor-pointer border-none bg-transparent p-0 text-[13px] font-bold text-[var(--store-ink)] underline underline-offset-3"
-                  onClick={() => setPicksOpen((o) => !o)}
-                >
-                  {picksOpen ? "Esconder itens escolhidos" : "Ver itens escolhidos"}
-                </button>
-                {picksOpen && (
-                  <ul className="mt-1.5 flex flex-col gap-0.5 text-[13px] text-[var(--store-muted)]">
-                    {item.kitPicks.map((p, i) => (
-                      <li key={i}>
-                        {p.quantity}× {p.title}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            )}
             {children}
             {item.price != null && (
               <p className="mt-2 text-[13px] text-[var(--store-muted)]">
                 <PriceCompare price={item.price} compareAtPrice={item.compareAtPrice} className="font-normal" /> cada
               </p>
             )}
+            {item.kitPicks && item.kitPicks.length > 0 && (
+              <div className="mt-1">
+                <button
+                  type="button"
+                  aria-expanded={picksOpen}
+                  className="inline-flex cursor-pointer items-center gap-1 border-none bg-transparent p-0 text-[13px] font-bold text-[var(--store-ink)]"
+                  onClick={() => {
+                    setPicksOpen((o) => !o)
+                    setEditingKit(false)
+                  }}
+                >
+                  {picksOpen ? <ChevronUpIcon aria-hidden className="size-3.5" /> : <ChevronDownIcon aria-hidden className="size-3.5" />}
+                  {picksOpen ? "Ocultar itens escolhidos" : "Ver itens escolhidos"}
+                </button>
+                {picksOpen && (
+                  <div className="mt-2 rounded-lg bg-[var(--store-surface-2)] p-3">
+                    <ul className="flex list-[circle] flex-col gap-1 pl-5 text-[13px] text-[var(--store-ink)]">
+                      {item.kitPicks.map((p, i) => (
+                        <li key={i}>
+                          {p.quantity}× {p.title}
+                        </li>
+                      ))}
+                    </ul>
+                    {kitEdit && (
+                      <button
+                        ref={editKitRef}
+                        type="button"
+                        aria-expanded={editingKit}
+                        className="mt-3 cursor-pointer border-none bg-transparent p-0 text-[13px] font-bold text-[var(--store-ink)] underline underline-offset-3"
+                        onClick={() => setEditingKit((o) => !o)}
+                      >
+                        {editingKit ? "Fechar" : "Editar itens"}
+                      </button>
+                    )}
+                  </div>
+                )}
+                {picksOpen && editingKit && kitEdit && (
+                  <KitPicksBuilder
+                    className="mt-2 rounded-lg bg-[var(--store-surface-2)] p-3"
+                    cap={kitEdit.cap}
+                    options={kitEdit.options}
+                    initialPicks={kitEdit.initialPicks}
+                    confirmLabel="Confirmar itens"
+                    onConfirm={(picks) => {
+                      kitEdit.onConfirm(picks)
+                      setEditingKit(false)
+                      requestAnimationFrame(() => editKitRef.current?.focus())
+                    }}
+                    onCancel={() => {
+                      setEditingKit(false)
+                      requestAnimationFrame(() => editKitRef.current?.focus())
+                    }}
+                  />
+                )}
+              </div>
+            )}
+            {picksChanged && <ItemStatusTag status="picksChanged" className="mt-1" />}
             {item.previousQuantity != null && item.previousQuantity !== item.quantity && (
               <ItemStatusTag status="picksChanged" className="mt-1">
                 Antes: {item.previousQuantity}
