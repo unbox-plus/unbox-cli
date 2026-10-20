@@ -15,7 +15,7 @@ import { SubscriptionActions } from "@/components/account/subscription-actions";
 import { SubscriptionItemsSection, type ItemDetalhe } from "@/components/account/subscription-items-section";
 import { InlineAlert } from "@/components/account/subscription-editor/inline-alert";
 import { nameKey } from "@/lib/subscription-items";
-import type { CatalogProduct } from "@/components/account/subscription-editor/catalog-product-card";
+import type { CatalogProduct, KitOption } from "@/components/account/subscription-editor/catalog-product-card";
 import { mockupOr } from "@/lib/mockup";
 
 export const metadata: Metadata = { title: "Assinatura", robots: { index: false } };
@@ -50,7 +50,7 @@ export default async function AssinaturaDetalhePage({ params }: { params: Promis
   const linhas = (sub.items ?? []).map((it: any) => {
     const p = produtos.find((x) => x.productId === it.productId || x._id === it.productId);
     const v = p?.variants?.find((x) => x._id === it.variantId);
-    const variacao = v?.title && v.title !== p?.title ? v.title : null;
+    const variacao = p?.productType === "KIT" ? (p.relatedInfo?.title ?? null) : v?.title && v.title !== p?.title ? v.title : null;
     const unit = v?.pricingOnRecurrence?.[0]?.price ?? v?.pricing?.[0]?.price ?? null;
     const avulso = v?.pricing?.[0]?.price ?? null;
     const titulo = p?.title ?? it.productERPCode ?? it.productId;
@@ -61,7 +61,7 @@ export default async function AssinaturaDetalhePage({ params }: { params: Promis
       const u = x.pricingOnRecurrence?.[0]?.price ?? x.pricing?.[0]?.price ?? null;
       const av = x.pricing?.[0]?.price ?? null;
       detalhes[nameKey({ productId: it.productId, variantId: x._id })] = {
-        titulo, variacao: x.title && x.title !== p?.title ? x.title : null, foto: p?.imageUrls?.[0], unit: u,
+        titulo, variacao: p?.productType === "KIT" ? (p.relatedInfo?.title ?? null) : x.title && x.title !== p?.title ? x.title : null, foto: p?.imageUrls?.[0], unit: u,
         riscado: u != null && av != null && av > u ? av : null, variantes: variantes.length > 1 ? variantes : undefined,
       };
     }
@@ -120,23 +120,49 @@ export default async function AssinaturaDetalhePage({ params }: { params: Promis
   );
   const componentes = (k: any) => ((k?.kitComponents ?? []) as any[]).filter((c) => c.productId && c.productVariantId);
   const nomes = (k: any) => Object.fromEntries(componentes(k).map((c) => [c.productVariantId, c.productTitle ?? c.label ?? "Item"]));
+  // Na loja cada tamanho de kit ("2 Box", "3 Box"...) é um produto de kit à parte. Para o cliente é UM kit com
+  // opções: os produtos de kit de mesmo título viram um cartão só, com uma opção por produto.
+  const resultado: CatalogProduct[] = [];
+  const porTitulo = new Map<string, CatalogProduct>();
   for (const e of catalogo) {
-    if (!kitIds.has(e.productId)) continue;
+    if (!kitIds.has(e.productId)) {
+      resultado.push(e);
+      continue;
+    }
     const k = kitInfo.get(e.productId);
     const comps = componentes(k);
-    if (!k || !(k.requiredPicksPerGroup > 0) || !comps.length) continue; // sem cota ou sem componentes não dá para montar o kit
-    e.kit = {
-      requiredPicks: k.requiredPicksPerGroup,
+    if (!k || !(k.requiredPicksPerGroup > 0) || !comps.length || !e.variantId) continue; // sem cota ou sem componentes não dá para montar o kit
+    const opcao: KitOption = {
+      productId: e.productId, variantId: e.variantId, requiredPicks: k.requiredPicksPerGroup,
+      label: k.relatedInfo?.title || `${k.requiredPicksPerGroup} ${k.requiredPicksPerGroup === 1 ? "item" : "itens"}`,
+      price: e.price, compareAtPrice: e.compareAtPrice, highlight: k.relatedInfo?.highlightLabel || null, soldOut: e.soldOut,
       components: comps.map((c) => ({
         productId: c.productId, variantId: c.productVariantId, title: c.productTitle ?? c.label ?? "Item",
         subtitle: c.label && c.label !== c.productTitle ? c.label : null, imageUrl: c.kitLabelImage,
       })),
     };
     const dk = detalhes[nameKey({ productId: e.productId, variantId: e.variantId })];
-    if (dk) dk.kitNames = nomes(k); // o modal nomeia os itens escolhidos a partir daqui
+    if (dk) {
+      dk.kitNames = nomes(k); // o modal nomeia os itens escolhidos a partir daqui
+      dk.variacao = opcao.label; // e a linha do kit diz qual opção é
+    }
+    const chave = e.title.trim().toLowerCase();
+    const grupo = porTitulo.get(chave);
+    if (grupo?.kit) {
+      grupo.kit.options.push(opcao);
+      grupo.price = Math.min(grupo.price, e.price);
+      grupo.categories = [...new Set([...(grupo.categories ?? []), ...(e.categories ?? [])])];
+    } else {
+      e.kit = { options: [opcao] };
+      porTitulo.set(chave, e);
+      resultado.push(e);
+    }
   }
-  // kit sem dados completos sai do catálogo de adicionar
-  catalogo.splice(0, catalogo.length, ...catalogo.filter((e) => !kitIds.has(e.productId) || e.kit));
+  for (const g of porTitulo.values()) {
+    g.kit!.options.sort((x, y) => x.requiredPicks - y.requiredPicks);
+    g.soldOut = g.kit!.options.every((o) => o.soldOut);
+  }
+  catalogo.splice(0, catalogo.length, ...resultado);
   for (const it of sub.items ?? []) {
     const d = it.productKitId && detalhes[nameKey(it)];
     if (d) d.kitNames = { ...d.kitNames, ...nomes(kitInfo.get(it.productKitId)) };
