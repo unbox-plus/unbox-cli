@@ -1,5 +1,51 @@
 ## Changelog
 
+### v0.26.0 — o cliente edita os produtos da assinatura, kits inclusive
+
+Até aqui o cliente podia pausar, pular, cancelar e trocar cartão e endereço da assinatura, mas não os
+produtos dela: o diálogo que existia mostrava o código do produto em vez do nome, deixava a quantidade
+chegar a zero e não respeitava cada permissão da loja. Agora a página da assinatura mostra o nome do produto
+e abre o modal **"Editar produtos"**, com quantidade, remoção, troca de variante, adição de produtos do
+catálogo e kits.
+
+**O cliente final não perde nada.** Tudo o que existia na assinatura continua no lugar; o que entrou é novo.
+Para a loja gerada, a dependência `@unbox-plus/sdk` sobe para **`^0.4.0`** (o `getProductKit` e os campos de
+kit nos itens). Loja que já está no ar atualiza com `npm install @unbox-plus/sdk@^0.4.0`.
+
+- **O modal recebe tudo por props e não chama API** (`components/account/subscription-editor/subscription-items-editor.tsx`).
+  Tela cheia no mobile; no desktop, a lista e o painel de adicionar lado a lado. Faixa fixa com "As mudanças
+  valem a partir da próxima entrega", resumo do valor dos produtos e rodapé fixo com Cancelar e Salvar. Só o
+  miolo rola, então o Salvar nunca sai da tela.
+- **Cada permissão vale sozinha.** `canChangeProductQuantity`, `canRemoveProducts` e `canAddProducts`
+  (de `recurringOrdersPolicy.customerActions`) ligam o contador, o botão Remover e o painel de adicionar, cada
+  um por si. Trocar a variante de um produto vale sempre, até com as três desligadas: é uma substituição, e
+  não uma remoção seguida de adição. O último item ativo nunca sai.
+- **O cliente edita um rascunho** (`lib/subscription-draft.ts`, puro e com teste:
+  `npx tsx scripts/check-subscription-draft.ts`). Remover só marca o item, com "Desfazer". O Salvar manda a
+  lista **completa**, fica desabilitado sem alteração e mostra "Salvando…". Sair com alteração pergunta "Sair
+  sem salvar?", e a aba avisa antes de fechar.
+- **O salvar se protege, porque o backend não o faz** (`components/account/subscription-items-section.tsx`).
+  Antes de enviar, relê a assinatura e recusa se ela não estiver mais ativa ou se a lista mudou desde que o
+  modal abriu. Clique duplo envia uma vez só. Erro mantém o rascunho e mostra "Tentar de novo" dentro do modal.
+  A página só é atualizada (`router.refresh()`) depois da resposta 200.
+- **A rota** `app/api/subscriptions/[id]` ganhou a ação `get` (a releitura) e, em `items`, valida o schema
+  com os campos de kit (422), exige assinatura ativa (409) e confere cada permissão (403).
+- **A entrada depende do estado da assinatura.** Ativa: botão "Alterar itens" ao lado das outras ações.
+  Pausada: link "Reative a assinatura". Com erro: alerta "Atualize a forma de pagamento" no topo. Cancelada:
+  só leitura.
+- **Adicionar produto**: abas por categoria (só com mais de uma), busca pelo nome (só com mais de 5 produtos),
+  card que abre com as variantes e a quantidade, e variante já na assinatura desabilitada. No mobile ocupa
+  a tela inteira; no desktop é um painel de 400px ao lado da lista.
+- **Kits.** O kit entra na assinatura como **um item só**, com `productKitId` e
+  `productKitItemsConfigurations`. Os kits de mesmo título viram um card com as opções (ex.: "2 Box",
+  "3 Box", com o nome vindo de `relatedInfo.title`). Escolhidos os itens, a soma tem de bater exatamente com a
+  cota: o botão de adicionar e o Salvar só habilitam nesse ponto. Em um kit que já está na assinatura,
+  "Editar itens" abre o construtor preenchido; mudar só os itens conta como 1 alteração e a linha ganha a
+  etiqueta "Itens alterados". A foto de cada item vem da imagem do kit e, quando ela falta, da foto do próprio
+  produto.
+- **Documentação**: `agents/definitions/08-customer.md` descreve a edição (permissões, rascunho, salvar
+  protegido, validação na rota e kits) e o `COVERAGE.md` lista `getProductKit`, os campos de kit e `updateItems`.
+
 ### v0.25.0 — a integração com a Unbox saiu do template e virou pacote
 
 Até aqui, toda chamada à API de parceiros vivia dentro do template, em `lib/unbox/*.ts`, e era
