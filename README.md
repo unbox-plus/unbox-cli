@@ -1,8 +1,10 @@
 # Unbox CLI
 
-CLI que gera um storefront Next.js completo integrado com a API Unbox, a partir da foundation
-oficial (`storefront-foundation`), já com a sua marca aplicada: estilo visual (layout, fontes,
-neutros), cores e nome da loja.
+CLI das lojas Unbox. O comando é `unbox`, e o primeiro subcomando, `unbox create`, gera um
+storefront Next.js completo integrado com a API Unbox, a partir da foundation oficial
+(`storefront-foundation`), já com a sua marca aplicada: estilo visual (layout, fontes, neutros),
+cores e nome da loja. Os próximos subcomandos levam a loja ao ar pela Partners API (veja
+[Comando `unbox`](#comando-unbox)).
 
 ## Uso — sem instalar nada
 
@@ -12,10 +14,13 @@ neutros), cores e nome da loja.
 Navegue até a pasta onde queira criar o projeto e rode:
 
 ```bash
-npx --package=@unbox-plus/cli create-unbox-store
+npx --package=@unbox-plus/cli unbox create
 ```
 
-O `npx` roda o CLI direto do pacote publicado no NPM, sem instalar nada global.
+O `npx` roda o CLI direto do pacote publicado no NPM, sem instalar nada global. O
+`--package=` é obrigatório: veja [Dois cuidados com o `npx`](#dois-cuidados-com-o-npx).
+O comando antigo, `create-unbox-store`, continua funcionando com as mesmas flags e gera o mesmo
+projeto; ele só avisa que o padrão agora é `unbox create`.
 Ele vai perguntar:
 
 1. Nome da pasta/projeto
@@ -60,7 +65,7 @@ funciona em qualquer npm recente:
 
 ```bash
 npm install -g @unbox-plus/cli
-create-unbox-store
+unbox create
 ```
 
 ## Uso — sem instalar, clonando a pasta/repositório
@@ -68,21 +73,64 @@ create-unbox-store
 Se você recebeu a pasta inteira (zip) ou clonou o repositório:
 
 ```bash
-cd create-unbox-store
+cd unbox-cli
 npm install
-node bin/cli.js
+node bin/unbox.js create
 ```
 
 ## Uso não-interativo (scripts/CI)
 
 ```bash
-npx --package=@unbox-plus/cli create-unbox-store minha-loja --yes --no-install
+npx --package=@unbox-plus/cli unbox create minha-loja --yes --no-install
 ```
 
 Gera com as cores/nome default e o estilo **essencial** — use `--estilo <nome>`
 (essencial, promocional, editorial, boutique) pra escolher outro sem interação. Cores e
 tokens podem ser editados depois em `app/globals.css` (bloco "CONFIGURE"); o layout da home
 em `components/home/home-recipe.ts`.
+
+## Comando `unbox`
+
+```bash
+unbox --help                 # lista os comandos
+unbox <comando> --help       # uso e exemplos de um comando
+```
+
+| Comando | O que faz |
+|---|---|
+| `unbox create [pasta]` | gera a loja (o wizard descrito acima) |
+
+Os comandos de publicação (`provision`, `env`, `deploy`, `publish`, `rollback`, `status`) entram
+nas próximas versões. Eles falam com a Partners API da Unbox, e por isso todos seguem as mesmas
+regras abaixo.
+
+**Flags globais**, que valem antes ou depois do comando:
+
+| Flag | Padrão | |
+|---|---|---|
+| `--help`, `-h` | | ajuda geral, ou do comando quando vem com um |
+| `--json` | | saída para agentes e scripts: um único objeto JSON em stdout (`{"ok":true,"data":...}` ou `{"ok":false,"error":{"code","message"}}`); o andamento vai para stderr |
+| `--yes`, `-y` | | não pede confirmação (no `create`, gera com os padrões, sem perguntas) |
+| `--dir <caminho>` | pasta atual | a pasta do projeto da loja |
+| `--env-file <arquivo>` | `.env.local` | o arquivo das credenciais, relativo ao `--dir` |
+
+**Códigos de saída:** `0` deu certo, `1` a operação falhou, `2` uso incorreto (comando ou flag que
+não existe, valor faltando). O `create` usa `1` também para uso incorreto, como sempre fez.
+
+**Credenciais.** Os comandos que falam com a Unbox leem as mesmas variáveis da loja, do
+`.env.local` do projeto (ou do `--env-file`): `UNBOX_PARTNER_API_KEY`, `UNBOX_USER`, `UNBOX_PASS`
+e, opcional, `UNBOX_PARTNER_GRAPHQL_URL`. O arquivo é lido pelo mesmo parser do Next, então uma
+senha que funciona na loja funciona na CLI. Uma variável exportada no terminal vence a do arquivo,
+como no Next; por isso a CLI diz de onde veio cada credencial, para uma variável esquecida de outra
+loja não passar despercebida. Faltando alguma das três, o comando para e diz qual.
+
+### Dois cuidados com o `npx`
+
+- **Sempre com `--package=@unbox-plus/cli`.** `npx unbox` sem ele baixa outro pacote do NPM, que
+  também se chama `unbox` e não tem nada a ver com este.
+- **`npx @unbox-plus/cli` (sem `--package=`) deixou de funcionar.** O pacote agora tem dois
+  comandos, `unbox` e `create-unbox-store`, e o `npx` não sabe qual rodar. Use
+  `npx --package=@unbox-plus/cli unbox ...` ou instale global (`npm install -g @unbox-plus/cli`).
 
 ## Checkout hospedado da Unbox: duas regras
 

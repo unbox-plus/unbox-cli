@@ -1,5 +1,64 @@
 ## Changelog
 
+### v0.26.0 — o comando agora é `unbox`, e a CLI passa a falar com a Partners API
+
+O pacote ganhou um binário com subcomandos, `unbox`, e a base que os comandos de publicação da loja
+(`provision`, `env`, `deploy`, `publish`, `rollback`, `status`) vão usar: o despachante, a saída
+para agentes, a leitura do `.env.local` e a conexão com a Partners API. **A loja gerada não mudou:**
+`unbox create` e `create-unbox-store` geram, byte a byte, o mesmo projeto da v0.25.0, e há um teste
+que compara as duas coisas a cada `npm test`.
+
+- **`unbox create` é o novo nome do scaffold.** O `create-unbox-store` continua funcionando com as
+  mesmas flags e o mesmo resultado; ele só avisa, em stderr, que o padrão agora é `unbox create`.
+  stderr de propósito: quem lê o stdout num script ou na CI não vê a saída mudar.
+- **`npx @unbox-plus/cli` sem `--package=` deixou de funcionar.** Com dois comandos no pacote, o
+  `npx` não sabe qual rodar. A forma documentada desde sempre, `npx --package=@unbox-plus/cli ...`,
+  continua valendo. E `npx unbox` (sem `--package=`) baixa um pacote de terceiros que também se
+  chama `unbox`; o README diz isso.
+- **Flags globais** em qualquer posição: `--help`, `--json` (um único objeto JSON em stdout, o
+  andamento em stderr), `--yes`, `--dir` e `--env-file`. Códigos de saída: `0` ok, `1` a operação
+  falhou, `2` uso incorreto. O `create` mantém o `1` que sempre teve para uso incorreto, e recusa
+  `--json`, `--dir` e `--env-file`, que não fazem sentido num wizard que cria a pasta.
+- **O corpo do scaffold saiu de `bin/cli.js` para `src/commands/create.js`.** O que mudou foi só a
+  borda: erro de uso virou exceção tratada pelo despachante (a mensagem é a mesma), o banner sai
+  depois do parse, e o caminho do template vem de `src/paths.js`. Este último é o detalhe que mais
+  quebraria a mudança de pasta: o `path.join(__dirname, "..", "template")` antigo, copiado para
+  `src/commands/`, apontaria para uma pasta que não existe.
+- **Duas dependências novas, as duas sem dependências próprias.** `@unbox-plus/sdk` `^0.4.0`, o
+  mesmo pacote que a loja usa: signIn, os dois cabeçalhos, o token puro no `Authorization`, a
+  renovação do token vencido e a leitura do `shopId` no JWT ficam num lugar só, em vez de uma segunda
+  implementação aqui. A CLI fixa o formato do token (`authScheme: "raw"`), então nunca manda
+  `Bearer` nem faz a consulta extra que o SDK usa para medir o formato. E `@next/env` na versão do
+  Next do template, para ler o `.env.local` com o MESMO parser da loja: o `envValue` do create grava
+  senha com `$`, `#` e crase num formato que só esse parser lê de volta intacto, e a CLI e a loja
+  divergindo nisso é o signIn falhando sem pista.
+- **A loja gerada passa a usar o `@unbox-plus/sdk` `^0.4.0`** (era `^0.2.0`, que no `0.x` não
+  aceitava nem a 0.3.0). O que muda para a loja: a renovação do token passa a cobrir também a
+  resposta "No authenticated user" do gateway (o token vencido, que volta como `Core HTTP error:
+  401`, já renovava), e um HTTP de erro do gateway sem `errors[]` (uma api key errada, um
+  502) passa a ser erro com a causa, `HTTP 403: {"message":"Forbidden"}`, no lugar de um
+  `Cannot read properties of undefined` no log. A página continua indo para o `error.tsx` como
+  antes. Medido numa loja gerada: typecheck e build limpos, as mesmas 71 rotas, os mesmos avisos de
+  lint e o mesmo JS no navegador, sem nenhuma consulta do SDK no bundle do cliente. Lojas já no ar
+  sobem quando quiserem, com `npm install @unbox-plus/sdk@^0.4.0`.
+- **A CLI diz de onde veio cada credencial.** Uma variável exportada no terminal vence a do
+  `.env.local` (como no Next), e uma esquecida de outra loja levaria a operação para a loja errada
+  sem ninguém ver. Faltando credencial, o erro diz qual falta e aponta o `.env.example`; se elas
+  estiverem no `.env` em vez do `.env.local`, sugere `--env-file .env`.
+- **Nenhuma credencial na saída.** Senha, api key e token passam por um filtro antes de qualquer
+  texto sair, na forma literal e na escapada em JSON, inclusive a mensagem que o servidor devolve
+  no login recusado.
+- **Recusa da API com código e mensagem.** Conta sem permissão sai como `MISSING_PERMISSION`
+  ("peça a liberação à Unbox"), usuário ou senha errados como `SIGN_IN_FAILED`, api key recusada
+  pelo gateway como `API_KEY_RECUSADA` (e não como senha errada), rede fora como `NETWORK`. O
+  gateway manda o código do erro na própria mensagem (`INVALID_CREDENTIALS_ERROR`), e é de lá que o
+  `code` sai quando não há `extensions.code`. Validado contra a Partners API de stage.
+- **`npm test`** (com `node:test`, sem dependência) e o workflow de publicação passa a rodá-lo antes
+  do `npm publish`. O gate do `prepack` varre também `test/` e recusa `file:` no `package.json` ou
+  no lock, o rastro de um `npm install ../unbox-sdk` esquecido.
+- **`tools/partner-api-smoke.mjs`**: smoke test da conexão contra um ambiente real (login, `shopId`
+  do token, a consulta `customStorefront`), fora do pacote publicado.
+
 ### v0.25.0 — a integração com a Unbox saiu do template e virou pacote
 
 Até aqui, toda chamada à API de parceiros vivia dentro do template, em `lib/unbox/*.ts`, e era
