@@ -287,7 +287,7 @@ export function SubscriptionItemsEditor({
               step === "add" && "hidden lg:flex",
             )}
           >
-            <p className="flex flex-wrap items-baseline gap-x-2 text-[13px] text-[var(--store-muted)]">
+            <p className="flex flex-col gap-0.5 text-[13px] text-[var(--store-muted)]">
               {showTotal && (
                 <span>
                   <strong className="font-display text-[15px] font-extrabold text-[var(--store-ink)] tabular-nums">{formatBRL(total)}</strong> em produtos, sem frete
