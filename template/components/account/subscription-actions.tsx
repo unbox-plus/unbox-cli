@@ -382,6 +382,8 @@ export function SubscriptionActions({
         <DialogContent
           className={cn(
             "grid-cols-[minmax(0,1fr)] sm:max-w-2xl",
+            // desktop: o modal nunca passa da tela; só o miolo rola, então Salvar e fechar ficam sempre visíveis
+            "lg:max-h-[calc(100dvh-2rem)] lg:grid-rows-[auto_minmax(0,1fr)_auto]",
             podeAdicionar && "lg:max-w-4xl",
             // mobile: tela cheia nas duas etapas, então abrir, fechar e trocar de etapa não muda o tamanho do modal.
             // Sem animação de zoom (em tela cheia ela só pisca); o cabeçalho, o miolo e o rodapé são faixas.
@@ -400,7 +402,7 @@ export function SubscriptionActions({
           </DialogHeader>
           <div
             className={cn(
-              "flex min-h-0 min-w-0 flex-col gap-6 max-lg:flex-1 lg:flex-row",
+              "flex min-h-0 min-w-0 flex-col gap-6 max-lg:flex-1 lg:flex-row lg:overflow-y-auto",
               etapa === "lista" ? "max-lg:overflow-y-auto max-lg:p-4" : "max-lg:overflow-hidden",
             )}
           >
