@@ -51,7 +51,17 @@ export default async function AssinaturaDetalhePage({ params }: { params: Promis
     const avulso = v?.pricing?.[0]?.price ?? null;
     const titulo = p?.title ?? it.productERPCode ?? it.productId;
     const d: ItemDetalhe = { titulo, variacao, foto: p?.imageUrls?.[0], unit, riscado: unit != null && avulso != null && avulso > unit ? avulso : null };
-    detalhes[nameKey(it)] = d;
+    // todas as variações do produto ganham nome e preço: a troca de variação no modal precisa deles
+    const variantes = (p?.variants ?? []).map((x: any) => ({ id: x._id, label: x.title, esgotado: !!x.isSoldOut }));
+    for (const x of p?.variants ?? []) {
+      const u = x.pricingOnRecurrence?.[0]?.price ?? x.pricing?.[0]?.price ?? null;
+      const av = x.pricing?.[0]?.price ?? null;
+      detalhes[nameKey({ productId: it.productId, variantId: x._id })] = {
+        titulo, variacao: x.title && x.title !== p?.title ? x.title : null, foto: p?.imageUrls?.[0], unit: u,
+        riscado: u != null && av != null && av > u ? av : null, variantes: variantes.length > 1 ? variantes : undefined,
+      };
+    }
+    detalhes[nameKey(it)] ??= d;
     return { it, ...d };
   });
   const totalItens = linhas.every((l: any) => l.unit != null) ? linhas.reduce((t: number, l: any) => t + l.unit * l.it.quantity, 0) : null;
