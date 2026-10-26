@@ -1,5 +1,6 @@
 "use client";
 
+import { QuantityStepper } from "@/components/quantity-stepper";
 import * as React from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -89,11 +90,7 @@ export function MiniCart() {
                       {it.isBonus ? (
                         <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--store-primary-soft,#F1F1F3)] px-2.5 py-1 text-[11px] font-extrabold text-[var(--store-primary,#18181B)]"><Gift weight="fill" />Brinde</span>
                       ) : (
-                        <div className="flex items-center overflow-hidden rounded-sm border-[1.5px] border-[var(--store-line-2)]">
-                          <button type="button" disabled={loading} onClick={() => updateQty(it.id, Math.max(1, it.quantity - 1))} className="h-[34px] w-[34px] cursor-pointer border-none bg-transparent text-[17px] text-[var(--store-ink-2)] disabled:cursor-not-allowed disabled:opacity-50">−</button>
-                          <span className="w-[30px] text-center text-sm font-extrabold">{it.quantity}</span>
-                          <button type="button" disabled={loading} onClick={() => updateQty(it.id, it.quantity + 1)} className="h-[34px] w-[34px] cursor-pointer border-none bg-transparent text-[17px] text-[var(--store-ink-2)] disabled:cursor-not-allowed disabled:opacity-50">+</button>
-                        </div>
+                        <QuantityStepper value={it.quantity} onChange={(q) => updateQty(it.id, q)} disabled={loading} label={it.title} />
                       )}
                       {!it.isBonus && (
                         <button type="button" disabled={loading} onClick={() => remove(it.id)} aria-label="Remover" className="flex cursor-pointer items-center border-none bg-transparent p-1.5 text-[var(--store-muted)] disabled:cursor-not-allowed disabled:opacity-50">

@@ -3,13 +3,16 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft } from "@phosphor-icons/react/dist/ssr";
 import { getCustomerClient, lerDaConta } from "@/lib/customer-session";
-import { formatarData } from "@/lib/format";
+import { formatarData, formatBRL } from "@/lib/format";
+import { Foto } from "@/components/ui/foto";
+import { withStoreClient } from "@/lib/unbox";
 import { getShopData } from "@/lib/queries";
 import { subscriptionStatusLabel } from "@unbox-plus/sdk";
 import { AccountShell } from "@/components/account/account-shell";
 import { EmptyState } from "@/components/empty-state";
 import { StatusBadge } from "@/components/order-status";
-import { SubscriptionActions } from "@/components/account/subscription-actions";
+import { SubscriptionActions, type ItemDetalhe } from "@/components/account/subscription-actions";
+import { nameKey } from "@/lib/subscription-items";
 
 export const metadata: Metadata = { title: "Assinatura", robots: { index: false } };
 
@@ -36,6 +39,23 @@ export default async function AssinaturaDetalhePage({ params }: { params: Promis
       </AccountShell>
     );
   }
+
+  // a assinatura só traz ids; nome do produto e da variação vêm do SDK. Cosmético: sem nome, cai no código.
+  const produtos = await withStoreClient((c) => c.getProductsByIds((sub.items ?? []).map((it: any) => it.productId))).catch(() => []);
+  const detalhes: Record<string, ItemDetalhe> = {};
+  const linhas = (sub.items ?? []).map((it: any) => {
+    const p = produtos.find((x) => x.productId === it.productId || x._id === it.productId);
+    const v = p?.variants?.find((x) => x._id === it.variantId);
+    const variacao = v?.title && v.title !== p?.title ? v.title : null;
+    const unit = v?.pricingOnRecurrence?.[0]?.price ?? v?.pricing?.[0]?.price ?? null;
+    const avulso = v?.pricing?.[0]?.price ?? null;
+    const titulo = p?.title ?? it.productERPCode ?? it.productId;
+    const d: ItemDetalhe = { titulo, variacao, foto: p?.imageUrls?.[0], unit, riscado: unit != null && avulso != null && avulso > unit ? avulso : null };
+    detalhes[nameKey(it)] = d;
+    return { it, ...d };
+  });
+  const totalItens = linhas.every((l: any) => l.unit != null) ? linhas.reduce((t: number, l: any) => t + l.unit * l.it.quantity, 0) : null;
+  const comDesconto = linhas.some((l: any) => l.riscado != null);
 
   const ciclos = await lerDaConta("/conta/assinaturas/[referenceId]/ciclos", me.subscriptionCycles(sub._id, 12));
   const cycles = ciclos.ok ? ciclos.valor : { nodes: [] };
@@ -71,11 +91,34 @@ export default async function AssinaturaDetalhePage({ params }: { params: Promis
           <>
             <div className="my-4 border-t border-[var(--store-surface-2)]" />
             <p className="mb-2 text-[13px] font-bold text-[var(--store-ink-2)]">Itens</p>
-            <ul className="flex flex-col gap-1 text-sm text-[var(--store-muted)]">
-              {sub.items.map((it: any, i: number) => (
-                <li key={i}><span className="font-bold text-[var(--store-primary,#18181B)]">{it.quantity}×</span> {it.productERPCode ?? it.productId}</li>
+            <ul className="flex flex-col divide-y divide-[var(--store-surface-2)]">
+              {linhas.map((l: any, i: number) => (
+                <li key={i} className="flex items-start gap-3 py-3.5 first:pt-0">
+                  <div className="size-14 shrink-0 overflow-hidden rounded-lg bg-[var(--store-surface-2)]">
+                    {l.foto && <Foto src={l.foto} alt="" width={56} height={56} sizes="56px" className="size-full object-cover" />}
+                  </div>
+                  <div className="min-w-0 flex-1 text-sm">
+                    <p className="font-bold text-[var(--store-ink)]">{l.titulo}</p>
+                    {l.variacao && <p className="text-[var(--store-muted)]">{l.variacao}</p>}
+                    <p className="text-[13px] text-[var(--store-muted)]">
+                      Qtd.: {l.it.quantity}
+                      {l.unit != null && <> · {formatBRL(l.unit)} cada</>}
+                      {l.riscado != null && <> <s>{formatBRL(l.riscado)}</s></>}
+                    </p>
+                  </div>
+                  {l.unit != null && <p className="font-display whitespace-nowrap font-extrabold tabular-nums text-[var(--store-ink)]">{formatBRL(l.unit * l.it.quantity)}</p>}
+                </li>
               ))}
             </ul>
+            {totalItens != null && (
+              <div className="mt-2 border-t border-[var(--store-surface-2)] pt-3.5">
+                <div className="flex items-baseline justify-between font-bold text-[var(--store-ink)]">
+                  <span>Total dos produtos</span>
+                  <span className="font-display text-[17px] font-extrabold tabular-nums">{formatBRL(totalItens)}</span>
+                </div>
+                {comDesconto && <p className="text-[13px] text-[var(--store-muted)]">Já com desconto de assinatura</p>}
+              </div>
+            )}
           </>
         )}
       </div>
@@ -83,6 +126,7 @@ export default async function AssinaturaDetalhePage({ params }: { params: Promis
       <SubscriptionActions
         recurringOrderId={sub._id}
         status={status}
+        detalhes={detalhes}
         actions={actions}
         items={(sub.items ?? []).map((it: any) => ({ productId: it.productId, variantId: it.variantId, quantity: it.quantity }))}
       />
