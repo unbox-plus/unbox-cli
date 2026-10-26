@@ -173,3 +173,37 @@ test("fetch que falha deixa o remote reconhecível: a próxima execução segue"
   remotoDaUnbox(sb);
   assert.equal(vincula(dir).mode, "merge");
 });
+
+test("nova execução na pasta do unbox create, com arquivos ainda não commitados: segue sem mexer", () => {
+  const sb = sandbox();
+  remotoDaUnbox(sb);
+  const dir = projetoSemGit(sb);
+  vincula(dir);
+  // O README.md do usuário difere do que o Core pôs no índice: a árvore "suja" é o normal aqui.
+  const st = repoState(dir);
+  assert.equal(st.clean, false);
+  assert.equal(repoProblem(st, "loja1"), undefined);
+  assert.equal(needsCommit(st), false);
+  const antes = g(dir, "rev-parse", "deploy");
+  assert.equal(vincula(dir, st).mode, "reexecucao");
+  assert.equal(g(dir, "rev-parse", "deploy"), antes);
+  assert.equal(fs.readFileSync(path.join(dir, "README.md"), "utf8"), "# minha loja\n");
+});
+
+test("nova execução com commits novos na Unbox e árvore suja: para antes do merge", () => {
+  const sb = sandbox();
+  const { bare, semente } = remotoDaUnbox(sb);
+  const dir = projetoComCommits(sb);
+  vincula(dir);
+  escreve(semente, "novo.txt", "x\n");
+  g(semente, "add", "-A");
+  g(semente, "commit", "-q", "-m", "novo na unbox");
+  g(semente, "push", "-q", bare, "deploy");
+  escreve(dir, "app.txt", "mudou\n");
+  const st = repoState(dir);
+  assert.equal(repoProblem(st, "loja1"), undefined);
+  assert.throws(() => vincula(dir, st), (e) => e.code === "ARVORE_SUJA");
+  g(dir, "checkout", "-q", "--", "app.txt");
+  vincula(dir);
+  assert.equal(g(dir, "show", "deploy:novo.txt"), "x");
+});

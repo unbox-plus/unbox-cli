@@ -133,15 +133,21 @@ export function repoProblem(st, shopId) {
       "OUTRA_LOJA",
     );
   }
+  // Árvore limpa só quando o vínculo certamente mexe nela: o merge da primeira vez, ou a troca para a
+  // deploy numa nova execução. Numa nova execução já na deploy, mudanças locais são o normal (o
+  // projeto do unbox create só é commitado no primeiro unbox deploy); se a Unbox tiver commits novos
+  // para mesclar, linkDeploy confere de novo depois do fetch.
   const mode = linkMode(st);
-  if ((mode === "merge" || mode === "reexecucao") && !st.clean) {
-    return new CliError("Há mudanças não commitadas no repositório. Faça commit ou git stash e rode de novo.", "ARVORE_SUJA");
+  if ((mode === "merge" || (mode === "reexecucao" && st.branch !== "deploy")) && !st.clean) {
+    return arvoreSuja();
   }
   return undefined;
 }
 
+const arvoreSuja = () => new CliError("Há mudanças não commitadas no repositório. Faça commit ou git stash e rode de novo.", "ARVORE_SUJA");
+
 /** O vínculo vai criar um commit? Só aí a identidade git é obrigatória. */
-export const needsCommit = (st) => ["merge", "reexecucao"].includes(linkMode(st));
+export const needsCommit = (st) => linkMode(st) === "merge";
 
 function hostKeyError(stderr) {
   if (/Host key verification failed|REMOTE HOST IDENTIFICATION HAS CHANGED/i.test(stderr)) {
@@ -204,8 +210,12 @@ export function linkDeploy({ dir, sshUrl, sshCommand, shopId, keyPath, st }) {
   } else if (mode === "merge") {
     removed = mesclaAoLado(dir, st.branch);
   } else {
-    // Nova execução: traz o que a Unbox tiver de novo (normalmente nada).
+    // Nova execução: traz o que a Unbox tiver de novo, que normalmente é nada.
     if (st.branch !== "deploy") gitOk(["checkout", "-q", "deploy"], { cwd: dir });
+    const emDia = git(["merge-base", "--is-ancestor", "unbox/deploy", "HEAD"], { cwd: dir }).status === 0;
+    if (emDia) return { mode, originalBranch: st.branch, removed };
+    // Daqui em diante há merge: precisa de árvore limpa e, se não for fast-forward, de identidade.
+    if (saida(["status", "--porcelain", "--untracked-files=no"], dir) !== "") throw arvoreSuja();
     const r = git(["merge", "-q", "--ff", "--no-verify", "--no-edit", "unbox/deploy"], { cwd: dir });
     if (r.status !== 0) {
       if (fs.existsSync(path.join(gitDir, "MERGE_HEAD"))) git(["merge", "--abort"], { cwd: dir });
