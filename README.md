@@ -100,8 +100,9 @@ unbox <comando> --help       # uso e exemplos de um comando
 |---|---|
 | `unbox create [pasta]` | gera a loja (o wizard descrito acima) |
 | `unbox provision` | provisiona o repositório e a hospedagem da loja na Unbox e liga o projeto à branch `deploy` |
+| `unbox deploy` | commita as mudanças, envia a branch `deploy` para a Unbox e mostra a URL do preview |
 
-Os demais comandos de publicação (`env`, `deploy`, `publish`, `rollback`, `status`) entram nas
+Os demais comandos de publicação (`env`, `publish`, `rollback`, `status`) entram nas
 próximas versões. Eles falam com a Partners API da Unbox, e por isso todos seguem as mesmas regras
 abaixo.
 
@@ -172,6 +173,52 @@ Rodar de novo é seguro: mesma chave, nada duplicado. O que convém saber:
   branch, uma branch `deploy` sua que não é a da Unbox, ou a pasta for parte de outro repositório.
 - **As variáveis do `.env.local` ainda não vão para a hospedagem** (isso entra com o `unbox env`).
   Sem elas, o build da loja falha.
+
+### `unbox deploy`
+
+Substitui o antigo `ubx save`. Roda na branch `deploy` do projeto, depois do `unbox provision`.
+
+```bash
+unbox deploy                       # commita tudo com a mensagem "unbox: deploy"
+unbox deploy -m "nova vitrine"     # com outra mensagem
+unbox deploy --build               # roda npm run build antes, para pegar erro sem gastar um deploy
+unbox deploy --json                # para agentes: um objeto { commitSha, state, url, previewUrl }
+```
+
+1. **Confere, sem mudar nada:** que o projeto está ligado à Unbox (`unbox.shopId`, `unbox.keyPath`
+   com a chave presente e o remote `unbox`; senão, "rode unbox provision"), que você está na
+   `deploy`, as credenciais, o nome e e-mail do git, o login e os arquivos protegidos.
+2. **Commita** tudo o que mudou (`git add -A`). Os hooks do projeto (husky, commitlint) não rodam
+   nesse commit nem no push, como no do vínculo.
+3. **Envia** a `deploy` local para a `deploy` da Unbox, nunca com force. Se a da Unbox estiver à
+   frente, a CLI traz o que ela tem (rebase dos seus commits; merge no primeiro deploy de um
+   projeto com histórico próprio, para não achatar esse histórico) e envia de novo. Conflito:
+   a operação é desfeita, nada é enviado, e a CLI diz como resolver.
+4. **Acompanha o build** do commit enviado (2 s, 5 s e depois a cada 10 s, até ~15 min) e mostra a
+   URL do preview desse commit e, quando a loja tiver, o **endereço fixo de preview**
+   (`https://preview.<slug>.myunbox.com.br`). O endereço fixo mostra sempre o deploy mais recente
+   que terminou com sucesso: pode ser um mais novo que o deste comando, e um build com falha
+   mantém o anterior no ar. Loja sem o endereço Unbox (ou provisionada antes dele): a linha não
+   aparece e o `--json` traz `previewUrl: null`.
+
+O que convém saber:
+
+- **Fora da `deploy`** (na `main`, por exemplo), o comando para sem commit, sem push e sem rebase,
+  e diz o que rodar: `git checkout deploy` e, para levar as mudanças, `git merge <sua-branch>`.
+  O push de uma branch que não descende da `deploy` da Unbox seria recusado.
+- **Nome e e-mail do git:** no terminal, a CLI pergunta e grava só neste repositório; com `--json`
+  ou `--yes` (ou sem terminal), ela para com `GIT_IDENTITY_MISSING` antes de commitar e mostra o
+  `git config --global` a rodar. A CLI nunca usa uma identidade inventada: o commit é seu.
+- **`.github/`, `.gitea/` e `.forgejo/`:** mudanças nessas pastas (na árvore ou em commits ainda não
+  enviados) param o comando antes do commit e do push, com a lista e como desfazer. Arquivo novo
+  e não rastreado nelas não conta: o `provision` as pôs no `.git/info/exclude`.
+- **A chave vai só nas chamadas à Unbox**, por `GIT_SSH_COMMAND` montado a partir do
+  `unbox.keyPath`, com as host keys da CLI. Um `origin` por SSH continua funcionando.
+- **`FAILURE`:** o motivo não vem da API. Corrija e rode de novo; `--build` mostra o erro aqui.
+  Build que passa aqui e falha na Unbox costuma ser variável de ambiente faltando na hospedagem.
+- **Teto em `PENDING`:** a CLI para depois de ~15 min e mostra o commit para informar à Unbox.
+- **Nada a enviar** (sem mudanças e sem commits novos): avisa e sai com `0`; o `--json` traz
+  `state: null`.
 
 ### Dois cuidados com o `npx`
 

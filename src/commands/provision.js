@@ -14,7 +14,8 @@ import { requireProgram } from "../proc.js";
 import { ensureKey, rotateKey, gitSshCommand } from "../deploy-key.js";
 import { assertKnownGitUrl, writeKnownHosts } from "../known-hosts.js";
 import { provisionAndWait } from "../provisioning.js";
-import { git, linkDeploy, linkMode, needsCommit, repoProblem, repoState } from "../git.js";
+import { linkDeploy, linkMode, needsCommit, repoProblem, repoState } from "../git.js";
+import { askIdentity } from "../identity.js";
 
 export const help = `
   unbox provision: provisiona a loja na Unbox e liga o projeto à branch deploy
@@ -52,17 +53,7 @@ async function garanteIdentidade(st, { naoInterativo, out }) {
     out.warn("  Aviso: o git desta máquina não tem nome e e-mail configurados. O unbox deploy vai precisar deles.");
     return;
   }
-  perguntaOuFalha(naoInterativo, new CliError(
-    "O git desta máquina não tem nome e e-mail, e o vínculo cria um commit. Configure e rode de novo:\n" +
-      '  git config --global user.name "Seu Nome"\n  git config --global user.email "voce@exemplo.com"',
-    "GIT_IDENTITY_MISSING",
-  ));
-  const r = await prompts([
-    { type: "text", name: "nome", message: "Seu nome, para os commits deste projeto", stdout: process.stderr, validate: (v) => (v.trim() ? true : "Informe o nome") },
-    { type: "text", name: "email", message: "Seu e-mail, para os commits deste projeto", stdout: process.stderr, validate: (v) => (/^\S+@\S+$/.test(v.trim()) ? true : "Informe um e-mail") },
-  ], { onCancel: cancelado });
-  git(["config", "user.name", r.nome.trim()], { cwd: st.dir });
-  git(["config", "user.email", r.email.trim()], { cwd: st.dir });
+  await askIdentity(st.dir, { naoInterativo, motivo: "o vínculo cria um commit" });
 }
 
 /** Pastas que o servidor recusa: com confirmação, ficam fora da deploy. */

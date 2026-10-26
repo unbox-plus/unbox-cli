@@ -1,5 +1,35 @@
 ## Changelog
 
+### v0.28.0 — `unbox deploy`: as mudanças viram preview, sem passos de git à mão
+
+Substitui o antigo `ubx save`. `unbox deploy` commita as mudanças, envia a branch `deploy` para a
+Unbox e espera o build, devolvendo a URL do preview do commit e, quando a loja tiver, o endereço
+fixo de preview. **Nada quebrou:** `create` e `provision` seguem iguais.
+
+- **Só na `deploy`, e só da `deploy`.** Em outra branch, o comando para sem commit, sem push e sem
+  rebase, com o `git checkout deploy` (e o `git merge <branch>`) a rodar. O push usa o refspec
+  explícito da `deploy` local para a remota, nunca `HEAD:deploy` e nunca force.
+- **Remoto à frente:** busca, integra uma vez e envia de novo. Rebase dos seus commits; merge no
+  primeiro deploy de um projeto com histórico próprio (o commit do vínculo é um merge, e o rebase
+  achataria a branch de origem inteira sobre a da Unbox). Conflito desfaz a operação e para.
+- **Tudo que pode parar o comando vem antes do commit**, e nada disso altera o repositório:
+  vínculo (`unbox.shopId`, `unbox.keyPath` com a chave presente, remote `unbox`), branch, merge ou
+  rebase em andamento, credenciais, nome e e-mail do git, login da mesma loja e arquivos em
+  `.github/`, `.gitea/` e `.forgejo/` (na árvore ou em commits ainda não enviados), que o servidor
+  recusaria com um erro pouco claro.
+- **Identidade git:** a mesma regra do `provision`, agora num módulo só (`src/identity.js`).
+- **A chave vai por `GIT_SSH_COMMAND`** em cada chamada que fala com a Unbox, nunca em
+  `core.sshCommand`. Testado com um `ssh` falso no PATH que registra os argumentos.
+- **Acompanhamento:** `customStorefrontDeployment` do topo enviado em 2 s, 5 s e depois a cada
+  10 s, até ~15 min. `FAILURE` orienta a corrigir e rodar de novo (`--build` roda o build aqui
+  antes do push); `PENDING` no teto mostra o commit para informar à Unbox.
+- **Endereço fixo de preview** (`customStorefront.previewUrl`, `https://preview.<slug>.myunbox.com.br`):
+  aparece na saída e no `--json` (`{ commitSha, state, url, previewUrl }`); `null` quando a loja
+  não tem o endereço Unbox, e a linha some do texto.
+- **Testes** com git de verdade e o servidor num repositório bare: fora da `deploy`, sem
+  identidade, arquivos protegidos, push concorrente com rebase, com conflito e com merge,
+  `FAILURE`, teto, nada a enviar, `--build` que falha e outra loja.
+
 ### v0.27.0 — `unbox provision`: a loja provisionada e o projeto ligado à branch `deploy`
 
 O primeiro comando de publicação. `unbox provision` cria o repositório e a hospedagem da loja na

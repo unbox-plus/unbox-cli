@@ -23,6 +23,7 @@ export const NON_RETRYABLE = new Set([
 export const DEPLOY_KEY_IN_USE = nome("DEPLOY_KEY_IN_USE");
 export const ALREADY_PROVISIONED = nome("ALREADY_PROVISIONED");
 export const NOT_CONFIGURED = nome("NOT_CONFIGURED");
+export const NOT_READY = nome("NOT_READY");
 export const INVALID_DEPLOY_PUBLIC_KEY = nome("INVALID_DEPLOY_PUBLIC_KEY");
 
 const CODIGO = /CUSTOM_STOREFRONT_[A-Z0-9_]+_ERROR/;

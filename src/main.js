@@ -15,6 +15,7 @@ import { UsageError } from "./errors.js";
 import { PACKAGE_ROOT } from "./paths.js";
 import * as create from "./commands/create.js";
 import * as provision from "./commands/provision.js";
+import * as deploy from "./commands/deploy.js";
 
 /**
  * Os comandos que EXISTEM. Só entra aqui (e na ajuda) o que está implementado: cada comando novo
@@ -34,6 +35,12 @@ const COMMANDS = {
     uso: "provision",
     help: provision.help,
     run: (args, globals, ctx) => provision.runProvision(args, globals, ctx),
+  },
+  deploy: {
+    resumo: "commita, envia a branch deploy para a Unbox e mostra a URL do preview",
+    uso: "deploy [-m <msg>]",
+    help: deploy.help,
+    run: (args, globals, ctx) => deploy.runDeploy(args, globals, ctx),
   },
 };
 

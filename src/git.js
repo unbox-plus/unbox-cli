@@ -149,7 +149,7 @@ const arvoreSuja = () => new CliError("Há mudanças não commitadas no reposit�
 /** O vínculo vai criar um commit? Só aí a identidade git é obrigatória. */
 export const needsCommit = (st) => linkMode(st) === "merge";
 
-function hostKeyError(stderr) {
+export function hostKeyError(stderr) {
   if (/Host key verification failed|REMOTE HOST IDENTIFICATION HAS CHANGED/i.test(stderr)) {
     return new CliError(
       "A chave do servidor git da Unbox não confere com a que esta CLI conhece. Atualize a CLI; se ela já estiver na última versão, " +
@@ -160,7 +160,7 @@ function hostKeyError(stderr) {
   return undefined;
 }
 
-function fetchDeploy(dir, sshCommand) {
+export function fetchDeploy(dir, sshCommand) {
   const r = git(["fetch", "-q", "unbox", "deploy"], { cwd: dir, sshCommand });
   if (r.status !== 0) {
     throw hostKeyError(r.stderr) ?? new CliError(`Não consegui buscar a branch deploy da Unbox: ${r.stderr.trim().split("\n").slice(-2).join(" ")}`, "GIT_FETCH_FALHOU");
