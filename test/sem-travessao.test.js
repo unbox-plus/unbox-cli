@@ -15,6 +15,8 @@ const TRAVESSAO = "—";
 const SEM_NENHUM = [
   "bin/unbox.js", "bin/cli.js", "src/main.js", "src/args.js", "src/output.js",
   "src/env.js", "src/partner-api.js", "src/paths.js", "src/errors.js",
+  "src/commands/provision.js", "src/proc.js", "src/config-dir.js", "src/known-hosts.js",
+  "src/deploy-key.js", "src/storefront.js", "src/provisioning.js", "src/git.js",
 ];
 
 test("arquivos novos da CLI sem travessão", () => {

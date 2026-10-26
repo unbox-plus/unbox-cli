@@ -14,6 +14,7 @@ import { createOutput } from "./output.js";
 import { UsageError } from "./errors.js";
 import { PACKAGE_ROOT } from "./paths.js";
 import * as create from "./commands/create.js";
+import * as provision from "./commands/provision.js";
 
 /**
  * Os comandos que EXISTEM. Só entra aqui (e na ajuda) o que está implementado: cada comando novo
@@ -27,6 +28,12 @@ const COMMANDS = {
     run: (args, globals, ctx) => create.runCreate(args, globals, ctx),
     // O create é anterior ao contrato de saída 2 e mantém o 1 que sempre teve.
     usageExit: 1,
+  },
+  provision: {
+    resumo: "provisiona a loja na Unbox e liga o projeto à branch deploy",
+    uso: "provision",
+    help: provision.help,
+    run: (args, globals, ctx) => provision.runProvision(args, globals, ctx),
   },
 };
 
