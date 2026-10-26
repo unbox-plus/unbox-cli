@@ -99,10 +99,11 @@ unbox <comando> --help       # uso e exemplos de um comando
 | Comando | O que faz |
 |---|---|
 | `unbox create [pasta]` | gera a loja (o wizard descrito acima) |
+| `unbox provision` | provisiona o repositório e a hospedagem da loja na Unbox e liga o projeto à branch `deploy` |
 
-Os comandos de publicação (`provision`, `env`, `deploy`, `publish`, `rollback`, `status`) entram
-nas próximas versões. Eles falam com a Partners API da Unbox, e por isso todos seguem as mesmas
-regras abaixo.
+Os demais comandos de publicação (`env`, `deploy`, `publish`, `rollback`, `status`) entram nas
+próximas versões. Eles falam com a Partners API da Unbox, e por isso todos seguem as mesmas regras
+abaixo.
 
 **Flags globais**, que valem antes ou depois do comando:
 
@@ -123,6 +124,54 @@ e, opcional, `UNBOX_PARTNER_GRAPHQL_URL`. O arquivo é lido pelo mesmo parser do
 senha que funciona na loja funciona na CLI. Uma variável exportada no terminal vence a do arquivo,
 como no Next; por isso a CLI diz de onde veio cada credencial, para uma variável esquecida de outra
 loja não passar despercebida. Faltando alguma das três, o comando para e diz qual.
+
+### `unbox provision`
+
+Roda na pasta do projeto: a que o `unbox create` gerou, ou um projeto seu, com ou sem git.
+
+```bash
+unbox provision            # na pasta do projeto
+unbox provision --json     # para agentes: um objeto { status, repositorySshUrl, shopId, productionUrl }
+```
+
+1. **Provisiona** o repositório e a hospedagem da loja na Unbox e espera ficarem prontos. Leva
+   alguns minutos; quando uma etapa falha, o servidor tenta de novo sozinho, e a CLI chama de novo
+   uma vez quando faz sentido. Erros que repetir não resolve (endereço da loja já em uso, por
+   exemplo) param na hora, com o que informar à Unbox. Depois de 30 min, a CLI para e avisa: o
+   provisionamento continua no servidor, e rodar de novo é seguro.
+2. **Liga o git** à branch `deploy` da Unbox, que é onde o `unbox deploy` vai enviar o código:
+   - pasta sem git (ou sem commits): o repositório nasce na `deploy`, com os seus arquivos intactos;
+   - repositório com commits: a `deploy` é criada **ao lado** da sua branch atual, que não muda
+     (mesmo nome, mesmo histórico). O trabalho de publicação segue na `deploy`.
+3. Mostra o endereço de produção da loja (`https://<slug>.myunbox.com.br`), que exibe "Em breve"
+   até o primeiro `unbox publish`.
+
+Rodar de novo é seguro: mesma chave, nada duplicado. O que convém saber:
+
+- **A chave de deploy** fica em `~/.config/unbox/keys/<loja>_ed25519`, só nesta máquina. É a única
+  credencial do push. Em outra máquina, o `provision` para e explica: a loja já está ligada à
+  chave da primeira, e a troca é pedida à Unbox. Não copie a chave privada entre máquinas.
+- **O push só confia nas chaves do servidor git da Unbox que vêm na CLI** (gravadas em
+  `~/.config/unbox/known_hosts`). Se o servidor apresentar outra, o comando para: atualize a CLI e,
+  se continuar, fale com a Unbox.
+- **A CLI não grava `core.sshCommand`** no repositório: ele valeria para todos os remotes e
+  quebraria um `origin` por SSH (GitHub, por exemplo). Cada comando da CLI passa a chave só nas
+  chamadas que falam com a Unbox. Por isso um `git push unbox` feito à mão não funciona: use
+  `unbox deploy`.
+- **`.github/`, `.gitea/` e `.forgejo/` não vão para a Unbox** (o servidor recusa; o GitHub
+  Actions não roda lá). Se o projeto tiver alguma delas, o `provision` pede confirmação (`--yes`
+  confirma; com `--json`, sem `--yes`, ele para e lista os arquivos). Elas ficam fora da `deploy`
+  (o `.forgejo/` passa a ser o da Unbox) e continuam na sua branch. O `provision` também as põe no
+  `.git/info/exclude`, para nunca entrarem num commit da `deploy`; efeito colateral: arquivos
+  **novos** nessas pastas deixam de aparecer no `git status` da sua branch também.
+- **Nome e e-mail do git** são necessários quando o vínculo cria um commit (projeto com commits).
+  No terminal, a CLI pergunta e grava só neste repositório; com `--json` ou `--yes`, ela para e
+  mostra o `git config --global` a rodar.
+- **Antes de chamar a Unbox, a CLI confere a pasta** e para, sem mudar nada, se: houver mudanças
+  não commitadas (num projeto com commits), um merge ou rebase em andamento, o HEAD fora de uma
+  branch, uma branch `deploy` sua que não é a da Unbox, ou a pasta for parte de outro repositório.
+- **As variáveis do `.env.local` ainda não vão para a hospedagem** (isso entra com o `unbox env`).
+  Sem elas, o build da loja falha.
 
 ### Dois cuidados com o `npx`
 

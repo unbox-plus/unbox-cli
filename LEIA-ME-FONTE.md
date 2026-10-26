@@ -1,4 +1,4 @@
-# unbox (@unbox-plus/cli) · código-fonte (v0.26.0)
+# unbox (@unbox-plus/cli) · código-fonte (v0.27.0)
 
 Este repositório é o **repositório de trabalho**, não o artefato de uso. Quem só quer gerar loja
 roda o pacote publicado: `npx --package=@unbox-plus/cli unbox create`.
@@ -23,6 +23,13 @@ npm pack                    # gera o tarball (o prepack roda o gate de neutralid
 | `src/env.js` | o `.env` do projeto: `envValue` (quem escreve) e `loadProjectEnv` (quem lê, com o `@next/env`) |
 | `src/partner-api.js` | a conexão com a Partners API: camada fina sobre o `@unbox-plus/sdk`, traduz a recusa num `code` e numa mensagem |
 | `src/paths.js` | onde o pacote mora no disco (`TEMPLATE_DIR`) |
+| `src/commands/provision.js` | o `unbox provision`: checagens locais, provisionamento e vínculo, nessa ordem |
+| `src/provisioning.js` | o acompanhamento do provisionamento: quando chamar de novo, quando desistir (prazos medidos no backend) |
+| `src/storefront.js` | regras puras: códigos que não se repetem e o código do backend lido da mensagem do erro |
+| `src/git.js` | o estado do repositório (só leitura) e o vínculo com a `deploy` da Unbox, sem tocar nas branches do usuário |
+| `src/deploy-key.js` | a chave de deploy por loja e o `GIT_SSH_COMMAND` (nunca `core.sshCommand`) |
+| `src/known-hosts.js` | as host keys do servidor git, embutidas e conferidas com a infra |
+| `src/proc.js`, `src/config-dir.js` | programas externos sem shell, e a pasta `~/.config/unbox` |
 | `src/` (o resto) | presets de estilo (`presets.js`), aplicação de tokens e receitas (`theme.js`), cor (`colors.js`) |
 | `test/` | `node:test`; fora do tarball, público no GitHub (o gate varre) |
 | `template/` | **a foundation**: o projeto Next.js que vira a loja. É o grosso do repositório |
@@ -57,6 +64,13 @@ de versão do `package.json` dela. Da v0.26.0 em diante a própria CLI também d
   compara a árvore byte a byte. O wizard é respondido por `test/helpers/inject.mjs`
   (`prompts.inject`), então credenciais, `.mcp.json` e checkout hospedado também são comparados.
   Sem git ou sem `develop` (um checkout raso de CI, por exemplo), ele é pulado dizendo o motivo.
+- `git-link.test.js` e `provision.test.js` usam git e `ssh-keygen` de verdade numa HOME
+  temporária (`test/helpers/git-sandbox.mjs`): config global própria e um repositório bare no
+  papel do servidor da Unbox, com a URL SSH trocada por ele via `url.<bare>.insteadOf`. Nada do
+  `~/.gitconfig` ou do `~/.config/unbox` de quem roda é lido ou alterado. Sem `ssh-keygen`, os
+  testes que dependem dele são pulados.
+- `provisioning.test.js` usa uma API e um relógio falsos, com a linha do tempo do backend (uma
+  rodada que falha leva ~12 min até `FAILED`).
 - `partner-api.test.js` usa o SDK de verdade com um `fetch` falso, e as respostas de erro são as
   medidas no stage (api key recusada, `INVALID_CREDENTIALS_ERROR`, 403 do gateway).
 

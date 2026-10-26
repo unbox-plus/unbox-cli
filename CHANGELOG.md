@@ -1,5 +1,44 @@
 ## Changelog
 
+### v0.27.0 — `unbox provision`: a loja provisionada e o projeto ligado à branch `deploy`
+
+O primeiro comando de publicação. `unbox provision` cria o repositório e a hospedagem da loja na
+Unbox, espera ficarem prontos e liga o git do projeto à branch `deploy`, que é para onde o
+`unbox deploy` vai enviar o código. **Nada quebrou:** o `create` gera o mesmo projeto, e as
+branches de quem já tem git não mudam.
+
+- **A branch `deploy` é criada ao lado da sua, nunca no lugar dela.** Num projeto com commits, a
+  branch atual fica com o mesmo nome, o mesmo histórico e as mesmas pastas; a `deploy` nasce de um
+  merge com o histórico da Unbox (`-s ours`, então sem conflito, nem com o `README.md` que o
+  repositório da Unbox já traz). Os hooks do projeto (husky, lint-staged) não rodam nesse commit, e
+  se ele falhar a CLI desfaz tudo e volta para a sua branch. Num projeto sem git, o repositório já
+  nasce na `deploy`.
+- **`.github/`, `.gitea/` e `.forgejo/` ficam fora da `deploy`**, com confirmação, porque o
+  servidor recusa o push que as traz. Medido no Forgejo da Unbox: com elas removidas no commit do
+  merge, o histórico antigo que as tinha não impede o push. Elas vão para o `.git/info/exclude`,
+  para não voltarem num commit.
+- **Sem `core.sshCommand`.** Ele valeria para todos os remotes do repositório, e um `origin` por
+  SSH no GitHub passaria a falhar. A chave de deploy vai só nas chamadas da CLI à Unbox, por
+  `GIT_SSH_COMMAND`, e o caminho dela fica em `git config unbox.keyPath`.
+- **Chave de deploy por loja**, em `~/.config/unbox/keys/<loja>_ed25519` (pasta 0700, privada
+  0600). Rodar de novo reaproveita a mesma chave. Em outra máquina, o comando para e explica que a
+  troca de chave é pedida à Unbox, sem gerar chave nova nem mexer na atual.
+- **Host keys do servidor git embutidas**, conferidas no próprio servidor.
+  O push nunca aceita uma chave apresentada pelo servidor na primeira conexão, nunca pergunta, e
+  uma chave diferente para o comando com a orientação de atualizar a CLI.
+- **Prazos medidos no backend.** Uma rodada de provisionamento que falha leva ~12 min até virar
+  `FAILED` (4 tentativas com espera crescente). A CLI chama de novo uma vez depois de um `FAILED`,
+  troca a chave só quando o servidor a recusa por estar em uso, para na hora nos erros que repetir
+  não resolve (endereço da loja em uso, slug inválido, limite da hospedagem) e desiste em 30 min
+  dizendo que rodar de novo é seguro.
+- **Tudo que é local é conferido antes da primeira chamada à API**: credenciais, mudanças não
+  commitadas, merge ou rebase em andamento, HEAD destacado, uma `deploy` sua que não é a da Unbox,
+  projeto ligado a outra loja, pasta dentro de outro repositório, nome e e-mail do git.
+- **`--json`** devolve `{ status, repositorySshUrl, shopId, productionUrl }`. O endereço de produção
+  é melhor esforço: se a consulta falhar, vem `null` com um aviso, sem desfazer o vínculo.
+- **Testes** com git e `ssh-keygen` de verdade numa HOME temporária, e com a linha do tempo do
+  backend num relógio falso.
+
 ### v0.26.0 — o comando agora é `unbox`, e a CLI passa a falar com a Partners API
 
 O pacote ganhou um binário com subcomandos, `unbox`, e a base que os comandos de publicação da loja
