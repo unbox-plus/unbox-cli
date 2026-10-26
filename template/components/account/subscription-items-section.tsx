@@ -112,7 +112,7 @@ export function SubscriptionItemsSection({
     }
   }
 
-  // Pausada: o modal não abre; o link leva ao botão de retomar
+  // Pausada: o modal não abre; o link leva ao botão de reativar
   const entry =
     canEdit && status === "PAUSED" ? (
       <a href="#gerenciar" className={LINK}>
