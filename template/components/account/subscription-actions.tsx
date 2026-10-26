@@ -12,7 +12,6 @@ import {
   MapPin,
   CreditCard,
   CircleNotch,
-  Trash,
   ListChecks,
 } from "@phosphor-icons/react/dist/ssr";
 import {
@@ -38,14 +37,10 @@ import {
   emptyAddress,
   type AddressValue,
 } from "@/components/address-fields";
-import { QuantityStepper } from "@/components/quantity-stepper";
 import { InlineAlert } from "@/components/account/subscription-editor/inline-alert";
-import { PriceCompare } from "@/components/account/subscription-editor/price-compare";
 import { VariantChips } from "@/components/account/subscription-editor/variant-chips";
-import { ItemStatusTag } from "@/components/account/subscription-editor/item-status-tag";
+import { SubscriptionEditorItem } from "@/components/account/subscription-editor/subscription-editor-item";
 import { nameKey } from "@/lib/subscription-items";
-import { formatBRL } from "@/lib/format";
-import { Foto } from "@/components/ui/foto";
 
 const BTN_PRIMARY =
   "font-display inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-xl bg-[var(--store-primary,#18181B)] px-5 text-[14px] font-bold text-white transition-colors hover:bg-[var(--store-primary-dark,#09090B)] disabled:opacity-60";
@@ -101,6 +96,7 @@ export function SubscriptionActions({
   const [addrOpen, setAddrOpen] = React.useState(false);
   const [cardOpen, setCardOpen] = React.useState(false);
   const [itemsOpen, setItemsOpen] = React.useState(false);
+  const [removidos, setRemovidos] = React.useState<Set<number>>(new Set()); // índices marcados; só saem ao salvar
   const [trocando, setTrocando] = React.useState<number | null>(null); // item com o painel de variação aberto
 
   const [addr, setAddr] = React.useState<AddressValue>(emptyAddress);
@@ -217,6 +213,7 @@ export function SubscriptionActions({
             className={CHIP}
             onClick={() => {
               setEditItems(items);
+              setRemovidos(new Set());
               setItemsOpen(true);
             }}
           >
@@ -373,7 +370,7 @@ export function SubscriptionActions({
 
       {/* Itens */}
       <Dialog open={itemsOpen} onOpenChange={setItemsOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Alterar itens</DialogTitle>
             <DialogDescription>
@@ -388,54 +385,46 @@ export function SubscriptionActions({
               const d = detalhes[nameKey(it)];
               const titulo = d?.titulo ?? it.productId;
               const before = items.find((x) => nameKey(x) === nameKey(it))?.quantity;
+              const removido = removidos.has(i);
               return (
-                <li
-                  key={`${it.productId}:${i}`}
-                  className="flex items-start gap-3 py-3.5 first:pt-0 text-sm"
-                >
-                  <div className="size-14 shrink-0 overflow-hidden rounded-lg bg-[var(--store-surface-2)]">
-                    {d?.foto && (
-                      <Foto
-                        src={d.foto}
-                        alt=""
-                        width={56}
-                        height={56}
-                        sizes="56px"
-                        className="size-full object-cover"
-                      />
-                    )}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="font-bold text-[var(--store-ink)]">
-                          {titulo}
-                        </p>
-                        {d?.variacao && (
-                          <p className="flex flex-wrap items-baseline gap-x-1.5 text-[13px] text-[var(--store-muted)]">
-                            <span>{d.variacao}</span>
-                            {d.variantes && (
-                              <>
-                                <span aria-hidden>·</span>
-                                <button
-                                  type="button"
-                                  aria-expanded={trocando === i}
-                                  className="cursor-pointer border-none bg-transparent p-0 text-[13px] font-bold text-[var(--store-ink)] underline underline-offset-3"
-                                  onClick={() => setTrocando(trocando === i ? null : i)}
-                                >
-                                  {trocando === i ? "Fechar" : "Trocar"}
-                                </button>
-                              </>
-                            )}
-                          </p>
-                        )}
-                      </div>
-                      {d?.unit != null && (
-                        <p className="font-display whitespace-nowrap font-extrabold tabular-nums text-[var(--store-ink)]">
-                          {formatBRL(d.unit * it.quantity)}
-                        </p>
-                      )}
-                    </div>
+                <li key={`${it.productId}:${i}`} className="py-3.5 first:pt-0">
+                  <SubscriptionEditorItem
+                    item={{
+                      name: titulo,
+                      image: d?.foto,
+                      variant: d?.variacao,
+                      quantity: it.quantity,
+                      price: d?.unit,
+                      compareAtPrice: d?.riscado,
+                      previousQuantity: before,
+                      status: d?.variantes?.find((v) => v.id === it.variantId)?.esgotado ? "outOfStock" : undefined,
+                    }}
+                    canChangeQuantity={actions.canChangeProductQuantity}
+                    canRemove={actions.canRemoveProducts}
+                    isLastActiveItem={editItems.length - removidos.size <= 1 && !removido}
+                    isRemoved={removido}
+                    variantAction={
+                      d?.variantes && (
+                        <button
+                          type="button"
+                          aria-expanded={trocando === i}
+                          className="cursor-pointer border-none bg-transparent p-0 text-[13px] font-bold text-[var(--store-ink)] underline underline-offset-3"
+                          onClick={() => setTrocando(trocando === i ? null : i)}
+                        >
+                          {trocando === i ? "Fechar" : "Trocar"}
+                        </button>
+                      )
+                    }
+                    onQuantityChange={(q) => setEditItems((arr) => arr.map((x, j) => (j === i ? { ...x, quantity: q } : x)))}
+                    onRemove={() => setRemovidos((s) => new Set(s).add(i))}
+                    onUndo={() =>
+                      setRemovidos((s) => {
+                        const n = new Set(s);
+                        n.delete(i);
+                        return n;
+                      })
+                    }
+                  >
                     {d?.variantes && trocando === i && (
                       <VariantChips
                         className="mt-2 rounded-lg bg-[var(--store-surface-2)] p-3"
@@ -454,44 +443,7 @@ export function SubscriptionActions({
                         onChange={(v) => setEditItems((arr) => arr.map((x, j) => (j === i ? { ...x, variantId: v } : x)))}
                       />
                     )}
-                    {d?.unit != null && (
-                      <p className="mt-1 text-[13px] text-[var(--store-muted)]">
-                        <PriceCompare price={d.unit} compareAtPrice={d.riscado} className="font-normal" /> cada
-                      </p>
-                    )}
-                    {before != null && before !== it.quantity && (
-                      <ItemStatusTag status="picksChanged" className="mt-1">
-                        Antes: {before}
-                      </ItemStatusTag>
-                    )}
-                    <div className="mt-3 flex items-center justify-between gap-3">
-                      <QuantityStepper
-                        value={it.quantity}
-                        label={
-                          d?.variacao ? `${titulo} · ${d.variacao}` : titulo
-                        }
-                        readOnly={!actions.canChangeProductQuantity}
-                        onChange={(q) =>
-                          setEditItems((arr) =>
-                            arr.map((x, j) =>
-                              j === i ? { ...x, quantity: q } : x,
-                            ),
-                          )
-                        }
-                      />
-                      {actions.canRemoveProducts && editItems.length > 1 && (
-                        <button
-                          type="button"
-                          className="inline-flex cursor-pointer items-center gap-1.5 border-none bg-transparent p-1.5 text-[13px] font-bold text-[var(--store-muted)]"
-                          onClick={() =>
-                            setEditItems((arr) => arr.filter((_, j) => j !== i))
-                          }
-                        >
-                          <Trash weight="bold" /> Remover
-                        </button>
-                      )}
-                    </div>
-                  </div>
+                  </SubscriptionEditorItem>
                 </li>
               );
             })}
@@ -509,7 +461,7 @@ export function SubscriptionActions({
               className={BTN_PRIMARY}
               disabled={busy === "items"}
               onClick={() =>
-                run("items", { items: editItems }, "Itens atualizados.").then(
+                run("items", { items: editItems.filter((_, j) => !removidos.has(j)) }, "Itens atualizados.").then(
                   (ok) => ok && setItemsOpen(false),
                 )
               }
