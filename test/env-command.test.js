@@ -98,6 +98,17 @@ test("envia as chaves do arquivo, com os valores na chamada e só os nomes na sa
   semValores(r, [...Object.values(VALORES), "api_loja", "da2-chave-do-parceiro"]);
 });
 
+test("vazias: uma linha só com os nomes, sem um aviso por chave", async () => {
+  const dir = projeto(CREDENCIAIS + ARQUIVO_VALORES + "GA_ID=\nPIXEL_ID=\nWHATSAPP=\nTZ=America/Sao_Paulo\n");
+  const r = await roda(dir, [], { json: false });
+  assert.equal(r.erro, undefined, r.erro?.message);
+  assert.match(r.stderr, /3 variáveis vazias no \.env\.local, não enviadas \(opcionais em branco\): GA_ID, PIXEL_ID, WHATSAPP\./);
+  assert.doesNotMatch(r.stderr, /Aviso: GA_ID/);
+  assert.match(r.stderr, /Aviso: TZ não foi enviada: o nome é reservado/);
+  assert.match(r.stdout, /Não enviadas \(1\): TZ/);
+  assert.match(r.stdout, /Vazias no arquivo, não enviadas: 3/);
+});
+
 test("texto: enviadas, não enviadas e o próximo passo", async () => {
   const dir = projeto(CREDENCIAIS + ARQUIVO_VALORES + "TZ=America/Sao_Paulo\n");
   const r = await roda(dir, [], { json: false });

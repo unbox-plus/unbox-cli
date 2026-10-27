@@ -230,6 +230,17 @@ test("texto: a linha das variáveis no lugar do aviso antigo", { skip: semKeygen
   assert.doesNotMatch(r.stdout, /ainda não vão para a hospedagem/);
 });
 
+test("texto: vazias contadas à parte das que pedem ação", { skip: semKeygen }, async () => {
+  const sb = sandbox();
+  remotoDaUnbox(sb);
+  const dir = projetoSemGit(sb);
+  escreve(dir, ".env.local", `UNBOX_PARTNER_API_KEY=da2-chave-do-parceiro\nUNBOX_USER=api_loja\nUNBOX_PASS=${SENHA}\nGA_ID=\nPIXEL_ID=\nTZ=America/Sao_Paulo\n`);
+  const r = await roda(dir, {});
+  assert.equal(r.erro, undefined, r.erro?.message);
+  assert.match(r.stdout, /Variáveis: {4}3 enviadas para a hospedagem, 2 vazias, 1 não enviada \(veja os avisos\)/);
+  assert.match(r.stderr, /2 variáveis vazias no \.env\.local/);
+});
+
 test("variáveis que falham no meio: o texto diz quantas foram, o --json lista os nomes", { skip: semKeygen }, async () => {
   const sb = sandbox();
   remotoDaUnbox(sb);

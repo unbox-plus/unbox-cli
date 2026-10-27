@@ -193,7 +193,8 @@ unbox env --json                   # { sent, skipped, fromTerminal, keys }
 - **Vão as chaves do arquivo**, com o valor que o `next dev` vê: uma variável exportada no
   terminal com o mesmo nome vence a do arquivo, e o comando avisa quais. Variáveis que existem só
   no terminal não vão (se for uma das credenciais, o comando avisa que o build vai falhar).
-- **Não vão**, com aviso e sem atrapalhar as outras: as vazias, nomes fora do formato (letras
+- **Não vão**, sem atrapalhar as outras: as vazias (numa linha só, porque opcional em branco é
+  escolha), e, com um aviso por chave, nomes fora do formato (letras
   maiúsculas, dígitos e `_`, começando por letra), valores acima de 16384 caracteres, e os nomes
   reservados: `TZ` e os que começam com `VERCEL_`, `NEXT_PUBLIC_VERCEL_`, `NOW_`, `AWS_` e `LAMBDA_`.
 - **`NEXT_PUBLIC_SITE_URL` é gerenciada pela Unbox**: vai receber o endereço de produção da loja,

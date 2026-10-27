@@ -16,7 +16,9 @@ import {
   joiIndex,
   lotes,
   mensagemPulada,
+  mensagemVazias,
   planSet,
+  separaVazias,
   validaUnset,
 } from "../environment.js";
 
@@ -125,7 +127,9 @@ async function gravaLote(api, lote, ctx) {
  */
 export async function syncEnvironment({ api, loaded, out }) {
   const { set, skipped, fromTerminal } = planSet(loaded);
-  for (const item of skipped) out.warn(`  ${item.reason === "gerenciada" ? "" : "Aviso: "}${mensagemPulada(item)}`);
+  const { vazias, outras } = separaVazias(skipped);
+  for (const item of outras) out.warn(`  ${item.reason === "gerenciada" ? "" : "Aviso: "}${mensagemPulada(item)}`);
+  if (vazias.length) out.warn(`  ${mensagemVazias(vazias, loaded.envFile)}`);
   if (fromTerminal.length) {
     out.warn(`  Aviso: valor do ambiente do terminal, que vence o do ${loaded.envFile}: ${fromTerminal.join(", ")}.`);
   }
@@ -165,7 +169,9 @@ function textoEnvio(d) {
   }
   const linhas = ["", "✓ Variáveis enviadas para a hospedagem", ""];
   linhas.push(`  Enviadas (${d.sent.length}): ${d.sent.join(", ")}`);
-  if (d.skipped.length) linhas.push(`  Não enviadas (${d.skipped.length}): ${d.skipped.map((s) => s.key).join(", ")} (motivos nos avisos acima)`);
+  const { vazias, outras } = separaVazias(d.skipped);
+  if (outras.length) linhas.push(`  Não enviadas (${outras.length}): ${outras.map((s) => s.key).join(", ")} (motivos nos avisos acima)`);
+  if (vazias.length) linhas.push(`  Vazias no arquivo, não enviadas: ${vazias.length}`);
   linhas.push("", `  ${PROXIMO_PASSO}`, "");
   return linhas.join("\n");
 }

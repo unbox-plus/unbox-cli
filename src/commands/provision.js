@@ -16,6 +16,7 @@ import { assertKnownGitUrl, writeKnownHosts } from "../known-hosts.js";
 import { provisionAndWait } from "../provisioning.js";
 import { linkDeploy, linkMode, needsCommit, repoProblem, repoState } from "../git.js";
 import { askIdentity } from "../identity.js";
+import { separaVazias } from "../environment.js";
 import { syncEnvironment } from "./env.js";
 
 export const help = `
@@ -114,7 +115,8 @@ function texto(d, extra) {
   } else if (d.env && !d.env.sent.length) {
     linhas.push("  Variáveis:    nenhuma enviada; sem elas o build da loja falha. Preencha o .env.local e rode unbox env");
   } else if (d.env) {
-    const puladas = d.env.skipped.length ? `, ${d.env.skipped.length} não enviadas (veja os avisos)` : "";
+    const { vazias, outras } = separaVazias(d.env.skipped);
+    const puladas = (vazias.length ? `, ${vazias.length} vazias` : "") + (outras.length ? `, ${outras.length} não ${outras.length === 1 ? "enviada" : "enviadas"} (veja os avisos)` : "");
     linhas.push(`  Variáveis:    ${d.env.sent.length} enviadas para a hospedagem${puladas}`);
   }
   linhas.push("");

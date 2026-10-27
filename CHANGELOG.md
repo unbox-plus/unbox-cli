@@ -15,6 +15,9 @@ seguem iguais.
   formato. A CLI pula, com aviso pelo nome, as vazias, os nomes inválidos, os valores acima de 16384
   caracteres e os reservados (`TZ`, `VERCEL_*`, `NEXT_PUBLIC_VERCEL_*`, `NOW_*`, `AWS_*`, `LAMBDA_*`).
   `NEXT_PUBLIC_SITE_URL` tem aviso próprio: é gerenciada pela Unbox.
+- **Vazias numa linha só.** O template traz dezenas de opcionais em branco (pixel, GA, WhatsApp);
+  um aviso por chave escondia o que pede ação. As vazias saem juntas, com os nomes, e o texto final
+  as conta à parte.
 - **Reservada nova no backend:** se a API recusar um lote por um nome que a CLI não conhece, o lote
   é dividido ao meio até achar a chave, que é pulada com aviso; o resto é gravado.
 - **Lotes de 50** (o limite da API por chamada). Falha no meio diz quantas variáveis já foram

@@ -107,6 +107,22 @@ export function mensagemPulada({ key, reason }) {
   return (TEXTO[reason] ?? ((k) => `${k} não foi enviada.`))(key);
 }
 
+/**
+ * As puladas por estarem vazias ficam à parte: o template traz dezenas de opcionais em branco
+ * (pixel, GA, WhatsApp...), deixar em branco é escolha, e um aviso por chave escondia o que pede ação.
+ */
+export function separaVazias(skipped) {
+  const vazias = [];
+  const outras = [];
+  for (const item of skipped) (item.reason === "vazia" ? vazias : outras).push(item);
+  return { vazias: vazias.map((s) => s.key), outras };
+}
+
+export function mensagemVazias(keys, envFile) {
+  const n = keys.length;
+  return `${n} ${n === 1 ? "variável vazia" : "variáveis vazias"} no ${envFile}, não ${n === 1 ? "enviada" : "enviadas"} (opcionais em branco): ${keys.join(", ")}.`;
+}
+
 const INDICE = /"(set|unset)\[(\d+)\]/;
 
 /**
