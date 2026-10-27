@@ -21,15 +21,22 @@ function credenciais(dir) {
   escreve(dir, ".env.local", `UNBOX_PARTNER_API_KEY=da2-chave-do-parceiro\nUNBOX_USER=api_loja\nUNBOX_PASS=${SENHA}\n`);
 }
 
-/** API falsa: READY na primeira leitura depois da mutation. `producao` pode lançar. */
-function apiFalsa({ producao = () => ({ url: "https://loja-teste.myunbox.com.br" }) } = {}) {
+/**
+ * API falsa: READY na primeira leitura depois da mutation. `producao` e `ambiente` podem lançar;
+ * `ambiente` recebe o input da gravação das variáveis. `chamadas` guarda o nome da operação.
+ */
+function apiFalsa({
+  producao = () => ({ url: "https://loja-teste.myunbox.com.br" }),
+  ambiente = (input) => ({ keys: input.set.map((x) => x.key).sort() }),
+} = {}) {
   const chamadas = [];
   let provisionada = false;
   const api = {
     endpoint: "https://partners.teste/graphql",
     async shopId() { chamadas.push("shopId"); return "loja1"; },
     async request(query, vars) {
-      chamadas.push(query.split(/[\s({]/).filter(Boolean)[0] + (vars?.input ? ":mutation" : ""));
+      chamadas.push(query.match(/\{\s*(\w+)/)[1]);
+      if (/setCustomStorefrontEnvironment/.test(query)) return { setCustomStorefrontEnvironment: ambiente(vars.input) };
       if (/provisionCustomStorefront/.test(query)) {
         provisionada = true;
         return { provisionCustomStorefront: { _id: "sf1", status: "PROVISIONING", currentStep: "GIT_REPOSITORY", repositorySshUrl: null, lastErrorCode: null } };
@@ -68,8 +75,20 @@ test("--json, pasta do unbox create: um único objeto, deploy criada, nada de se
   const obj = JSON.parse(r.stdout);
   assert.deepEqual(obj, {
     ok: true,
-    data: { status: "READY", repositorySshUrl: SSH_URL, shopId: "loja1", productionUrl: "https://loja-teste.myunbox.com.br" },
+    data: {
+      status: "READY",
+      repositorySshUrl: SSH_URL,
+      shopId: "loja1",
+      productionUrl: "https://loja-teste.myunbox.com.br",
+      env: {
+        sent: ["UNBOX_PARTNER_API_KEY", "UNBOX_USER", "UNBOX_PASS"],
+        skipped: [],
+        fromTerminal: [],
+        keys: ["UNBOX_PARTNER_API_KEY", "UNBOX_PASS", "UNBOX_USER"],
+      },
+    },
   });
+  assert.ok(r.chamadas.includes("setCustomStorefrontEnvironment"));
   assert.equal(g(dir, "symbolic-ref", "--short", "HEAD"), "deploy");
   const privada = fs.readFileSync(path.join(sb.home, ".config/unbox/keys/loja1_ed25519"), "utf8");
   for (const s of [r.stdout, r.stderr]) {
@@ -149,4 +168,96 @@ test("argumento posicional é uso incorreto", async () => {
   const sb = sandbox();
   const out = createOutput({ json: true, stdout: { write() {} }, stderr: { write() {} } });
   await assert.rejects(runProvision(["pasta"], { dir: sb.raiz }, { out }), (e) => e.code === "USAGE");
+});
+
+test("variáveis: valores do .env.local não viram *** no shopId nem nos endereços", { skip: semKeygen }, async () => {
+  const sb = sandbox();
+  remotoDaUnbox(sb);
+  const dir = projetoSemGit(sb);
+  // Valores que aparecem dentro do resultado do provision: se a CLI os registrasse como segredo, o
+  // filtro da saída trocaria pedaços do shopId e das URLs por ***.
+  escreve(dir, ".env.local", [
+    "UNBOX_PARTNER_API_KEY=da2-chave-do-parceiro",
+    "UNBOX_USER=api_loja",
+    `UNBOX_PASS=${SENHA}`,
+    "UNBOX_SHOP_ID=loja1",
+    "UNBOX_SHOP_SLUG=loja-teste",
+    "UNBOX_PARTNER_GRAPHQL_URL=https://partners.teste/graphql",
+    "NEXT_PUBLIC_SITE_URL=http://localhost:3000",
+    "",
+  ].join("\n"));
+  const r = await roda(dir, { json: true });
+  assert.equal(r.erro, undefined, r.erro?.message);
+  const { data } = JSON.parse(r.stdout);
+  assert.equal(data.productionUrl, "https://loja-teste.myunbox.com.br");
+  assert.equal(data.repositorySshUrl, SSH_URL);
+  assert.ok(!r.stdout.includes("***"));
+  assert.ok(data.env.sent.includes("UNBOX_SHOP_SLUG"));
+  assert.deepEqual(data.env.skipped, [{ key: "NEXT_PUBLIC_SITE_URL", reason: "gerenciada" }]);
+  assert.match(r.stderr, /NEXT_PUBLIC_SITE_URL não foi enviada: é gerenciada pela Unbox/);
+});
+
+test("variáveis que falham viram aviso: o provision termina com sucesso", { skip: semKeygen }, async () => {
+  const sb = sandbox();
+  remotoDaUnbox(sb);
+  const dir = projetoSemGit(sb);
+  credenciais(dir);
+  const falsa = apiFalsa({
+    ambiente: (input) => {
+      throw new Error(`CUSTOM_STOREFRONT_HOSTING_SET_ENVIRONMENT_ERROR ${JSON.stringify(input)}`);
+    },
+  });
+  const r = await roda(dir, { json: true }, { falsa });
+  assert.equal(r.erro, undefined, r.erro?.message);
+  const obj = JSON.parse(r.stdout);
+  assert.equal(obj.ok, true);
+  assert.equal(obj.data.env.error.code, "CUSTOM_STOREFRONT_HOSTING_SET_ENVIRONMENT_ERROR");
+  assert.match(r.stderr, /não consegui enviar as variáveis .*rode unbox env/);
+  for (const s of [r.stdout, r.stderr]) {
+    assert.ok(!s.includes(SENHA));
+    assert.ok(!s.includes("api_loja"));
+  }
+});
+
+test("texto: a linha das variáveis no lugar do aviso antigo", { skip: semKeygen }, async () => {
+  const sb = sandbox();
+  remotoDaUnbox(sb);
+  const dir = projetoSemGit(sb);
+  credenciais(dir);
+  const r = await roda(dir, {});
+  assert.equal(r.erro, undefined, r.erro?.message);
+  assert.match(r.stdout, /Variáveis: {4}3 enviadas para a hospedagem/);
+  assert.doesNotMatch(r.stdout, /ainda não vão para a hospedagem/);
+});
+
+test("variáveis que falham no meio: o texto diz quantas foram, o --json lista os nomes", { skip: semKeygen }, async () => {
+  const sb = sandbox();
+  remotoDaUnbox(sb);
+  const dir = projetoSemGit(sb);
+  const extras = Array.from({ length: 48 }, (_, i) => `VAR_${i}=v${i}`).join("\n");
+  escreve(dir, ".env.local", `UNBOX_PARTNER_API_KEY=da2-chave-do-parceiro\nUNBOX_USER=api_loja\nUNBOX_PASS=${SENHA}\n${extras}\n`);
+  let n = 0;
+  const falsa = apiFalsa({
+    ambiente: (input) => {
+      if (++n === 2) throw new Error("CUSTOM_STOREFRONT_HOSTING_SET_ENVIRONMENT_ERROR");
+      return { keys: input.set.map((x) => x.key) };
+    },
+  });
+  const json = await roda(dir, { json: true }, { falsa });
+  assert.equal(json.erro, undefined, json.erro?.message);
+  const { env } = JSON.parse(json.stdout).data;
+  assert.equal(env.sent.length, 50);
+  assert.equal(env.error.code, "CUSTOM_STOREFRONT_HOSTING_SET_ENVIRONMENT_ERROR");
+});
+
+test("nenhuma variável enviada: o texto avisa que o build vai falhar", { skip: semKeygen }, async () => {
+  const sb = sandbox();
+  remotoDaUnbox(sb);
+  const dir = projetoSemGit(sb);
+  process.env.UNBOX_PARTNER_API_KEY = "da2-chave-do-parceiro";
+  process.env.UNBOX_USER = "api_loja";
+  process.env.UNBOX_PASS = SENHA;
+  const r = await roda(dir, {});
+  assert.equal(r.erro, undefined, r.erro?.message);
+  assert.match(r.stdout, /Variáveis: {4}nenhuma enviada; sem elas o build da loja falha/);
 });
