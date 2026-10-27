@@ -1,5 +1,41 @@
 ## Changelog
 
+### v0.29.0 — `unbox env`: as variáveis do `.env.local` na hospedagem da loja
+
+O `.env.local` não vai no push, e sem as variáveis o build da loja falha no login da Partners API.
+`unbox env` grava as variáveis do arquivo no projeto de hospedagem, para os builds de preview e de
+produção, e o `unbox provision` passa a fazer isso no fim. **Nada quebrou:** `create` e `deploy`
+seguem iguais.
+
+- **Vão as chaves do arquivo, com o valor que o `next dev` vê.** O mesmo parser do Next: uma
+  variável do terminal com o mesmo nome vence a do arquivo (e o comando avisa quais), e `$VAR` é
+  expandido. Variável que existe só no terminal não vai; se for uma das credenciais, o aviso diz que
+  o build vai falhar no login.
+- **O filtro local poupa o lote.** A API recusa a chamada inteira por uma chave reservada ou fora do
+  formato. A CLI pula, com aviso pelo nome, as vazias, os nomes inválidos, os valores acima de 16384
+  caracteres e os reservados (`TZ`, `VERCEL_*`, `NEXT_PUBLIC_VERCEL_*`, `NOW_*`, `AWS_*`, `LAMBDA_*`).
+  `NEXT_PUBLIC_SITE_URL` tem aviso próprio: é gerenciada pela Unbox.
+- **Reservada nova no backend:** se a API recusar um lote por um nome que a CLI não conhece, o lote
+  é dividido ao meio até achar a chave, que é pulada com aviso; o resto é gravado.
+- **Lotes de 50** (o limite da API por chamada). Falha no meio diz quantas variáveis já foram
+  gravadas (no `provision`, o `--json` lista os nomes em `env.sent`); rodar de novo é seguro,
+  porque a gravação substitui o valor.
+- **`--list`** mostra o que está na hospedagem, o que do arquivo ainda não foi enviado, o que o
+  comando pularia e o que só existe lá (sem as gerenciadas, que o `--unset` recusa). Compara só
+  nomes: a API nunca devolve valores.
+- **Variável vazia no terminal** (`export X=`) vence o arquivo, como no Next; o aviso aponta o
+  terminal, e não o arquivo.
+- **`--unset CHAVE...`** remove da hospedagem, e avisa quando a chave continua no arquivo.
+- **Nenhum valor na saída**, nem em erro, nem com `--json`, nem com `UNBOX_DEBUG=1`. Os erros da API
+  não são repassados com a mensagem original (a validação do servidor poderia ecoar o que recebeu);
+  a CLI escreve a própria, e na recusa de uma variável diz qual pelo índice. Os valores também não
+  entram no filtro de segredos da saída, que trocaria por `***` o slug da loja dentro das URLs do
+  `provision`.
+- **`provision`:** envia as variáveis depois de ligar o git. Se falhar, só avisa e termina com
+  sucesso (a loja e o vínculo já estão prontos); o `--json` ganha `env`.
+- **Só builds novos usam as variáveis:** a mensagem final orienta `unbox deploy` e depois
+  `unbox publish` (publicar de novo o commit que já está no ar não refaz o build).
+
 ### v0.28.0 — `unbox deploy`: as mudanças viram preview, sem passos de git à mão
 
 Substitui o antigo `ubx save`. `unbox deploy` commita as mudanças, envia a branch `deploy` para a
