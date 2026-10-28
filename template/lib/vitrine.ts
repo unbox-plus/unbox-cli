@@ -21,7 +21,14 @@ import { unstable_cache } from "next/cache";
 import { getCatalog, getProductBySlug } from "./queries";
 import { withStoreClient } from "./unbox";
 import { resolveProductPrice } from "./format";
-import { CAMPO_VITRINE, VITRINE_MAX, vitrineValida, type ContentDocument, type VitrineValue } from "./editable/document";
+import { umKitPorBundle } from "./catalog-map";
+import {
+  CAMPO_VITRINE,
+  VITRINE_MAX,
+  vitrineValida,
+  type ContentDocument,
+  type VitrineValue,
+} from "./editable/document";
 
 /**
  * O que a loja mostra de um produto numa vitrine — e, campo por campo, o que o
@@ -71,7 +78,9 @@ const VITRINES_POR_PAGINA_MAX = 12;
 
 /** Limite pedido, preso entre 1 e `VITRINE_MAX` (o teto da foundation). */
 export function limiteDaVitrine(limite?: number | null): number {
-  const n = Number.isInteger(limite) ? (limite as number) : VITRINE_LIMITE_PADRAO;
+  const n = Number.isInteger(limite)
+    ? (limite as number)
+    : VITRINE_LIMITE_PADRAO;
   return Math.max(1, Math.min(VITRINE_MAX, n));
 }
 
@@ -93,7 +102,10 @@ export function produtoDaVitrine(node: any): VitrineProduto | null {
 
 function mapear(nodes: any[] | undefined, limite: number): VitrineProduto[] {
   const out: VitrineProduto[] = [];
-  for (const n of nodes ?? []) {
+
+  for (const n of umKitPorBundle(
+    (nodes ?? []).map((x: any) => x?.product ?? x),
+  )) {
     const p = produtoDaVitrine(n);
     if (p) out.push(p);
     if (out.length >= limite) break;
@@ -131,7 +143,10 @@ const porId = (id: string) =>
  * costuma ser produto apagado do painel, não Unbox fora do ar, e derrubar a
  * vitrine inteira por causa de um item some com os outros quatro.
  */
-export async function resolverVitrine(escolha: VitrineValue, opts?: { estrito?: boolean }): Promise<VitrineProduto[]> {
+export async function resolverVitrine(
+  escolha: VitrineValue,
+  opts?: { estrito?: boolean },
+): Promise<VitrineProduto[]> {
   const limite = limiteDaVitrine(escolha.limite);
 
   if (escolha.modo === "categoria") {
@@ -153,14 +168,17 @@ export async function resolverVitrine(escolha: VitrineValue, opts?: { estrito?: 
   // Repetido entra uma vez só: a mesma vitrine mostrando o mesmo produto duas vezes é defeito, não escolha.
   const semRepetir = [...new Set(escolha.produtos)];
   const pedidos = semRepetir.slice(0, VITRINE_MAX);
-  const pagina = opts?.estrito ? await getCatalog({ first: 100 }) : await getCatalog({ first: 100 }).catch(() => null);
+  const pagina = opts?.estrito
+    ? await getCatalog({ first: 100 })
+    : await getCatalog({ first: 100 }).catch(() => null);
   const achados = new Map<string, VitrineProduto>();
   const indexar = (node: any) => {
     const p = node?.product ?? node;
     const item = produtoDaVitrine(node);
     if (!item) return;
     // o lojista pode ter guardado productId, _id ou slug — os três apontam para cá
-    for (const chave of [p.productId, p._id, p.slug]) if (chave) achados.set(String(chave), item);
+    for (const chave of [p.productId, p._id, p.slug])
+      if (chave) achados.set(String(chave), item);
   };
   for (const n of pagina?.nodes ?? []) indexar(n);
 
@@ -181,9 +199,13 @@ export async function resolverVitrine(escolha: VitrineValue, opts?: { estrito?: 
   // slug depois de o slug mudar no painel. Registrar dá o "por quê" a quem for olhar o log.
   const perdidos = pedidos.filter((id) => !achados.has(id));
   if (perdidos.length) {
-    console.warn(`[unbox] vitrine: ${perdidos.length} vínculo(s) não resolveram e sumiram da seção: ${perdidos.join(", ")}`);
+    console.warn(
+      `[unbox] vitrine: ${perdidos.length} vínculo(s) não resolveram e sumiram da seção: ${perdidos.join(", ")}`,
+    );
   }
-  return pedidos.map((id) => achados.get(id)).filter((p): p is VitrineProduto => !!p);
+  return pedidos
+    .map((id) => achados.get(id))
+    .filter((p): p is VitrineProduto => !!p);
 }
 
 /** Produtos já resolvidos, indexados pelo CAMINHO da vitrine — é assim que a seção acha os seus. */
@@ -204,11 +226,19 @@ export type VitrinesResolvidas = Record<string, VitrineProduto[]>;
  * Cada seção tem o SEU caminho, então duas vitrines na mesma página têm duas
  * escolhas independentes.
  */
-export function caminhosDeVitrine(doc: ContentDocument | null | undefined, container = "home"): string[] {
+export function caminhosDeVitrine(
+  doc: ContentDocument | null | undefined,
+  container = "home",
+): string[] {
   const prefixo = `${container}.`;
   const sufixo = `.${CAMPO_VITRINE}`;
   return Object.entries(doc?.values ?? {})
-    .filter(([caminho, valor]) => caminho.startsWith(prefixo) && caminho.endsWith(sufixo) && vitrineValida(valor))
+    .filter(
+      ([caminho, valor]) =>
+        caminho.startsWith(prefixo) &&
+        caminho.endsWith(sufixo) &&
+        vitrineValida(valor),
+    )
     .map(([caminho]) => caminho)
     .sort()
     .slice(0, VITRINES_POR_PAGINA_MAX);
@@ -232,7 +262,11 @@ export async function resolverVitrinesDoDocumento(
     caminhos.map(async (caminho) => {
       const escolha = doc!.values[caminho] as VitrineValue;
       const produtos = await resolverVitrine(escolha).catch((err) => {
-        console.warn("[vitrine] não consegui resolver", caminho, err instanceof Error ? err.message : err);
+        console.warn(
+          "[vitrine] não consegui resolver",
+          caminho,
+          err instanceof Error ? err.message : err,
+        );
         return [] as VitrineProduto[];
       });
       return [caminho, produtos] as const;
@@ -240,5 +274,7 @@ export async function resolverVitrinesDoDocumento(
   );
   // caminho que não resolveu em NADA fica de fora: a seção some do mapa e volta
   // para os produtos do código, em vez de renderizar uma grade vazia
-  return Object.fromEntries(pares.filter(([, produtos]) => produtos.length > 0));
+  return Object.fromEntries(
+    pares.filter(([, produtos]) => produtos.length > 0),
+  );
 }

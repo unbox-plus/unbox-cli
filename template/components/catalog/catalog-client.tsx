@@ -365,7 +365,7 @@ export function CatalogClient({
                 ) : (
                   <div data-editor-ignore className={view === "list" ? "mt-4 flex flex-col gap-3" : "mt-4 grid grid-cols-2 gap-[18px] sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4"}>
                     {shown.map((p) => (
-                      <Card listName={resultTitle} key={p.slug} p={p} list={view === "list"} onAdd={() => quickAdd(p)} busy={busyId === p.variantId} />
+                      <Card listName={resultTitle} key={p.productId ?? p.slug} p={p} list={view === "list"} onAdd={() => quickAdd(p)} busy={busyId === p.variantId} />
                     ))}
                   </div>
                 )}

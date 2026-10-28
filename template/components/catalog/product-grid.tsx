@@ -20,7 +20,7 @@ export function ProductGrid({ items }: { items: CatalogProductItem[] }) {
   return (
     <div className="grid grid-cols-2 gap-[18px] sm:grid-cols-3 lg:grid-cols-4">
       {items.map((p) => (
-        <ProductGridCard key={p.slug} p={p} onAdd={() => quickAdd(p)} busy={busyId === p.variantId} />
+        <ProductGridCard key={p.productId ?? p.slug} p={p} onAdd={() => quickAdd(p)} busy={busyId === p.variantId} />
       ))}
     </div>
   );
