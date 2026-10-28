@@ -26,6 +26,15 @@ export const NOT_CONFIGURED = nome("NOT_CONFIGURED");
 export const NOT_READY = nome("NOT_READY");
 export const INVALID_DEPLOY_PUBLIC_KEY = nome("INVALID_DEPLOY_PUBLIC_KEY");
 
+// Publicação em produção: os erros síncronos da mutation e os de `operation.errorCode`, que vêm com
+// o nome completo, como estes.
+export const PRODUCTION_BUSY = nome("PRODUCTION_BUSY");
+export const DEPLOYMENT_NOT_READY = nome("DEPLOYMENT_NOT_READY");
+export const DEPLOYMENT_NOT_FOUND = nome("DEPLOYMENT_NOT_FOUND");
+export const DEPLOYMENT_INVALID = nome("DEPLOYMENT_INVALID");
+export const PRODUCTION_BUILD = nome("PRODUCTION_BUILD");
+export const PRODUCTION_TIMEOUT = nome("PRODUCTION_TIMEOUT");
+
 const CODIGO = /CUSTOM_STOREFRONT_[A-Z0-9_]+_ERROR/;
 
 /**
