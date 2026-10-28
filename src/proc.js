@@ -18,6 +18,8 @@ export function run(cmd, args, { cwd, env } = {}) {
     env: env ? { ...process.env, ...env } : process.env,
     encoding: "utf8",
     windowsHide: true,
+    // O padrão (1 MiB) é pouco para a saída de um repositório grande; estourar vira ENOBUFS cru.
+    maxBuffer: 64 * 1024 * 1024,
   });
   if (r.error) {
     if (r.error.code === "ENOENT") {
