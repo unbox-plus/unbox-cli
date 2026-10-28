@@ -8,7 +8,11 @@ import { toast } from "sonner";
 import type { UiCart } from "@/lib/cart-normalize";
 import { cartEventLabel } from "@unbox-plus/sdk";
 import { formatBRL } from "@/lib/format";
-import { trackAddToCart, trackRemoveFromCart, trackViewCart } from "@/lib/analytics";
+import {
+  trackAddToCart,
+  trackRemoveFromCart,
+  trackViewCart,
+} from "@/lib/analytics";
 
 export interface AddItemArgs {
   productId: string;
@@ -19,9 +23,20 @@ export interface AddItemArgs {
   isRecurring?: boolean;
   recurringItemsFrequencyId?: string;
   title?: string;
+  kit?: {
+    productKitId: string;
+    picks: Array<{
+      productId: string;
+      productVariantId: string;
+      quantity: number;
+    }>;
+  };
 }
 
-export interface AppliedCoupon { code: string; discountId: string | null }
+export interface AppliedCoupon {
+  code: string;
+  discountId: string | null;
+}
 
 interface CartCtx {
   cart: UiCart | null;
@@ -57,12 +72,21 @@ function showEvents(cart: UiCart | null) {
 // mexer na quantidade/remover. Não estima o "total" quando há cupom (mantém o do servidor até reconciliar).
 function estimateSummary(c: UiCart, items: UiCart["items"]): UiCart["summary"] {
   const amt = items.reduce((s, it) => s + it.unitPrice * it.quantity, 0);
-  const hasDiscount = (c.discounts?.length ?? 0) > 0 || !!c.summary.discountTotal;
-  return { ...c.summary, totalAmount: amt, itemTotal: formatBRL(amt), ...(hasDiscount ? {} : { total: formatBRL(amt) }) };
+  const hasDiscount =
+    (c.discounts?.length ?? 0) > 0 || !!c.summary.discountTotal;
+  return {
+    ...c.summary,
+    totalAmount: amt,
+    itemTotal: formatBRL(amt),
+    ...(hasDiscount ? {} : { total: formatBRL(amt) }),
+  };
 }
 
 async function call(url: string, init?: RequestInit) {
-  const res = await fetch(url, { headers: { "Content-Type": "application/json" }, ...init });
+  const res = await fetch(url, {
+    headers: { "Content-Type": "application/json" },
+    ...init,
+  });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data?.error || "Erro inesperado.");
   return data;
@@ -72,7 +96,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const [cart, setCart] = React.useState<UiCart | null>(null);
   const [loading, setLoading] = React.useState(false);
   const [open, setOpen] = React.useState(false);
-  const [appliedCoupon, setAppliedCoupon] = React.useState<AppliedCoupon | null>(null);
+  const [appliedCoupon, setAppliedCoupon] =
+    React.useState<AppliedCoupon | null>(null);
   // Espelho do carrinho para os handlers lerem o item ANTES da atualização otimista removê-lo
   // (remove_from_cart precisa do nome/preço do que saiu).
   const cartRef = React.useRef<UiCart | null>(null);
@@ -82,7 +107,15 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   React.useEffect(() => {
     if (!open || !cart?.items?.length) return;
     trackViewCart(
-      cart.items.filter((i) => !i.isBonus).map((i) => ({ id: i.productId, name: i.title, variant: i.variantTitle, price: i.unitPrice, quantity: i.quantity })),
+      cart.items
+        .filter((i) => !i.isBonus)
+        .map((i) => ({
+          id: i.productId,
+          name: i.title,
+          variant: i.variantTitle,
+          price: i.unitPrice,
+          quantity: i.quantity,
+        })),
       cart.summary.totalAmount,
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -124,15 +157,27 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     if (!produtos && !cupom) return;
     cartLinkRef.current = true;
     const sig = `${produtos ?? ""}|${cupom ?? ""}`;
-    try { if (sessionStorage.getItem("cartlink") === sig) return; } catch { /* ignora */ }
+    try {
+      if (sessionStorage.getItem("cartlink") === sig) return;
+    } catch {
+      /* ignora */
+    }
     setLinkBuilding(true);
     (async () => {
       try {
-        await call("/api/cart/link?" + u.searchParams.toString(), { method: "POST" });
-        try { sessionStorage.setItem("cartlink", sig); } catch { /* ignora */ }
+        await call("/api/cart/link?" + u.searchParams.toString(), {
+          method: "POST",
+        });
+        try {
+          sessionStorage.setItem("cartlink", sig);
+        } catch {
+          /* ignora */
+        }
         await refresh();
         if (!u.pathname.startsWith("/checkout")) setOpen(true);
-      } catch { /* ignora — não trava a navegação */ } finally {
+      } catch {
+        /* ignora — não trava a navegação */
+      } finally {
         setLinkBuilding(false);
       }
     })();
@@ -152,7 +197,11 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     if (!id || !token) return;
     cartRestoreRef.current = true;
     const sig = `${id}|${token}`;
-    try { if (sessionStorage.getItem("cartlink-restore") === sig) return; } catch { /* ignora */ }
+    try {
+      if (sessionStorage.getItem("cartlink-restore") === sig) return;
+    } catch {
+      /* ignora */
+    }
     setLinkBuilding(true);
     const seq = ++mutationSeq.current;
     (async () => {
@@ -165,129 +214,225 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           setLinkRestoredAt(Date.now());
           if (!u.pathname.startsWith("/checkout")) setOpen(true);
         }
-        try { sessionStorage.setItem("cartlink-restore", sig); } catch { /* ignora */ }
-      } catch { /* link inválido/expirado — mantém o carrinho atual, sem toast alarmante */ } finally {
+        try {
+          sessionStorage.setItem("cartlink-restore", sig);
+        } catch {
+          /* ignora */
+        }
+      } catch {
+        /* link inválido/expirado — mantém o carrinho atual, sem toast alarmante */
+      } finally {
         if (seq === mutationSeq.current) setLinkBuilding(false);
       }
     })();
   }, []);
 
-  const add = React.useCallback(async (item: AddItemArgs, opts?: { silent?: boolean }) => {
-    const qty = item.quantity ?? 1;
-    // OTIMISTA: reflete no carrinho imediatamente (badge + drawer), sem esperar o back.
-    const tmpItem = {
-      id: `tmp-${item.variantId}-${item.price}`,
-      productId: item.productId, variantId: item.variantId,
-      title: item.title ?? "Produto", quantity: qty,
-      unitPrice: item.price, displayUnitPrice: formatBRL(item.price),
-      thumbnail: item.thumbnail, isRecurring: item.isRecurring, isBonus: false,
-    };
-    setCart((c) => {
-      // Primeiro item (carrinho ainda não carregado): cria um carrinho otimista p/ aparecer na hora.
-      if (!c) {
-        const amt = item.price * qty;
-        return {
-          cartId: "tmp", totalItemQuantity: qty, hasRecurring: !!item.isRecurring,
-          items: [tmpItem], discounts: [], fulfillmentGroupIds: [], cartEvents: [],
-          summary: { totalAmount: amt, itemTotal: formatBRL(amt), total: formatBRL(amt) },
-        };
-      }
-      const items = [...c.items];
-      const i = items.findIndex((it) => it.variantId === item.variantId && !it.isBonus && !it.isRecurring === !item.isRecurring);
-      if (i >= 0) items[i] = { ...items[i], quantity: items[i].quantity + qty };
-      else items.push(tmpItem);
-      return { ...c, items, totalItemQuantity: (c.totalItemQuantity ?? 0) + qty };
-    });
-    if (!opts?.silent) setOpen(true); // abre o drawer na hora
-    setLoading(true);
-    const seq = ++mutationSeq.current;
-    try {
-      const d = await call("/api/cart", {
-        method: "POST",
-        body: JSON.stringify({
-          items: [
-            {
-              productId: item.productId,
-              productVariantId: item.variantId,
-              price: item.price,
-              quantity: qty,
-              thumbnail: item.thumbnail,
-              isRecurring: item.isRecurring,
+  const add = React.useCallback(
+    async (item: AddItemArgs, opts?: { silent?: boolean }) => {
+      const qty = item.quantity ?? 1;
+      // OTIMISTA: reflete no carrinho imediatamente (badge + drawer), sem esperar o back.
+      const lineKey = item.kit
+        ? `${item.variantId}:${item.kit.picks.map((k) => `${k.productVariantId}x${k.quantity}`).join(",")}`
+        : item.variantId;
+      const tmpItem = {
+        id: `tmp-${lineKey}-${item.price}`,
+        productId: item.productId,
+        variantId: lineKey,
+        title: item.title ?? "Produto",
+        quantity: qty,
+        unitPrice: item.price,
+        displayUnitPrice: formatBRL(item.price),
+        thumbnail: item.thumbnail,
+        isRecurring: item.isRecurring,
+        isBonus: false,
+      };
+      setCart((c) => {
+        // Primeiro item (carrinho ainda não carregado): cria um carrinho otimista p/ aparecer na hora.
+        if (!c) {
+          const amt = item.price * qty;
+          return {
+            cartId: "tmp",
+            totalItemQuantity: qty,
+            hasRecurring: !!item.isRecurring,
+            items: [tmpItem],
+            discounts: [],
+            fulfillmentGroupIds: [],
+            cartEvents: [],
+            summary: {
+              totalAmount: amt,
+              itemTotal: formatBRL(amt),
+              total: formatBRL(amt),
             },
-          ],
-          recurringItemsFrequencyId: item.recurringItemsFrequencyId,
-        }),
+          };
+        }
+        const items = [...c.items];
+        const i = items.findIndex(
+          (it) =>
+            it.variantId === lineKey &&
+            !it.isBonus &&
+            !it.isRecurring === !item.isRecurring,
+        );
+        if (i >= 0)
+          items[i] = { ...items[i], quantity: items[i].quantity + qty };
+        else items.push(tmpItem);
+        return {
+          ...c,
+          items,
+          totalItemQuantity: (c.totalItemQuantity ?? 0) + qty,
+        };
       });
-      if (seq === mutationSeq.current) {
-        setCart(d.cart); // reconcilia com o servidor (autoritativo) — só se ainda for a mais recente
-        showEvents(d.cart);
-        for (const w of d.warnings ?? []) toast.warning(w);
+      if (!opts?.silent) setOpen(true); // abre o drawer na hora
+      setLoading(true);
+      const seq = ++mutationSeq.current;
+      try {
+        const d = await call("/api/cart", {
+          method: "POST",
+          body: JSON.stringify({
+            items: [
+              {
+                ...(item.kit
+                  ? { kit: item.kit }
+                  : {
+                      productId: item.productId,
+                      productVariantId: item.variantId,
+                    }),
+                price: item.price,
+                quantity: qty,
+                thumbnail: item.thumbnail,
+                isRecurring: item.isRecurring,
+              },
+            ],
+            recurringItemsFrequencyId: item.recurringItemsFrequencyId,
+          }),
+        });
+        if (seq === mutationSeq.current) {
+          setCart(d.cart); // reconcilia com o servidor (autoritativo) — só se ainda for a mais recente
+          showEvents(d.cart);
+          for (const w of d.warnings ?? []) toast.warning(w);
+        }
+        toast.success(
+          item.title
+            ? `“${item.title}” adicionado ao carrinho`
+            : "Adicionado ao carrinho",
+        ); // confirma
+        trackAddToCart({
+          id: item.productId,
+          name: item.title ?? "Produto",
+          price: item.price,
+          quantity: qty,
+        });
+        return true;
+      } catch (e: any) {
+        toast.error(e.message);
+        if (seq === mutationSeq.current) await refresh(); // reverte ao estado real do servidor
+        return false;
+      } finally {
+        if (seq === mutationSeq.current) setLoading(false);
       }
-      toast.success(item.title ? `“${item.title}” adicionado ao carrinho` : "Adicionado ao carrinho"); // confirma
-      trackAddToCart({ id: item.productId, name: item.title ?? "Produto", price: item.price, quantity: qty });
-      return true;
-    } catch (e: any) {
-      toast.error(e.message);
-      if (seq === mutationSeq.current) await refresh(); // reverte ao estado real do servidor
-      return false;
-    } finally {
-      if (seq === mutationSeq.current) setLoading(false);
-    }
-  }, [refresh]);
+    },
+    [refresh],
+  );
 
-  const updateQty = React.useCallback(async (cartItemId: string, quantity: number) => {
-    const cur = cartRef.current?.items.find((i) => i.id === cartItemId);
-    if (cur && !cur.isBonus && quantity !== cur.quantity) {
-      const delta = quantity - cur.quantity;
-      const it = { id: cur.productId, name: cur.title, variant: cur.variantTitle, price: cur.unitPrice, quantity: Math.abs(delta) };
-      if (delta > 0) trackAddToCart(it); else trackRemoveFromCart(it);
-    }
-    // OTIMISTA: atualiza quantidade E subtotal/total na hora; o servidor reconcilia em seguida.
-    setCart((c) => {
-      if (!c) return c;
-      const items = c.items.map((it) => it.id === cartItemId ? { ...it, quantity } : it);
-      return { ...c, items, totalItemQuantity: items.reduce((s, it) => s + it.quantity, 0), summary: estimateSummary(c, items) };
-    });
-    setLoading(true);
-    const seq = ++mutationSeq.current;
-    try {
-      const d = await call("/api/cart/items", { method: "PATCH", body: JSON.stringify({ cartItemId, quantity }) });
-      if (seq === mutationSeq.current) { setCart(d.cart); showEvents(d.cart); }
-    } catch (e: any) {
-      toast.error(e.message);
-      if (seq === mutationSeq.current) await refresh();
-    } finally {
-      if (seq === mutationSeq.current) setLoading(false);
-    }
-  }, [refresh]);
+  const updateQty = React.useCallback(
+    async (cartItemId: string, quantity: number) => {
+      const cur = cartRef.current?.items.find((i) => i.id === cartItemId);
+      if (cur && !cur.isBonus && quantity !== cur.quantity) {
+        const delta = quantity - cur.quantity;
+        const it = {
+          id: cur.productId,
+          name: cur.title,
+          variant: cur.variantTitle,
+          price: cur.unitPrice,
+          quantity: Math.abs(delta),
+        };
+        if (delta > 0) trackAddToCart(it);
+        else trackRemoveFromCart(it);
+      }
+      // OTIMISTA: atualiza quantidade E subtotal/total na hora; o servidor reconcilia em seguida.
+      setCart((c) => {
+        if (!c) return c;
+        const items = c.items.map((it) =>
+          it.id === cartItemId ? { ...it, quantity } : it,
+        );
+        return {
+          ...c,
+          items,
+          totalItemQuantity: items.reduce((s, it) => s + it.quantity, 0),
+          summary: estimateSummary(c, items),
+        };
+      });
+      setLoading(true);
+      const seq = ++mutationSeq.current;
+      try {
+        const d = await call("/api/cart/items", {
+          method: "PATCH",
+          body: JSON.stringify({ cartItemId, quantity }),
+        });
+        if (seq === mutationSeq.current) {
+          setCart(d.cart);
+          showEvents(d.cart);
+        }
+      } catch (e: any) {
+        toast.error(e.message);
+        if (seq === mutationSeq.current) await refresh();
+      } finally {
+        if (seq === mutationSeq.current) setLoading(false);
+      }
+    },
+    [refresh],
+  );
 
-  const remove = React.useCallback(async (cartItemId: string) => {
-    const gone = cartRef.current?.items.find((i) => i.id === cartItemId);
-    if (gone && !gone.isBonus) trackRemoveFromCart({ id: gone.productId, name: gone.title, variant: gone.variantTitle, price: gone.unitPrice, quantity: gone.quantity });
-    // OTIMISTA: remove o item E atualiza subtotal/total na hora; o servidor reconcilia depois.
-    setCart((c) => {
-      if (!c) return c;
-      const items = c.items.filter((it) => it.id !== cartItemId);
-      return { ...c, items, totalItemQuantity: items.reduce((s, it) => s + it.quantity, 0), summary: estimateSummary(c, items) };
-    });
-    setLoading(true);
-    const seq = ++mutationSeq.current;
-    try {
-      const d = await call("/api/cart/items", { method: "DELETE", body: JSON.stringify({ cartItemIds: [cartItemId] }) });
-      if (seq === mutationSeq.current) { setCart(d.cart); showEvents(d.cart); }
-    } catch (e: any) {
-      toast.error(e.message);
-      if (seq === mutationSeq.current) await refresh();
-    } finally {
-      if (seq === mutationSeq.current) setLoading(false);
-    }
-  }, [refresh]);
+  const remove = React.useCallback(
+    async (cartItemId: string) => {
+      const gone = cartRef.current?.items.find((i) => i.id === cartItemId);
+      if (gone && !gone.isBonus)
+        trackRemoveFromCart({
+          id: gone.productId,
+          name: gone.title,
+          variant: gone.variantTitle,
+          price: gone.unitPrice,
+          quantity: gone.quantity,
+        });
+      // OTIMISTA: remove o item E atualiza subtotal/total na hora; o servidor reconcilia depois.
+      setCart((c) => {
+        if (!c) return c;
+        const items = c.items.filter((it) => it.id !== cartItemId);
+        return {
+          ...c,
+          items,
+          totalItemQuantity: items.reduce((s, it) => s + it.quantity, 0),
+          summary: estimateSummary(c, items),
+        };
+      });
+      setLoading(true);
+      const seq = ++mutationSeq.current;
+      try {
+        const d = await call("/api/cart/items", {
+          method: "DELETE",
+          body: JSON.stringify({ cartItemIds: [cartItemId] }),
+        });
+        if (seq === mutationSeq.current) {
+          setCart(d.cart);
+          showEvents(d.cart);
+        }
+      } catch (e: any) {
+        toast.error(e.message);
+        if (seq === mutationSeq.current) await refresh();
+      } finally {
+        if (seq === mutationSeq.current) setLoading(false);
+      }
+    },
+    [refresh],
+  );
 
   const applyCoupon = React.useCallback(async (code: string) => {
     setLoading(true);
     const seq = ++mutationSeq.current;
     try {
-      const d = await call("/api/cart/coupon", { method: "POST", body: JSON.stringify({ code }) });
+      const d = await call("/api/cart/coupon", {
+        method: "POST",
+        body: JSON.stringify({ code }),
+      });
       if (seq === mutationSeq.current) {
         setCart(d.cart);
         if (d.coupon) setAppliedCoupon(d.coupon);
@@ -311,8 +456,14 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     setLoading(true);
     const seq = ++mutationSeq.current;
     try {
-      const d = await call("/api/cart/coupon", { method: "DELETE", body: JSON.stringify({ discountId: appliedCoupon.discountId }) });
-      if (seq === mutationSeq.current) { setCart(d.cart); setAppliedCoupon(null); }
+      const d = await call("/api/cart/coupon", {
+        method: "DELETE",
+        body: JSON.stringify({ discountId: appliedCoupon.discountId }),
+      });
+      if (seq === mutationSeq.current) {
+        setCart(d.cart);
+        setAppliedCoupon(null);
+      }
     } catch (e: any) {
       toast.error(e.message);
     } finally {
@@ -329,7 +480,23 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const count = cart?.items?.reduce((s, i) => s + i.quantity, 0) ?? 0;
 
-  const value: CartCtx = { cart, count, loading, linkBuilding, linkRestoredAt, open, appliedCoupon, setOpen, add, updateQty, remove, applyCoupon, removeCoupon, refresh, clear };
+  const value: CartCtx = {
+    cart,
+    count,
+    loading,
+    linkBuilding,
+    linkRestoredAt,
+    open,
+    appliedCoupon,
+    setOpen,
+    add,
+    updateQty,
+    remove,
+    applyCoupon,
+    removeCoupon,
+    refresh,
+    clear,
+  };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

@@ -61,6 +61,24 @@ export const getProductBySlug = cache((slug: string) =>
   )(),
 );
 
+// Sabores e cota do kit (só PDP de kit). Mesmo cache do produto: some junto na revalidação do catálogo.
+export const getKit = cache((productId: string) =>
+  unstable_cache(
+    () => withStoreClient((c) => c.getProductKit(productId)),
+    ["unbox-kit", productId],
+    { revalidate: TTL, tags: ["catalog", `kit:${productId}`] },
+  )(),
+);
+
+// Nome da opção do kit ("3 Caixas"), para o card do carrinho: o carrinho só devolve o título do bundle.
+export const getKitLabel = cache((productId: string) =>
+  unstable_cache(
+    async () => (await withStoreClient((c) => c.getProductById(productId)))?.product?.group?.label ?? null,
+    ["unbox-kit-label", productId],
+    { revalidate: TTL, tags: ["catalog", `kit:${productId}`] },
+  )(),
+);
+
 export async function getDiscountCodes(first = 50) {
   return withStoreClient((c) => c.listDiscountCodes(first));
 }

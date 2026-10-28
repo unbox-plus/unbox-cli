@@ -12,6 +12,7 @@ import { useCart } from "@/components/cart/cart-provider";
 import { trackViewItem } from "@/lib/analytics";
 import { formatBRL, maskCep, onlyDigits } from "@/lib/format";
 import { PaymentChips } from "@/components/product/pdp/payment-chips";
+import { KitOptions, KitPicker, kitTotal, type KitPicks, type PdpKit } from "@/components/product/pdp/kit-box";
 import { FREE_SHIPPING_THRESHOLD, PIX_DISCOUNT_PCT } from "@/lib/store-config";
 import { goToCheckout } from "@/lib/checkout-nav";
 // EDITOR: módulo de cliente ("use client"): aqui o namespace `Editable.*` é a forma de uso (README §4).
@@ -93,7 +94,10 @@ export function BuyBox({
   isSoldOut,
   ratingAverage,
   ratingCount,
+  kit,
 }: {
+  /** só em PDP de kit: opções do bundle e sabores; o botão de compra espera a cota fechar */
+  kit?: PdpKit | null;
   productId: string;
   title: string;
   shortDescription?: string | null;
@@ -121,7 +125,21 @@ export function BuyBox({
   const [sub, setSub] = React.useState(false);
   const [freqId, setFreqId] = React.useState(subscription?.frequencies[0]?.id);
   const [busy, setBusy] = React.useState(false);
-
+  // Opção de cota escolhida na própria página (kits que repartem o slug); a atual é a da URL.
+  const [optId, setOptId] = React.useState(kit?.options.find((o) => o.isCurrent)?.id ?? "");
+  const inline = kit?.options.find((o) => o.id === optId)?.inline;
+  const kitSel = kit ? { ...kit, id: inline?.kitId ?? kit.id, required: inline?.required ?? kit.required, flavors: inline?.flavors ?? kit.flavors } : null;
+  // Sabor único: a cota inteira vai nele e o contador nem aparece (KitPicker).
+  const initialPicks = (k: PdpKit | null): KitPicks => (k && k.flavors.length === 1 ? { [k.flavors[0].variantId]: k.required } : {});
+  const [picks, setPicks] = React.useState<KitPicks>(() => initialPicks(kit ?? null));
+  const setPick = (variantId: string, q: number) => setPicks((p) => ({ ...p, [variantId]: Math.max(0, q) }));
+  const pickOption = (id: string) => {
+    if (id === optId || !kit) return;
+    const next = kit.options.find((o) => o.id === id)?.inline;
+    setOptId(id);
+    setPicks(initialPicks({ ...kit, required: next?.required ?? kit.required, flavors: next?.flavors ?? kit.flavors }));
+  };
+  const kitMissing = kitSel ? kitSel.required - kitTotal(picks) : 0;
 
   // view_item / ViewContent — uma vez por produto exibido.
   React.useEffect(() => {
@@ -129,13 +147,14 @@ export function BuyBox({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [productId]);
 
-  const variant = variants.find((v) => v.id === variantId) ?? variants[0];
+  const baseVariant = variants.find((v) => v.id === variantId) ?? variants[0];
+  const variant = inline && baseVariant ? { ...baseVariant, price: inline.price, oldPrice: inline.oldPrice } : baseVariant;
   // benefits vindo do enriquecimento (positivos); se ausente, usa o fallback genérico. Máx. 4.
   const benefitList = benefits ?? [];
   // Só existe desconto de assinatura se a política de preço do backend disser quanto. Sem
   // isso, pct = null: assinar custa o preço normal e nenhum "-N%" aparece.
   const pct = subscription?.percentOff ?? null;
-  const canBuy = !isSoldOut && variant?.price != null;
+  const canBuy = !isSoldOut && variant?.price != null && kitMissing === 0;
 
   const base = variant?.price ?? 0;
   // Preço "DE" só quando existe compareAtPrice REAL do backend — sem fabricar desconto.
@@ -156,6 +175,9 @@ export function BuyBox({
     const ok = await add({
       productId,
       variantId: variant.id,
+      kit: kitSel
+        ? { productKitId: kitSel.id, picks: kitSel.flavors.filter((f) => picks[f.variantId] > 0).map((f) => ({ productId: f.productId, productVariantId: f.variantId, quantity: picks[f.variantId] })) }
+        : undefined,
       price: variant.price ?? 0,
       quantity: qty,
       thumbnail: imageUrl,
@@ -310,6 +332,14 @@ export function BuyBox({
             })}
           </div>
         </div>
+      )}
+
+      {kit && <KitOptions options={kit.options} selectedId={optId} onSelect={pickOption} />}
+      {kitSel && <KitPicker kit={kitSel} picks={picks} onChange={setPick} />}
+      {kit && kitMissing > 0 && (
+        <p className="mt-2 text-[13px] text-[var(--store-muted)]" data-editor-ignore role="status">
+          Escolha mais {kitMissing} {kitMissing === 1 ? "item" : "itens"} para completar o kit.
+        </p>
       )}
 
       {/* subscription */}
