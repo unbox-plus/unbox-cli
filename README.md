@@ -102,8 +102,9 @@ unbox <comando> --help       # uso e exemplos de um comando
 | `unbox provision` | provisiona o repositório e a hospedagem da loja na Unbox e liga o projeto à branch `deploy` |
 | `unbox env` | envia as variáveis do `.env.local` para a hospedagem da loja (`--list` mostra, `--unset` remove) |
 | `unbox deploy` | commita as mudanças, envia a branch `deploy` para a Unbox e mostra a URL do preview |
+| `unbox publish [commit]` | publica em produção um commit com preview pronto e acompanha até o fim |
 
-Os demais comandos de publicação (`publish`, `rollback`, `status`) entram nas
+Os demais comandos de publicação (`rollback`, `status`) entram nas
 próximas versões. Eles falam com a Partners API da Unbox, e por isso todos seguem as mesmas regras
 abaixo.
 
@@ -112,7 +113,7 @@ abaixo.
 | Flag | Padrão | |
 |---|---|---|
 | `--help`, `-h` | | ajuda geral, ou do comando quando vem com um |
-| `--json` | | saída para agentes e scripts: um único objeto JSON em stdout (`{"ok":true,"data":...}` ou `{"ok":false,"error":{"code","message"}}`); o andamento vai para stderr |
+| `--json` | | saída para agentes e scripts: um único objeto JSON em stdout (`{"ok":true,"data":...}` ou `{"ok":false,"error":{"code","message"}}`, este com `data` quando o comando já tinha um estado a mostrar, como no `publish`); o andamento vai para stderr |
 | `--yes`, `-y` | | não pede confirmação (no `create`, gera com os padrões, sem perguntas) |
 | `--dir <caminho>` | pasta atual | a pasta do projeto da loja |
 | `--env-file <arquivo>` | `.env.local` | o arquivo das credenciais (e das variáveis do `unbox env`), relativo ao `--dir` |
@@ -256,6 +257,49 @@ O que convém saber:
 - **Teto em `PENDING`:** a CLI para depois de ~15 min e mostra o commit para informar à Unbox.
 - **Nada a enviar** (sem mudanças e sem commits novos): avisa e sai com `0`; o `--json` traz
   `state: null`.
+
+### `unbox publish`
+
+Substitui o antigo `ubx publish`. Põe em produção um commit cujo preview está pronto; a Unbox refaz
+o build com a configuração de produção e troca o endereço quando termina.
+
+```bash
+unbox publish                      # o último commit enviado pelo unbox deploy
+unbox publish 3f9c2a1              # um commit enviado antes, pelo hash curto ou completo
+unbox publish --yes --json         # para agentes: sem pergunta, um objeto com a produção final
+```
+
+1. **Acha o commit** na branch `deploy` da Unbox (depois de um fetch): sem argumento, o topo; com
+   argumento, o hash curto (4 caracteres ou mais) ou completo. Só os commits da `deploy` da Unbox
+   contam: um commit não enviado, ou reescrito por rebase no envio, para o comando com
+   `COMMIT_NAO_ENVIADO` (veja os enviados com `git log --oneline unbox/deploy`). Não importa a
+   branch atual: o publish só lê o git.
+2. **Confere o preview** do commit: com falha, para (`PREVIEW_FALHOU`); ainda sendo gerado, espera
+   só se for o último enviado (até ~15 min). Para um commit mais antigo, um preview pendente para o
+   comando (`PREVIEW_PENDENTE`): só o último commit de cada envio gera preview.
+3. **Pede confirmação**, mostrando o que está no ar, o commit e o preview. `--yes` pula; com
+   `--json` ou sem terminal, sem `--yes`, o comando para com `CONFIRMACAO_NECESSARIA`.
+4. **Acompanha** a publicação a cada 10 s, até ~25 min. O build de produção costuma levar 1 a 2 min,
+   e o endereço passa a mostrar o novo conteúdo em até 1 min. Ctrl+C não cancela: a publicação segue
+   na Unbox, e `unbox publish <commit>` volta a acompanhar.
+
+O que convém saber:
+
+- **Preview ok não garante produção ok.** Produção é um build novo, com a configuração de produção
+  (variáveis, `VERCEL_ENV`, `NEXT_PUBLIC_SITE_URL`). Se ele falhar
+  (`CUSTOM_STOREFRONT_PRODUCTION_BUILD_ERROR`), produção continua com o que estava no ar.
+- **Publicar o commit que já está no ar não refaz o build**: o comando avisa e sai com `0`
+  (`alreadyLive: true` no `--json`). Variáveis mudadas com `unbox env` pedem um commit novo
+  (`git commit --allow-empty`), `unbox deploy` e `unbox publish`.
+- **Uma operação por vez:** com outra publicação ou rollback em andamento, o comando para com
+  `CUSTOM_STOREFRONT_PRODUCTION_BUSY_ERROR` e diz qual; `unbox publish <commit dela>` a acompanha.
+- **Previews ficam 90 dias.** Para publicar um commit mais antigo, crie um commit novo (ainda que
+  vazio), rode `unbox deploy` e publique esse.
+- **Permissão própria:** publicar exige uma permissão separada da de deploy; sem ela, o comando diz
+  para pedir a liberação à Unbox.
+- **De outra máquina ou de um CI**, sem o projeto ligado, o hash completo basta (com as credenciais).
+- **`--json`:** `{ state, commitSha, url, publishedAt, rollbackCommitSha, canRollback, operation,
+  alreadyLive }`. Numa falha depois de ler a produção, o erro traz a mesma produção em `data`.
 
 ### Dois cuidados com o `npx`
 
