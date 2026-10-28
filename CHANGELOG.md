@@ -78,6 +78,11 @@ API por commit, e a Unbox refaz o build com a configuração de produção.
   erro ganha `data` com ela; os demais comandos seguem com o contrato de sempre.
 - **`src/production.js`** fica com a consulta e o acompanhamento, para o `rollback` e o `status`.
 
+**5xx do Core vira `HTTP_5xx`.** Atrás do AppSync, um 5xx do Core chega como `errorType`
+`HttpError` ("Core HTTP error: 502", medido num rollout em stage), e a CLI o tratava como recusa
+definitiva: o `provision` parava no meio da espera. Agora tem o mesmo código de um 5xx do gateway,
+e quem espera (`provision`, `deploy`, `publish`) repete a leitura. Um 4xx do Core segue como antes.
+
 ### v0.28.0 — `unbox deploy`: as mudanças viram preview, sem passos de git à mão
 
 Substitui o antigo `ubx save`. `unbox deploy` commita as mudanças, envia a branch `deploy` para a
