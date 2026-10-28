@@ -36,7 +36,7 @@ export const help = `
 
   Não vão:
     - as vazias;
-    - NEXT_PUBLIC_SITE_URL, gerenciada pela Unbox (vai receber o endereço de produção da loja);
+    - NEXT_PUBLIC_SITE_URL, gerenciada pela Unbox (a Unbox grava o endereço da loja ao provisionar);
     - os nomes reservados: TZ e os que começam com VERCEL_, NEXT_PUBLIC_VERCEL_, NOW_, AWS_ e LAMBDA_.
 
   Só builds novos usam as variáveis: depois de mudar, rode unbox deploy (e depois unbox publish).

@@ -197,9 +197,11 @@ unbox env --json                   # { sent, skipped, fromTerminal, keys }
   escolha), e, com um aviso por chave, nomes fora do formato (letras
   maiúsculas, dígitos e `_`, começando por letra), valores acima de 16384 caracteres, e os nomes
   reservados: `TZ` e os que começam com `VERCEL_`, `NEXT_PUBLIC_VERCEL_`, `NOW_`, `AWS_` e `LAMBDA_`.
-- **`NEXT_PUBLIC_SITE_URL` é gerenciada pela Unbox**: vai receber o endereço de produção da loja,
-  e por isso o lojista não define nem remove. Se a Unbox reservar um nome novo que esta versão da
-  CLI não conhece, o comando acha qual é, pula com aviso e grava o resto.
+- **`NEXT_PUBLIC_SITE_URL` é gerenciada pela Unbox**: ela grava o endereço da loja na hospedagem
+  (produção e, quando a loja tem, o endereço fixo de preview), e por isso o lojista não define nem
+  remove. Lojas provisionadas antes de a Unbox passar a gravá-la só ganham a variável numa migração
+  futura. Se a Unbox reservar um nome novo que esta versão da CLI não conhece, o comando acha qual
+  é, pula com aviso e grava o resto.
 - **Só builds novos usam as variáveis.** Depois de mudar, rode `unbox deploy` para um preview com
   elas, e publique esse commit. Publicar de novo o que já está no ar não refaz o build.
 - **Repetir é seguro**: a gravação substitui o valor. O `unbox env` nunca remove o que sumiu do
@@ -351,7 +353,7 @@ Gate: `npm run unbox:editavel` mede toda página que a loja declara. Saída 0 = 
 
 Variáveis: `EDITOR_URL`, `NEXT_PUBLIC_EDITOR_ORIGIN`, `UNBOX_EDITOR_SHOP` (opcional: sobrepõe o slug carimbado). `META_CAPI_TOKEN` é segredo de servidor e nunca entra no documento do editor.
 
-A loja diz quem é e onde vive (0.20.4): `/api/unbox/paginas` responde `loja: { slug, nome, url }`. É por isso que o editor acha a loja sem registro nenhum (`https://<slug>.myunbox.com.br`) e, quando `NEXT_PUBLIC_SITE_URL` é o domínio próprio (https), confirma lá e abre a loja por ele: prévia, publicação e revalidação vão para o domínio de verdade. Em produção, `NEXT_PUBLIC_SITE_URL` certo é o único cuidado; `http://localhost` (dev) não é declarado.
+A loja diz quem é e onde vive (0.20.4): `/api/unbox/paginas` responde `loja: { slug, nome, url }`. É por isso que o editor acha a loja sem registro nenhum (`https://<slug>.myunbox.com.br`) e, quando `NEXT_PUBLIC_SITE_URL` é o domínio próprio (https), confirma lá e abre a loja por ele: prévia, publicação e revalidação vão para o domínio de verdade. Em produção, `NEXT_PUBLIC_SITE_URL` certo é o único cuidado; `http://localhost` (dev) não é declarado. No build do endereço fixo de preview, a variável é esse endereço, e é ele que a rota declara ali; o editor consulta a loja pelo endereço de produção, e lá a rota declara o endereço de produção.
 
 O lojista cria páginas, artigos e coleções (0.21.0). A loja nasce com quatro rotas que servem o que o lojista escreve no editor: `/paginas/<endereco>` (página avulsa), `/<colecao>/<endereco>` (artigo), `/<colecao>` (listagem) e `/<colecao>/pagina/N` (as seguintes), mais `/previa-do-editor`, por onde o editor abre uma página antes de ela existir na loja. A coleção que nasce com a loja é o `blog`, declarada em `lib/paginas-do-lojista.ts`; trocar o rótulo e o endereço dela é uma linha. O corpo da página é montado com as mesmas seções da home, mais uma seção de **Texto** com parágrafo, negrito, link, lista, subtítulo e citação. SEO: título, descrição, endereço canônico, Open Graph, dados estruturados (artigo, página, listagem e migalhas) e sitemap com a data de alteração verdadeira, tudo derivado do documento.
 

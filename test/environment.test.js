@@ -117,6 +117,6 @@ test("joiIndex: mensagens reais da validação do backend", () => {
 });
 
 test("mensagemPulada: só o nome, nunca o valor", () => {
-  assert.match(mensagemPulada({ key: "NEXT_PUBLIC_SITE_URL", reason: "gerenciada" }), /gerenciada pela Unbox/);
+  assert.match(mensagemPulada({ key: "NEXT_PUBLIC_SITE_URL", reason: "gerenciada" }), /gerenciada pela Unbox, que grava o endereço da loja/);
   assert.match(mensagemPulada({ key: "X", reason: "reservada_nova" }), /Atualize a CLI/);
 });

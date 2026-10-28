@@ -15,7 +15,7 @@ import { mensagensDoErro } from "./storefront.js";
 export const RESERVED_KEYS = ["NEXT_PUBLIC_SITE_URL", "TZ"];
 export const RESERVED_PREFIXES = ["VERCEL_", "NEXT_PUBLIC_VERCEL_", "NOW_", "AWS_", "LAMBDA_"];
 
-/** A que a Unbox vai preencher com o endereço da loja: aviso próprio, sem cara de erro. */
+/** A que a Unbox grava com o endereço da loja: aviso próprio, sem cara de erro. */
 export const MANAGED_KEY = "NEXT_PUBLIC_SITE_URL";
 
 /** Os limites da validação da API. O do valor é em CARACTERES (`.length`), como no backend. */
@@ -93,7 +93,7 @@ export function validaUnset(keys) {
 }
 
 const TEXTO = {
-  gerenciada: (k) => `${k} não foi enviada: é gerenciada pela Unbox (vai receber o endereço de produção da loja).`,
+  gerenciada: (k) => `${k} não foi enviada: é gerenciada pela Unbox, que grava o endereço da loja ao provisionar (produção e, quando a loja tem, o endereço fixo de preview).`,
   reservada: (k) => `${k} não foi enviada: o nome é reservado pela Unbox ou pela hospedagem.`,
   reservada_nova: (k) =>
     `${k} não foi enviada: a Unbox passou a reservar este nome e esta versão da CLI ainda não sabia. Atualize a CLI ou fale com a Unbox.`,

@@ -14,7 +14,9 @@ seguem iguais.
 - **O filtro local poupa o lote.** A API recusa a chamada inteira por uma chave reservada ou fora do
   formato. A CLI pula, com aviso pelo nome, as vazias, os nomes inválidos, os valores acima de 16384
   caracteres e os reservados (`TZ`, `VERCEL_*`, `NEXT_PUBLIC_VERCEL_*`, `NOW_*`, `AWS_*`, `LAMBDA_*`).
-  `NEXT_PUBLIC_SITE_URL` tem aviso próprio: é gerenciada pela Unbox.
+  `NEXT_PUBLIC_SITE_URL` tem aviso próprio: é gerenciada pela Unbox, que grava o endereço da loja
+  na hospedagem (produção e, quando a loja tem, o endereço fixo de preview). Lojas provisionadas
+  antes de a Unbox passar a gravá-la só ganham a variável numa migração futura.
 - **Vazias numa linha só.** O template traz dezenas de opcionais em branco (pixel, GA, WhatsApp);
   um aviso por chave escondia o que pede ação. As vazias saem juntas, com os nomes, e o texto final
   as conta à parte.
@@ -38,6 +40,10 @@ seguem iguais.
   sucesso (a loja e o vínculo já estão prontos); o `--json` ganha `env`.
 - **Só builds novos usam as variáveis:** a mensagem final orienta `unbox deploy` e depois
   `unbox publish` (publicar de novo o commit que já está no ar não refaz o build).
+- **Template:** o aviso de `NEXT_PUBLIC_SITE_URL` ausente ou em localhost do `lib/env-check.ts` usa o
+  `VERCEL_ENV` quando existe. Na Vercel o `NODE_ENV` é production também no preview, e o preview
+  sem endereço fixo não tem a variável, então o aviso saía em todo build de preview. Só lojas
+  criadas com o `unbox create` desta versão em diante têm o ajuste (o template é copiado na criação).
 
 ### v0.28.0 — `unbox deploy`: as mudanças viram preview, sem passos de git à mão
 
