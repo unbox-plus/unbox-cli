@@ -127,12 +127,8 @@ export function repoProblem(st, shopId) {
       "REMOTE_ALHEIO",
     );
   }
-  if (shopId && st.savedShopId && st.savedShopId !== shopId) {
-    return new CliError(
-      `Este projeto já está ligado a outra loja (${st.savedShopId}), e o login é da loja ${shopId}. Confira as credenciais do .env.local.`,
-      "OUTRA_LOJA",
-    );
-  }
+  const outraLoja = otherShopError(st, shopId);
+  if (outraLoja) return outraLoja;
   // Árvore limpa só quando o vínculo certamente mexe nela: o merge da primeira vez, ou a troca para a
   // deploy numa nova execução. Numa nova execução já na deploy, mudanças locais são o normal (o
   // projeto do unbox create só é commitado no primeiro unbox deploy); se a Unbox tiver commits novos
@@ -142,6 +138,15 @@ export function repoProblem(st, shopId) {
     return arvoreSuja();
   }
   return undefined;
+}
+
+/** O login é de uma loja e o projeto está ligado a outra. Devolve um CliError, ou nada. */
+export function otherShopError(st, shopId) {
+  if (!shopId || !st.savedShopId || st.savedShopId === shopId) return undefined;
+  return new CliError(
+    `Este projeto já está ligado a outra loja (${st.savedShopId}), e o login é da loja ${shopId}. Confira as credenciais do .env.local.`,
+    "OUTRA_LOJA",
+  );
 }
 
 const arvoreSuja = () => new CliError("Há mudanças não commitadas no repositório. Faça commit ou git stash e rode de novo.", "ARVORE_SUJA");
