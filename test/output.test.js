@@ -42,6 +42,18 @@ test("texto: falha em stderr com ✗, sem stack por padrão", () => {
   assert.equal(s.out.stderr, "\n✗ deu errado\n");
 });
 
+test("--json: erro com data leva o estado junto; sem data, o contrato de sempre", () => {
+  let s = streams();
+  let o = createOutput({ json: true, stdout: s.stdout, stderr: s.stderr });
+  o.fail(Object.assign(new Error("falhou"), { code: "X", data: { state: "PUBLISHED" } }));
+  assert.deepEqual(umJson(s.out.stdout), { ok: false, error: { code: "X", message: "falhou" }, data: { state: "PUBLISHED" } });
+
+  s = streams();
+  o = createOutput({ json: true, stdout: s.stdout, stderr: s.stderr });
+  o.fail(Object.assign(new Error("falhou"), { code: "X" }));
+  assert.deepEqual(umJson(s.out.stdout), { ok: false, error: { code: "X", message: "falhou" } });
+});
+
 test("segredos somem da saída, na forma literal e na escapada em JSON", () => {
   const s = streams();
   const o = createOutput({ json: true, stdout: s.stdout, stderr: s.stderr });
