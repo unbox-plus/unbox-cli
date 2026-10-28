@@ -512,7 +512,8 @@ test("pasta sem vínculo: hash completo publica com aviso; curto para e diz que 
   let r = await roda(dir, { json: true, yes: true }, { args: [sha.toUpperCase()], falsa });
   assert.equal(r.erro, undefined, r.stderr);
   assert.deepEqual(publicou(r), [sha]);
-  assert.match(r.stderr, /não conferi o commit no git local/);
+  assert.match(r.stderr, /Aviso: Este projeto ainda não está ligado à Unbox, então não conferi o commit no git local; a Unbox confere\./);
+  assert.doesNotMatch(r.stderr, /Rode unbox provision/);
   assert.ok(!r.chamadas.includes("shopId"));
 
   r = await roda(dir, { json: true, yes: true }, { args: ["ddddddd"] });

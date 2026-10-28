@@ -244,7 +244,9 @@ export async function runPublish(args, globals = {}, { out, interactive = proces
     if (!prefixo || !COMPLETO.test(prefixo)) {
       throw new CliError(`${e.message}\nCom o hash completo do commit, dá para publicar sem isso.`, e.code);
     }
-    out.warn(`  Aviso: não conferi o commit no git local (${e.message.split("\n")[0].replace(/\.$/, "")}). A Unbox confere.`);
+    // Só o motivo: a instrução que acompanha o erro ("Rode unbox provision.") não vale aqui.
+    const motivo = e.message.split("\n")[0].replace(/\s+(Rode|Instale)\b.*$/, "").replace(/[.:]$/, "");
+    out.warn(`  Aviso: ${motivo}, então não conferi o commit no git local; a Unbox confere.`);
     local = { st: lido.st, sha: prefixo.toLowerCase(), eTopo: false };
   }
   const { st, sha, eTopo } = local;
