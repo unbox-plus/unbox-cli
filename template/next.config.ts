@@ -51,10 +51,11 @@ const nextConfig: NextConfig = {
   async headers() {
     const securityHeaders = [
       { key: "X-Content-Type-Options", value: "nosniff" },
-      // Quem pode enquadrar a loja: ela mesma e o EDITOR da Unbox (o CMS visual abre a loja num
-      // iframe). X-Frame-Options não aceita origem externa; CSP frame-ancestors aceita e tem
-      // precedência. Sem NEXT_PUBLIC_EDITOR_ORIGIN vale só 'self', que é o mesmo que SAMEORIGIN.
-      { key: "Content-Security-Policy", value: `frame-ancestors 'self' ${process.env.NEXT_PUBLIC_EDITOR_ORIGIN ?? ""}`.trim() },
+      // Quem pode enquadrar a loja: ela mesma e o EDITOR da Unbox de forma avulsa ou através
+      // do painel Admin Unbox (o CMS visual abre a loja num iframe).
+      // X-Frame-Options não aceita origem externa; CSP frame-ancestors aceita e tem precedência.
+      // Sem NEXT_PUBLIC_EDITOR_ORIGIN vale só 'self', que é o mesmo que SAMEORIGIN.
+      { key: "Content-Security-Policy", value: `frame-ancestors 'self' ${process.env.NEXT_PUBLIC_EDITOR_ORIGIN ?? ""} ${process.env.NEXT_PUBLIC_ADMIN_ORIGIN ?? ""}`.trim() },
       { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
       { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
       // HSTS: força HTTPS por 1 ano; Vercel já faz isso mas deixar explícito é boa prática.

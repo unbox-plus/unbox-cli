@@ -1,5 +1,12 @@
 ## Changelog
 
+### Não lançado — liberação
+
+**Infra do editor**: Adicionada `NEXT_PUBLIC_ADMIN_ORIGIN` ao `frame-ancestors` para liberar
+a incorporação da loja no editor via painel Admin Unbox.
+
+Variável nova: `NEXT_PUBLIC_ADMIN_ORIGIN`, apontando para o endereço do painel Admin Unbox.
+
 ### v0.25.0 — a integração com a Unbox saiu do template e virou pacote
 
 Até aqui, toda chamada à API de parceiros vivia dentro do template, em `lib/unbox/*.ts`, e era
