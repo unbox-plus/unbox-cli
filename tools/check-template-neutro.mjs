@@ -408,8 +408,9 @@ function conferirLinha(rel, n, linha, dentroDoTemplate) {
 }
 
 // Público sem estar no tarball. `tools/` entra inteiro, recursivo: a pasta saiu do `files` na
-// v0.21.3 e continua no GitHub, e é onde moram o gate e o legado com caminho de máquina.
-const PUBLICOS_DO_REPOSITORIO = ["CHANGELOG.md", "LEIA-ME-FONTE.md", "tools/"];
+// v0.21.3 e continua no GitHub, e é onde moram o gate e o legado com caminho de máquina. `test/`
+// pela mesma razão: não viaja no pacote, mas está no GitHub, com fixtures que alguém escreve à mão.
+const PUBLICOS_DO_REPOSITORIO = ["CHANGELOG.md", "LEIA-ME-FONTE.md", "tools/", "test/"];
 
 /** Expande a lista fixa: arquivo vira ele mesmo, pasta vira tudo o que tem dentro. */
 function publicosDoRepositorio() {
@@ -530,6 +531,20 @@ for (const arquivo of doPacote.filter((f) => /^(?:bin|src)\//.test(f) && /\.[cm]
     bloco = r.bloco;
     if (r.texto.includes("\u2014")) {
       achados.push({ rel: arquivo, n: i + 1, motivo: "travessão no texto impresso pelo CLI", texto: linha.trim().slice(0, 110) });
+    }
+  });
+}
+
+// DEPENDÊNCIA LOCAL NÃO VAI PARA O REGISTRO. Testar a CLI contra um `@unbox-plus/sdk` ainda não
+// publicado é `npm install ../unbox-sdk`, que grava `file:../unbox-sdk` no package.json e um link
+// no lock. Publicado assim, o `npx` de quem gera loja falha procurando uma pasta da máquina de quem
+// empacotou.
+for (const rel of ["package.json", "package-lock.json"]) {
+  const abs = path.join(RAIZ, rel);
+  if (!fs.existsSync(abs)) continue;
+  fs.readFileSync(abs, "utf8").split("\n").forEach((linha, i) => {
+    if (/"file:|"link":\s*true/.test(linha)) {
+      achados.push({ rel, n: i + 1, motivo: "dependência local (file:/link), volte para a versão publicada", texto: linha.trim().slice(0, 110) });
     }
   });
 }

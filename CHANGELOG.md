@@ -1,5 +1,133 @@
 ## Changelog
 
+### v0.28.0 — `unbox deploy`: as mudanças viram preview, sem passos de git à mão
+
+Substitui o antigo `ubx save`. `unbox deploy` commita as mudanças, envia a branch `deploy` para a
+Unbox e espera o build, devolvendo a URL do preview do commit e, quando a loja tiver, o endereço
+fixo de preview. **Nada quebrou:** `create` e `provision` seguem iguais.
+
+- **Só na `deploy`, e só da `deploy`.** Em outra branch, o comando para sem commit, sem push e sem
+  rebase, com o `git checkout deploy` (e o `git merge <branch>`) a rodar. O push usa o refspec
+  explícito da `deploy` local para a remota, nunca `HEAD:deploy` e nunca force.
+- **Remoto à frente:** busca, integra uma vez e envia de novo. Rebase dos seus commits; merge no
+  primeiro deploy de um projeto com histórico próprio (o commit do vínculo é um merge, e o rebase
+  achataria a branch de origem inteira sobre a da Unbox). Conflito desfaz a operação e para.
+- **Tudo que pode parar o comando vem antes do commit**, e nada disso altera o repositório:
+  vínculo (`unbox.shopId`, `unbox.keyPath` com a chave presente, remote `unbox`), branch, merge ou
+  rebase em andamento, credenciais, nome e e-mail do git, login da mesma loja e arquivos em
+  `.github/`, `.gitea/` e `.forgejo/` (na árvore ou em commits ainda não enviados), que o servidor
+  recusaria com um erro pouco claro.
+- **Identidade git:** a mesma regra do `provision`, agora num módulo só (`src/identity.js`).
+- **A chave vai por `GIT_SSH_COMMAND`** em cada chamada que fala com a Unbox, nunca em
+  `core.sshCommand`. Testado com um `ssh` falso no PATH que registra os argumentos.
+- **Acompanhamento:** `customStorefrontDeployment` do topo enviado em 2 s, 5 s e depois a cada
+  10 s, até ~15 min. `FAILURE` orienta a corrigir e rodar de novo (`--build` roda o build aqui
+  antes do push); `PENDING` no teto mostra o commit para informar à Unbox.
+- **Endereço fixo de preview** (`customStorefront.previewUrl`, `https://preview.<slug>.myunbox.com.br`):
+  aparece na saída e no `--json` (`{ commitSha, state, url, previewUrl }`); `null` quando a loja
+  não tem o endereço Unbox, e a linha some do texto.
+- **Testes** com git de verdade e o servidor num repositório bare: fora da `deploy`, sem
+  identidade, arquivos protegidos, push concorrente com rebase, com conflito e com merge,
+  `FAILURE`, teto, nada a enviar, `--build` que falha e outra loja.
+
+### v0.27.0 — `unbox provision`: a loja provisionada e o projeto ligado à branch `deploy`
+
+O primeiro comando de publicação. `unbox provision` cria o repositório e a hospedagem da loja na
+Unbox, espera ficarem prontos e liga o git do projeto à branch `deploy`, que é para onde o
+`unbox deploy` vai enviar o código. **Nada quebrou:** o `create` gera o mesmo projeto, e as
+branches de quem já tem git não mudam.
+
+- **A branch `deploy` é criada ao lado da sua, nunca no lugar dela.** Num projeto com commits, a
+  branch atual fica com o mesmo nome, o mesmo histórico e as mesmas pastas; a `deploy` nasce de um
+  merge com o histórico da Unbox (`-s ours`, então sem conflito, nem com o `README.md` que o
+  repositório da Unbox já traz). Os hooks do projeto (husky, lint-staged) não rodam nesse commit, e
+  se ele falhar a CLI desfaz tudo e volta para a sua branch. Num projeto sem git, o repositório já
+  nasce na `deploy`.
+- **`.github/`, `.gitea/` e `.forgejo/` ficam fora da `deploy`**, com confirmação, porque o
+  servidor recusa o push que as traz. Medido no Forgejo da Unbox: com elas removidas no commit do
+  merge, o histórico antigo que as tinha não impede o push. Elas vão para o `.git/info/exclude`,
+  para não voltarem num commit.
+- **Sem `core.sshCommand`.** Ele valeria para todos os remotes do repositório, e um `origin` por
+  SSH no GitHub passaria a falhar. A chave de deploy vai só nas chamadas da CLI à Unbox, por
+  `GIT_SSH_COMMAND`, e o caminho dela fica em `git config unbox.keyPath`.
+- **Chave de deploy por loja**, em `~/.config/unbox/keys/<loja>_ed25519` (pasta 0700, privada
+  0600). Rodar de novo reaproveita a mesma chave. Em outra máquina, o comando para e explica que a
+  troca de chave é pedida à Unbox, sem gerar chave nova nem mexer na atual.
+- **Host keys do servidor git embutidas**, conferidas no próprio servidor.
+  O push nunca aceita uma chave apresentada pelo servidor na primeira conexão, nunca pergunta, e
+  uma chave diferente para o comando com a orientação de atualizar a CLI.
+- **Prazos medidos no backend.** Uma rodada de provisionamento que falha leva ~12 min até virar
+  `FAILED` (4 tentativas com espera crescente). A CLI chama de novo uma vez depois de um `FAILED`,
+  troca a chave só quando o servidor a recusa por estar em uso, para na hora nos erros que repetir
+  não resolve (endereço da loja em uso, slug inválido, limite da hospedagem) e desiste em 30 min
+  dizendo que rodar de novo é seguro.
+- **Tudo que é local é conferido antes da primeira chamada à API**: credenciais, mudanças não
+  commitadas, merge ou rebase em andamento, HEAD destacado, uma `deploy` sua que não é a da Unbox,
+  projeto ligado a outra loja, pasta dentro de outro repositório, nome e e-mail do git.
+- **`--json`** devolve `{ status, repositorySshUrl, shopId, productionUrl }`. O endereço de produção
+  é melhor esforço: se a consulta falhar, vem `null` com um aviso, sem desfazer o vínculo.
+- **Testes** com git e `ssh-keygen` de verdade numa HOME temporária, e com a linha do tempo do
+  backend num relógio falso.
+
+### v0.26.0 — o comando agora é `unbox`, e a CLI passa a falar com a Partners API
+
+O pacote ganhou um binário com subcomandos, `unbox`, e a base que os comandos de publicação da loja
+(`provision`, `env`, `deploy`, `publish`, `rollback`, `status`) vão usar: o despachante, a saída
+para agentes, a leitura do `.env.local` e a conexão com a Partners API. **A loja gerada não mudou:**
+`unbox create` e `create-unbox-store` geram, byte a byte, o mesmo projeto da v0.25.0, e há um teste
+que compara as duas coisas a cada `npm test`.
+
+- **`unbox create` é o novo nome do scaffold.** O `create-unbox-store` continua funcionando com as
+  mesmas flags e o mesmo resultado; ele só avisa, em stderr, que o padrão agora é `unbox create`.
+  stderr de propósito: quem lê o stdout num script ou na CI não vê a saída mudar.
+- **`npx @unbox-plus/cli` sem `--package=` deixou de funcionar.** Com dois comandos no pacote, o
+  `npx` não sabe qual rodar. A forma documentada desde sempre, `npx --package=@unbox-plus/cli ...`,
+  continua valendo. E `npx unbox` (sem `--package=`) baixa um pacote de terceiros que também se
+  chama `unbox`; o README diz isso.
+- **Flags globais** em qualquer posição: `--help`, `--json` (um único objeto JSON em stdout, o
+  andamento em stderr), `--yes`, `--dir` e `--env-file`. Códigos de saída: `0` ok, `1` a operação
+  falhou, `2` uso incorreto. O `create` mantém o `1` que sempre teve para uso incorreto, e recusa
+  `--json`, `--dir` e `--env-file`, que não fazem sentido num wizard que cria a pasta.
+- **O corpo do scaffold saiu de `bin/cli.js` para `src/commands/create.js`.** O que mudou foi só a
+  borda: erro de uso virou exceção tratada pelo despachante (a mensagem é a mesma), o banner sai
+  depois do parse, e o caminho do template vem de `src/paths.js`. Este último é o detalhe que mais
+  quebraria a mudança de pasta: o `path.join(__dirname, "..", "template")` antigo, copiado para
+  `src/commands/`, apontaria para uma pasta que não existe.
+- **Duas dependências novas, as duas sem dependências próprias.** `@unbox-plus/sdk` `^0.4.0`, o
+  mesmo pacote que a loja usa: signIn, os dois cabeçalhos, o token puro no `Authorization`, a
+  renovação do token vencido e a leitura do `shopId` no JWT ficam num lugar só, em vez de uma segunda
+  implementação aqui. A CLI fixa o formato do token (`authScheme: "raw"`), então nunca manda
+  `Bearer` nem faz a consulta extra que o SDK usa para medir o formato. E `@next/env` na versão do
+  Next do template, para ler o `.env.local` com o MESMO parser da loja: o `envValue` do create grava
+  senha com `$`, `#` e crase num formato que só esse parser lê de volta intacto, e a CLI e a loja
+  divergindo nisso é o signIn falhando sem pista.
+- **A loja gerada passa a usar o `@unbox-plus/sdk` `^0.4.0`** (era `^0.2.0`, que no `0.x` não
+  aceitava nem a 0.3.0). O que muda para a loja: a renovação do token passa a cobrir também a
+  resposta "No authenticated user" do gateway (o token vencido, que volta como `Core HTTP error:
+  401`, já renovava), e um HTTP de erro do gateway sem `errors[]` (uma api key errada, um
+  502) passa a ser erro com a causa, `HTTP 403: {"message":"Forbidden"}`, no lugar de um
+  `Cannot read properties of undefined` no log. A página continua indo para o `error.tsx` como
+  antes. Medido numa loja gerada: typecheck e build limpos, as mesmas 71 rotas, os mesmos avisos de
+  lint e o mesmo JS no navegador, sem nenhuma consulta do SDK no bundle do cliente. Lojas já no ar
+  sobem quando quiserem, com `npm install @unbox-plus/sdk@^0.4.0`.
+- **A CLI diz de onde veio cada credencial.** Uma variável exportada no terminal vence a do
+  `.env.local` (como no Next), e uma esquecida de outra loja levaria a operação para a loja errada
+  sem ninguém ver. Faltando credencial, o erro diz qual falta e aponta o `.env.example`; se elas
+  estiverem no `.env` em vez do `.env.local`, sugere `--env-file .env`.
+- **Nenhuma credencial na saída.** Senha, api key e token passam por um filtro antes de qualquer
+  texto sair, na forma literal e na escapada em JSON, inclusive a mensagem que o servidor devolve
+  no login recusado.
+- **Recusa da API com código e mensagem.** Conta sem permissão sai como `MISSING_PERMISSION`
+  ("peça a liberação à Unbox"), usuário ou senha errados como `SIGN_IN_FAILED`, api key recusada
+  pelo gateway como `API_KEY_RECUSADA` (e não como senha errada), rede fora como `NETWORK`. O
+  gateway manda o código do erro na própria mensagem (`INVALID_CREDENTIALS_ERROR`), e é de lá que o
+  `code` sai quando não há `extensions.code`. Validado contra a Partners API de stage.
+- **`npm test`** (com `node:test`, sem dependência) e o workflow de publicação passa a rodá-lo antes
+  do `npm publish`. O gate do `prepack` varre também `test/` e recusa `file:` no `package.json` ou
+  no lock, o rastro de um `npm install ../unbox-sdk` esquecido.
+- **`tools/partner-api-smoke.mjs`**: smoke test da conexão contra um ambiente real (login, `shopId`
+  do token, a consulta `customStorefront`), fora do pacote publicado.
+
 ### v0.25.0 — a integração com a Unbox saiu do template e virou pacote
 
 Até aqui, toda chamada à API de parceiros vivia dentro do template, em `lib/unbox/*.ts`, e era
