@@ -12,6 +12,7 @@ import { useCart } from "@/components/cart/cart-provider";
 import { formatBRL, parseBRL } from "@/lib/format";
 import { FREE_SHIPPING_THRESHOLD, GIFT_TIERS, PIX_DISCOUNT_PCT } from "@/lib/store-config";
 import { goToCheckout } from "@/lib/checkout-nav";
+import { ItemVariant } from "@/components/cart/kit-lines";
 
 // null/vazio = promoção não existe → o bloco correspondente NÃO renderiza (ver store-config).
 const FREE_SHIP = FREE_SHIPPING_THRESHOLD;
@@ -75,7 +76,7 @@ export function MiniCart() {
                     <div className="flex justify-between gap-2.5">
                       <div>
                         <div className="text-[14.5px] font-bold leading-tight text-[var(--store-ink)]">{it.title}</div>
-                        {it.variantTitle && <div className="mt-0.5 text-xs text-[var(--store-muted)]">{it.variantTitle}</div>}
+                        <ItemVariant it={it} className="mt-0.5 text-xs text-[var(--store-muted)]" />
                         {it.isRecurring && (
                           <span className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-[var(--store-primary-soft,#F1F1F3)] px-2 py-[3px] text-[10px] font-extrabold tracking-[0.3px] text-[var(--store-primary,#18181B)]">
                             <Repeat weight="fill" />ASSINATURA{cart?.recurringFrequencyTitle ? ` · ${cart.recurringFrequencyTitle}` : ""}
