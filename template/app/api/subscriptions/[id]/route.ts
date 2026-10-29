@@ -1,5 +1,5 @@
 // Ações de assinatura (recurring order) — só variantes customer* (token do cliente).
-// id = recurringOrderId. action: pause | skip | cancel | items | card | address
+// id = recurringOrderId. action: pause | skip | cancel | get | items | card | address
 import { requireCustomerClient } from "@/lib/customer-session";
 import { cardSchema, addressSchema, subscriptionItemsSchema } from "@/lib/schemas";
 import { getShopData } from "@/lib/queries";
@@ -7,6 +7,14 @@ import { checkItemsChange } from "@/lib/subscription-items";
 import { ok, fail, failFrom } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
+
+// a rota recebe o _id; o SDK só lê por referenceId.
+// ponytail: lista as 50 primeiras assinaturas do cliente; paginar se alguém tiver mais.
+async function loadSubscription(me: Awaited<ReturnType<typeof requireCustomerClient>>, id: string) {
+  const lista = await me.subscriptions({ first: 50 });
+  const ref = lista.nodes.find((n: any) => n._id === id)?.referenceId;
+  return ref ? me.subscription(ref) : null;
+}
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -22,14 +30,19 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         return ok({ subscription: await me.skipNextCycle(id) });
       case "cancel":
         return ok({ subscription: await me.cancel(id) });
+      case "get": {
+        // a página confere o estado atual antes de enviar a edição: o backend não protege contra conflito
+        const sub = await loadSubscription(me, id);
+        if (!sub) return fail("Assinatura não encontrada.", 404);
+        return ok({
+          status: sub.status?.value,
+          items: (sub.items ?? []).map((it: any) => ({ productId: it.productId, variantId: it.variantId, quantity: it.quantity })),
+        });
+      }
       case "items": {
         const parsed = subscriptionItemsSchema.safeParse(body.items);
         if (!parsed.success) return fail("Itens inválidos.", 422);
-        // a rota recebe o _id; o SDK só lê por referenceId.
-        // ponytail: lista as 50 primeiras assinaturas do cliente; paginar se alguém tiver mais.
-        const lista = await me.subscriptions({ first: 50 });
-        const ref = lista.nodes.find((n: any) => n._id === id)?.referenceId;
-        const [sub, shop] = await Promise.all([ref ? me.subscription(ref) : null, getShopData()]);
+        const [sub, shop] = await Promise.all([loadSubscription(me, id), getShopData()]);
         if (!sub) return fail("Assinatura não encontrada.", 404);
         if (sub.status?.value !== "ACTIVE") return fail("Só é possível editar os itens de uma assinatura ativa.", 409);
         const recusa = checkItemsChange(sub.items ?? [], parsed.data, shop?.recurringOrdersPolicy?.customerActions ?? {});

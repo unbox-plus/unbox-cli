@@ -113,6 +113,14 @@ export function SubscriptionItemsEditor({
   const active = activeItems(draft)
   const nameOf = (it: SavedItem) => details[nameKey(it)]?.titulo ?? catalog.find((p) => p.productId === it.productId)?.title ?? it.productId
 
+  // sair da página (fechar a aba, recarregar, navegar para fora) com alterações pendentes pede confirmação ao navegador
+  React.useEffect(() => {
+    if (!open || !dirty) return
+    const block = (e: BeforeUnloadEvent) => e.preventDefault()
+    window.addEventListener("beforeunload", block)
+    return () => window.removeEventListener("beforeunload", block)
+  }, [open, dirty])
+
   const requestClose = () => {
     if (saving) return
     if (dirty) setConfirmOpen(true)
