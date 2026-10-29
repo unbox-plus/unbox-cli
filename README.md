@@ -128,6 +128,32 @@ senha que funciona na loja funciona na CLI. Uma variável exportada no terminal 
 como no Next; por isso a CLI diz de onde veio cada credencial, para uma variável esquecida de outra
 loja não passar despercebida. Faltando alguma das três, o comando para e diz qual.
 
+### Do `unbox create` à produção
+
+O fluxo completo, na pasta do projeto, com as credenciais no `.env.local`:
+
+```bash
+unbox create minha-loja && cd minha-loja   # gera a loja (veja o começo deste README)
+unbox provision                            # uma vez: repositório, hospedagem e branch deploy
+unbox env                                  # a cada mudança no .env.local (o provision já envia)
+unbox deploy                               # a cada mudança: commit, envio e preview
+unbox publish                              # o preview conferido vai para produção
+unbox status                               # o que está no ar e o que falta enviar
+unbox rollback                             # volta a publicação anterior (não é idempotente)
+```
+
+- **Produção** fica em `https://<slug>.myunbox.com.br`, com a página "Em breve" até o primeiro
+  `unbox publish`. No futuro, um domínio próprio da loja substitui esse endereço.
+- **Preview estável** em `https://preview.<slug>.myunbox.com.br`: o envio mais recente que terminou
+  com sucesso, além da URL de cada commit. É público para quem tem o link (o `noindex` só afasta
+  buscadores). No código, `process.env.VERCEL_TARGET_ENV === "preview-unbox"`.
+- **Preview ok não garante produção ok:** o `publish` refaz o build com a configuração de produção.
+- **`unbox rollback` não é idempotente:** cada execução é um rollback novo, a partir do que estiver
+  no ar. Confira com `unbox status` antes de repetir.
+
+O projeto gerado traz o mesmo caminho para o lojista e para os agentes, com os endereços, o preview
+estável e a tabela de erros comuns, no `DEPLOY.md`.
+
 ### `unbox provision`
 
 Roda na pasta do projeto: a que o `unbox create` gerou, ou um projeto seu, com ou sem git.
@@ -348,8 +374,8 @@ dois independentes lendo o mesmo `dataLayer`. Três coisas que não são óbvias
 
 Next.js 15 (App Router) + Tailwind v4 + shadcn/ui sobre Base UI, com catálogo, carrinho,
 checkout, área do cliente (OTP login, pedidos, assinaturas, endereços), páginas legais, PWA e
-SEO básico já implementados — ver `DEPLOY.md` e `QA.md` dentro do projeto gerado para o checklist
-de deploy na Vercel.
+SEO básico já implementados — ver `DEPLOY.md` e `QA.md` dentro do projeto gerado para o caminho até
+produção pela hospedagem da Unbox (`unbox provision`, `env`, `deploy`, `publish`).
 
 ## ⚠️ Antes de publicar a loja — decisões que ficam para quem usa
 
