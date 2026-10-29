@@ -32,7 +32,7 @@ export const LIMITES = {
   falhasDeLeitura: 3,
 };
 
-const PASSOS = {
+export const PASSOS = {
   HOSTING_PROJECT: "criando o projeto de hospedagem",
   HOSTING_PRODUCTION_PLACEHOLDER: "publicando a página inicial de produção",
   HOSTING_PROJECT_SETTINGS: "configurando a hospedagem e o endereço da loja",
