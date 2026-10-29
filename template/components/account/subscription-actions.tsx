@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { Calendar, Plus } from "@/lib/icons";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -37,13 +36,8 @@ import {
   emptyAddress,
   type AddressValue,
 } from "@/components/address-fields";
-import { InlineAlert } from "@/components/account/subscription-editor/inline-alert";
-import { AddProductPanel } from "@/components/account/subscription-editor/add-product-panel";
+import { SubscriptionItemsEditor, type ItemDetalhe } from "@/components/account/subscription-editor/subscription-items-editor";
 import type { CatalogProduct } from "@/components/account/subscription-editor/catalog-product-card";
-import { VariantSwitcher, variantName } from "@/components/account/subscription-editor/variant-switcher";
-import { SubscriptionEditorItem } from "@/components/account/subscription-editor/subscription-editor-item";
-import { cn } from "@/lib/utils";
-import { nameKey } from "@/lib/subscription-items";
 
 const BTN_PRIMARY =
   "font-display inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-xl bg-[var(--store-primary,#18181B)] px-5 text-[14px] font-bold text-white transition-colors hover:bg-[var(--store-primary-dark,#09090B)] disabled:opacity-60";
@@ -64,14 +58,7 @@ interface Actions {
   canAddProducts?: boolean;
   canRemoveProducts?: boolean;
 }
-export interface ItemDetalhe {
-  titulo: string;
-  variacao: string | null;
-  foto?: string;
-  unit: number | null;
-  riscado: number | null;
-  variantes?: { id: string; label: string; esgotado?: boolean }[];
-}
+export type { ItemDetalhe };
 interface Item {
   productId: string;
   variantId: string;
@@ -101,8 +88,7 @@ export function SubscriptionActions({
   const [addrOpen, setAddrOpen] = React.useState(false);
   const [cardOpen, setCardOpen] = React.useState(false);
   const [itemsOpen, setItemsOpen] = React.useState(false);
-  const [etapa, setEtapa] = React.useState<"lista" | "adicionar">("lista"); // no mobile o painel de adicionar ocupa o lugar da lista
-  const [removidos, setRemovidos] = React.useState<Set<number>>(new Set()); // índices marcados; só saem ao salvar
+  const [itemsError, setItemsError] = React.useState<string | null>(null);
 
   const [addr, setAddr] = React.useState<AddressValue>(emptyAddress);
   const [card, setCard] = React.useState({
@@ -112,10 +98,8 @@ export function SubscriptionActions({
     expirationYear: "",
     securityCode: "",
   });
-  const [editItems, setEditItems] = React.useState<Item[]>(items);
 
   const temVariantes = Object.values(detalhes).some((d) => d.variantes && d.variantes.length > 1); // trocar variante vale mesmo sem nenhuma flag
-  const podeAdicionar = !!actions.canAddProducts && catalogo.length > 0;
   const canceled = status === "CANCELED";
   const paused = status === "PAUSED";
 
@@ -125,6 +109,7 @@ export function SubscriptionActions({
     label = "Pronto",
   ) {
     setBusy(action);
+    if (action === "items") setItemsError(null);
     try {
       const res = await fetch(`/api/subscriptions/${recurringOrderId}`, {
         method: "POST",
@@ -137,7 +122,9 @@ export function SubscriptionActions({
       router.refresh();
       return true;
     } catch (e: any) {
-      toast.error(e.message);
+      // os itens mostram o erro dentro do modal (com "Tentar de novo"); as outras ações, em toast
+      if (action === "items") setItemsError(e.message);
+      else toast.error(e.message);
       return false;
     } finally {
       setBusy(null);
@@ -220,9 +207,7 @@ export function SubscriptionActions({
             type="button"
             className={CHIP}
             onClick={() => {
-              setEditItems(items);
-              setRemovidos(new Set());
-              setEtapa("lista");
+              setItemsError(null);
               setItemsOpen(true);
             }}
           >
@@ -378,138 +363,22 @@ export function SubscriptionActions({
       </Dialog>
 
       {/* Itens */}
-      <Dialog open={itemsOpen} onOpenChange={setItemsOpen}>
-        <DialogContent
-          className={cn(
-            "grid-cols-[minmax(0,1fr)] sm:max-w-2xl",
-            // desktop: o modal nunca passa da tela; só o miolo rola, então Salvar e fechar ficam sempre visíveis
-            "lg:max-h-[calc(100dvh-2rem)] lg:grid-rows-[auto_minmax(0,1fr)_auto]",
-            podeAdicionar && "lg:max-w-4xl",
-            // mobile: tela cheia nas duas etapas, então abrir, fechar e trocar de etapa não muda o tamanho do modal.
-            // Sem animação de zoom (em tela cheia ela só pisca); o cabeçalho, o miolo e o rodapé são faixas.
-            "max-lg:top-0 max-lg:left-0 max-lg:flex max-lg:h-dvh max-lg:max-w-none! max-lg:translate-x-0 max-lg:translate-y-0 max-lg:flex-col max-lg:gap-0 max-lg:rounded-none max-lg:p-0 max-lg:data-open:animate-none max-lg:data-closed:animate-none",
-          )}
-        >
-          <DialogHeader
-            className={cn(
-              etapa === "lista" ? "max-lg:shrink-0 max-lg:border-b max-lg:p-4 max-lg:pr-14" : "sr-only lg:not-sr-only",
-            )}
-          >
-            <DialogTitle>Alterar itens</DialogTitle>
-            <DialogDescription>
-              Ajuste as quantidades dos próximos ciclos.
-            </DialogDescription>
-          </DialogHeader>
-          <div
-            className={cn(
-              "flex min-h-0 min-w-0 flex-col gap-6 max-lg:flex-1 lg:flex-row lg:overflow-y-auto",
-              etapa === "lista" ? "max-lg:overflow-y-auto max-lg:p-4" : "max-lg:overflow-hidden",
-            )}
-          >
-            <div className={cn("flex min-w-0 flex-1 flex-col gap-4", etapa === "adicionar" && "hidden lg:flex")}>
-          <InlineAlert variant="info" icon={Calendar} title={`As mudanças valem a partir da próxima entrega${proximaEntrega ? `, em ${proximaEntrega}` : ""}.`}>
-            A entrega que já está a caminho não muda.
-          </InlineAlert>
-          <ul className="flex flex-col divide-y divide-[var(--store-surface-2)]">
-            {editItems.map((it, i) => {
-              const d = detalhes[nameKey(it)];
-              const titulo = d?.titulo ?? it.productId;
-              const before = items.find((x) => nameKey(x) === nameKey(it))?.quantity;
-              const removido = removidos.has(i);
-              return (
-                <li key={`${it.productId}:${i}`} className="py-3.5 first:pt-0">
-                  <VariantSwitcher
-                    name={d?.variacao ? variantName(d.variacao) : ""}
-                    value={it.variantId}
-                    options={(d?.variantes ?? []).map((o) => {
-                      const jaTem = editItems.some((x, j) => j !== i && x.productId === it.productId && x.variantId === o.id);
-                      return {
-                        id: o.id,
-                        label: o.label,
-                        disabled: jaTem || o.esgotado,
-                        disabledReason: jaTem ? "Já está na sua assinatura" : o.esgotado ? "Esgotado" : undefined,
-                      };
-                    })}
-                    onSwap={(v) => setEditItems((arr) => arr.map((x, j) => (j === i ? { ...x, variantId: v } : x)))}
-                  >
-                    {({ link, panel }) => (
-                      <SubscriptionEditorItem
-                        item={{
-                          name: titulo,
-                          image: d?.foto,
-                          variant: d?.variacao,
-                          quantity: it.quantity,
-                          price: d?.unit,
-                          compareAtPrice: d?.riscado,
-                          previousQuantity: before,
-                          status: d?.variantes?.find((v) => v.id === it.variantId)?.esgotado ? "outOfStock" : undefined,
-                        }}
-                        canChangeQuantity={actions.canChangeProductQuantity}
-                        canRemove={actions.canRemoveProducts}
-                        isLastActiveItem={editItems.length - removidos.size <= 1 && !removido}
-                        isNew={i >= items.length}
-                        isRemoved={removido}
-                        variantAction={link}
-                        onQuantityChange={(q) => setEditItems((arr) => arr.map((x, j) => (j === i ? { ...x, quantity: q } : x)))}
-                        onRemove={() => setRemovidos((s) => new Set(s).add(i))}
-                        onUndo={() =>
-                          setRemovidos((s) => {
-                            const n = new Set(s);
-                            n.delete(i);
-                            return n;
-                          })
-                        }
-                      >
-                        {panel}
-                      </SubscriptionEditorItem>
-                    )}
-                  </VariantSwitcher>
-                </li>
-              );
-            })}
-          </ul>
-              {podeAdicionar && (
-                <button type="button" className={cn(BTN_OUTLINE, "lg:hidden")} onClick={() => setEtapa("adicionar")}>
-                  <Plus aria-hidden weight="bold" /> Adicionar produto
-                </button>
-              )}
-            </div>
-            {podeAdicionar && (
-              <AddProductPanel
-                className={cn(etapa === "lista" && "hidden lg:flex", "lg:border-l lg:border-[var(--store-surface-2)] lg:pl-6")}
-                catalog={catalogo}
-                subscribedKeys={new Set(editItems.map(nameKey))}
-                onAdd={(novo) => setEditItems((arr) => [...arr, novo])}
-                onBack={() => setEtapa("lista")}
-              />
-            )}
-          </div>
-          <DialogFooter className={cn("max-lg:mx-0 max-lg:mb-0 max-lg:shrink-0 max-lg:rounded-none max-lg:bg-white max-lg:pb-[max(1rem,env(safe-area-inset-bottom))]", etapa === "adicionar" && "hidden lg:flex")}>
-            <button
-              type="button"
-              className={BTN_OUTLINE}
-              onClick={() => setItemsOpen(false)}
-            >
-              Voltar
-            </button>
-            <button
-              type="button"
-              className={BTN_PRIMARY}
-              disabled={busy === "items"}
-              onClick={() =>
-                run("items", { items: editItems.filter((_, j) => !removidos.has(j)) }, "Itens atualizados.").then(
-                  (ok) => ok && setItemsOpen(false),
-                )
-              }
-            >
-              {busy === "items" ? (
-                <CircleNotch className="animate-spin" />
-              ) : null}{" "}
-              Salvar
-            </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <SubscriptionItemsEditor
+        open={itemsOpen}
+        savedItems={items}
+        details={detalhes}
+        catalog={catalogo}
+        permissions={actions}
+        nextDeliveryDate={proximaEntrega}
+        saving={busy === "items"}
+        saveError={itemsOpen ? itemsError : null}
+        onSave={(payload) => run("items", { items: payload }, "Itens atualizados.").then((ok) => ok && setItemsOpen(false))}
+        onClose={() => setItemsOpen(false)}
+        onCancelSubscription={() => {
+          setItemsOpen(false);
+          setCancelOpen(true);
+        }}
+      />
     </div>
   );
 }
