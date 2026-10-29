@@ -1,7 +1,9 @@
 // Ações de assinatura (recurring order) — só variantes customer* (token do cliente).
 // id = recurringOrderId. action: pause | skip | cancel | items | card | address
 import { requireCustomerClient } from "@/lib/customer-session";
-import { cardSchema, addressSchema } from "@/lib/schemas";
+import { cardSchema, addressSchema, subscriptionItemsSchema } from "@/lib/schemas";
+import { getShopData } from "@/lib/queries";
+import { checkItemsChange } from "@/lib/subscription-items";
 import { ok, fail, failFrom } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
@@ -21,8 +23,18 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       case "cancel":
         return ok({ subscription: await me.cancel(id) });
       case "items": {
-        if (!Array.isArray(body.items)) return fail("Itens inválidos.");
-        return ok({ subscription: await me.updateItems(id, body.items) });
+        const parsed = subscriptionItemsSchema.safeParse(body.items);
+        if (!parsed.success) return fail("Itens inválidos.", 422);
+        // a rota recebe o _id; o SDK só lê por referenceId.
+        // ponytail: lista as 50 primeiras assinaturas do cliente; paginar se alguém tiver mais.
+        const lista = await me.subscriptions({ first: 50 });
+        const ref = lista.nodes.find((n: any) => n._id === id)?.referenceId;
+        const [sub, shop] = await Promise.all([ref ? me.subscription(ref) : null, getShopData()]);
+        if (!sub) return fail("Assinatura não encontrada.", 404);
+        if (sub.status?.value !== "ACTIVE") return fail("Só é possível editar os itens de uma assinatura ativa.", 409);
+        const recusa = checkItemsChange(sub.items ?? [], parsed.data, shop?.recurringOrdersPolicy?.customerActions ?? {});
+        if (recusa) return fail(recusa, 403);
+        return ok({ subscription: await me.updateItems(id, parsed.data as any) });
       }
       case "card": {
         const parsed = cardSchema.safeParse(body.card);

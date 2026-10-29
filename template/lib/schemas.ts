@@ -45,6 +45,14 @@ export const cardSchema = z.object({
   installments: z.number().int().min(1).max(12).optional(),
 });
 
+export const subscriptionItemsSchema = z
+  .array(z.object({
+    productId: z.string().min(1),
+    variantId: z.string().min(1).nullable(),
+    quantity: z.number().int().min(1),
+  }))
+  .min(1);
+
 export const emailSchema = z.string().email("E-mail inválido.");
 
 export const otpSchema = z.object({
