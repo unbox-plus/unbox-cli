@@ -120,6 +120,16 @@ export async function createPartnerApi({ env, out }) {
     },
 
     /**
+     * Uma operação que NÃO pode ser repetida: sem a renovação do SDK, que chama de novo quando o
+     * erro parece de sessão vencida (e a regex dele casa com qualquer mensagem que cite "token").
+     * `timeoutMs` troca o prazo só desta chamada (o SDK usa 15 s): desistir com o servidor ainda
+     * trabalhando deixa quem chama sem saber se a operação foi feita.
+     */
+    requestOnce(query, variables = {}, { timeoutMs } = {}) {
+      return traduzido(async () => conhece(await store.getStoreClient()).gql(query, variables, timeoutMs ? { timeoutMs } : {}));
+    },
+
+    /**
      * shopId da sessão, lido do claim `arn:unbox:shopId` do token, e não do UNBOX_SHOP_ID do env:
      * é a loja em que o login realmente entrou. Se o env disser outra, avisa.
      */
