@@ -16,6 +16,8 @@ import { assertKnownGitUrl, writeKnownHosts } from "../known-hosts.js";
 import { provisionAndWait } from "../provisioning.js";
 import { linkDeploy, linkMode, needsCommit, repoProblem, repoState } from "../git.js";
 import { askIdentity } from "../identity.js";
+import { separaVazias } from "../environment.js";
+import { syncEnvironment } from "./env.js";
 
 export const help = `
   unbox provision: provisiona a loja na Unbox e liga o projeto à branch deploy
@@ -27,7 +29,8 @@ export const help = `
     1. cria o repositório e a hospedagem da loja na Unbox e espera ficarem prontos
        (alguns minutos; se falhar, tenta de novo quando faz sentido);
     2. cria a branch deploy AO LADO da sua branch atual, que não é alterada;
-    3. deixa tudo pronto para o unbox deploy.
+    3. envia as variáveis do .env.local para a hospedagem (como o unbox env);
+    4. deixa tudo pronto para o unbox deploy.
 
   A chave de deploy fica em ~/.config/unbox/keys/<loja>_ed25519, só nesta máquina.
   As pastas .github/, .gitea/ e .forgejo/ não vão para a Unbox: ficam fora da branch deploy
@@ -80,6 +83,21 @@ async function enderecoDeProducao(api, out) {
   }
 }
 
+/** As variáveis: melhor esforço. A loja e o vínculo já estão prontos; o que faltar, o unbox env completa. */
+async function enviaVariaveis(api, loaded, out) {
+  out.progress("  Enviando as variáveis para a hospedagem");
+  try {
+    return await syncEnvironment({ api, loaded, out });
+  } catch (e) {
+    // O syncEnvironment só lança CliError com texto da CLI. Qualquer outra coisa é inesperada, e a
+    // mensagem dela não é repassada: poderia carregar o que ia ser enviado.
+    const code = e instanceof CliError ? e.code : "ERRO";
+    const message = e instanceof CliError ? e.message : "Falha inesperada ao enviar as variáveis.";
+    out.warn(`  Aviso: não consegui enviar as variáveis (${code}): rode unbox env; é seguro.`);
+    return { sent: e.feitas ?? [], error: { code, message } };
+  }
+}
+
 function texto(d, extra) {
   const linhas = ["", "✓ Loja provisionada e projeto ligado à Unbox", ""];
   linhas.push(`  Repositório:  ${d.repositorySshUrl}`);
@@ -91,7 +109,17 @@ function texto(d, extra) {
   if (extra.removed.length) {
     linhas.push(`  Fora da deploy (continuam na ${extra.originalBranch}): ${extra.removed.join(", ")}`);
   }
-  linhas.push("", "  As variáveis do .env.local ainda não vão para a hospedagem: sem elas o build da loja falha.");
+  if (d.env?.error) {
+    const parte = d.env.sent.length ? `só ${d.env.sent.length} enviadas` : "não enviadas";
+    linhas.push(`  Variáveis:    ${parte} (${d.env.error.code}); rode unbox env antes do unbox deploy`);
+  } else if (d.env && !d.env.sent.length) {
+    linhas.push("  Variáveis:    nenhuma enviada; sem elas o build da loja falha. Preencha o .env.local e rode unbox env");
+  } else if (d.env) {
+    const { vazias, outras } = separaVazias(d.env.skipped);
+    const puladas = (vazias.length ? `, ${vazias.length} vazias` : "") + (outras.length ? `, ${outras.length} não ${outras.length === 1 ? "enviada" : "enviadas"} (veja os avisos)` : "");
+    linhas.push(`  Variáveis:    ${d.env.sent.length} enviadas para a hospedagem${puladas}`);
+  }
+  linhas.push("");
   linhas.push("  Próximo passo: unbox deploy", "");
   return linhas.join("\n");
 }
@@ -157,7 +185,8 @@ export async function runProvision(args, globals = {}, { out, interactive = proc
     st,
   });
 
+  const envData = await enviaVariaveis(api, loaded, out);
   const productionUrl = await enderecoDeProducao(api, out);
-  const data = { status: storefront.status, repositorySshUrl: sshUrl, shopId, productionUrl };
+  const data = { status: storefront.status, repositorySshUrl: sshUrl, shopId, productionUrl, env: envData };
   out.result(data, (d) => texto(d, vinculo));
 }

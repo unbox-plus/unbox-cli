@@ -68,7 +68,9 @@ export function loadProjectEnv({ dir = process.cwd(), envFile = ".env.local", pr
     env[k] = v;
     if (k in parsed || k.startsWith("UNBOX_")) origem[k] = "ambiente";
   }
-  return { env, origem, file, envFile, dir, exists };
+  // `fileKeys`: as chaves que o ARQUIVO declara. Os valores delas em `parsed` já são os do terminal
+  // quando ele também as define, e já vêm expandidos: é o que o `next dev` enxerga.
+  return { env, origem, file, envFile, dir, exists, fileKeys: Object.keys(parsed) };
 }
 
 /** Credenciais presentes ou erro com instrução. Roda ANTES do SDK, que diria "modo mockup". */

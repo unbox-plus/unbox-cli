@@ -16,6 +16,7 @@ import { PACKAGE_ROOT } from "./paths.js";
 import * as create from "./commands/create.js";
 import * as provision from "./commands/provision.js";
 import * as deploy from "./commands/deploy.js";
+import * as env from "./commands/env.js";
 
 /**
  * Os comandos que EXISTEM. Só entra aqui (e na ajuda) o que está implementado: cada comando novo
@@ -35,6 +36,12 @@ const COMMANDS = {
     uso: "provision",
     help: provision.help,
     run: (args, globals, ctx) => provision.runProvision(args, globals, ctx),
+  },
+  env: {
+    resumo: "envia as variáveis do .env.local para a hospedagem da loja",
+    uso: "env [--list | --unset <CHAVE>...]",
+    help: env.help,
+    run: (args, globals, ctx) => env.runEnv(args, globals, ctx),
   },
   deploy: {
     resumo: "commita, envia a branch deploy para a Unbox e mostra a URL do preview",
@@ -75,7 +82,7 @@ ${linhas.join("\n")}
     --json                saída para agentes e scripts: um único objeto JSON em stdout
     --yes, -y             não pede confirmação
     --dir <caminho>       pasta do projeto (padrão: a atual)
-    --env-file <arquivo>  arquivo das credenciais, relativo ao --dir (padrão: .env.local)
+    --env-file <arquivo>  arquivo das credenciais e variáveis, relativo ao --dir (padrão: .env.local)
 
   Códigos de saída: 0 ok, 1 a operação falhou, 2 uso incorreto.
 

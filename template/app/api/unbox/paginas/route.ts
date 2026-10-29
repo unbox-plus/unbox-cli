@@ -21,7 +21,8 @@
 //                   slug, e passa a abrir a loja por ele: a prévia, a publicação e a revalidação vão para o
 //                   endereço de verdade, sem ninguém registrar nada. Endereço que não confirma (DNS ainda não
 //                   apontado, certificado pendente) é ignorado com aviso no log do editor, e a convenção segue.
-//                   Em desenvolvimento (http://localhost) o campo não sai: só https vale como endereço.
+//                   Em desenvolvimento (http://localhost) o campo não sai: só https vale como endereço. No
+//                   build do endereço fixo de preview, a variável (e este campo) é o endereço de preview.
 //         paginasDoLojista  OPCIONAL, e é o INTERRUPTOR das páginas do lojista (foundation 13): a loja
 //                   declarando que sabe abrir `/paginas/<endereço>`, `/<coleção>` e `/<coleção>/<endereço>`.
 //                   É o mesmo objeto que vai ao `EditableProvider` (lib/paginas-do-lojista.ts): a versão da

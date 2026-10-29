@@ -100,9 +100,10 @@ unbox <comando> --help       # uso e exemplos de um comando
 |---|---|
 | `unbox create [pasta]` | gera a loja (o wizard descrito acima) |
 | `unbox provision` | provisiona o repositório e a hospedagem da loja na Unbox e liga o projeto à branch `deploy` |
+| `unbox env` | envia as variáveis do `.env.local` para a hospedagem da loja (`--list` mostra, `--unset` remove) |
 | `unbox deploy` | commita as mudanças, envia a branch `deploy` para a Unbox e mostra a URL do preview |
 
-Os demais comandos de publicação (`env`, `publish`, `rollback`, `status`) entram nas
+Os demais comandos de publicação (`publish`, `rollback`, `status`) entram nas
 próximas versões. Eles falam com a Partners API da Unbox, e por isso todos seguem as mesmas regras
 abaixo.
 
@@ -114,7 +115,7 @@ abaixo.
 | `--json` | | saída para agentes e scripts: um único objeto JSON em stdout (`{"ok":true,"data":...}` ou `{"ok":false,"error":{"code","message"}}`); o andamento vai para stderr |
 | `--yes`, `-y` | | não pede confirmação (no `create`, gera com os padrões, sem perguntas) |
 | `--dir <caminho>` | pasta atual | a pasta do projeto da loja |
-| `--env-file <arquivo>` | `.env.local` | o arquivo das credenciais, relativo ao `--dir` |
+| `--env-file <arquivo>` | `.env.local` | o arquivo das credenciais (e das variáveis do `unbox env`), relativo ao `--dir` |
 
 **Códigos de saída:** `0` deu certo, `1` a operação falhou, `2` uso incorreto (comando ou flag que
 não existe, valor faltando). O `create` usa `1` também para uso incorreto, como sempre fez.
@@ -132,7 +133,7 @@ Roda na pasta do projeto: a que o `unbox create` gerou, ou um projeto seu, com o
 
 ```bash
 unbox provision            # na pasta do projeto
-unbox provision --json     # para agentes: um objeto { status, repositorySshUrl, shopId, productionUrl }
+unbox provision --json     # para agentes: um objeto { status, repositorySshUrl, shopId, productionUrl, env }
 ```
 
 1. **Provisiona** o repositório e a hospedagem da loja na Unbox e espera ficarem prontos. Leva
@@ -144,7 +145,10 @@ unbox provision --json     # para agentes: um objeto { status, repositorySshUrl,
    - pasta sem git (ou sem commits): o repositório nasce na `deploy`, com os seus arquivos intactos;
    - repositório com commits: a `deploy` é criada **ao lado** da sua branch atual, que não muda
      (mesmo nome, mesmo histórico). O trabalho de publicação segue na `deploy`.
-3. Mostra o endereço de produção da loja (`https://<slug>.myunbox.com.br`), que exibe "Em breve"
+3. **Envia as variáveis** do `.env.local` para a hospedagem, como o `unbox env` (veja abaixo). Se
+   isso falhar, o `provision` termina mesmo assim, com um aviso: a loja e o vínculo estão prontos,
+   e `unbox env` completa (no `--json`, `env.error`).
+4. Mostra o endereço de produção da loja (`https://<slug>.myunbox.com.br`), que exibe "Em breve"
    até o primeiro `unbox publish`.
 
 Rodar de novo é seguro: mesma chave, nada duplicado. O que convém saber:
@@ -171,8 +175,41 @@ Rodar de novo é seguro: mesma chave, nada duplicado. O que convém saber:
 - **Antes de chamar a Unbox, a CLI confere a pasta** e para, sem mudar nada, se: houver mudanças
   não commitadas (num projeto com commits), um merge ou rebase em andamento, o HEAD fora de uma
   branch, uma branch `deploy` sua que não é a da Unbox, ou a pasta for parte de outro repositório.
-- **As variáveis do `.env.local` ainda não vão para a hospedagem** (isso entra com o `unbox env`).
-  Sem elas, o build da loja falha.
+
+### `unbox env`
+
+O `.env.local` não vai no push (está no `.gitignore`), e sem as variáveis o build da loja falha no
+login da Partners API. O `unbox env` grava as variáveis do arquivo no projeto de hospedagem da loja,
+para os builds de preview e de produção. O `unbox provision` já faz isso no fim; rode de novo
+sempre que mudar o `.env.local`.
+
+```bash
+unbox env                          # envia as variáveis do .env.local
+unbox env --list                   # o que está na hospedagem e o que ainda não foi enviado
+unbox env --unset CHAVE [CHAVE...] # remove da hospedagem
+unbox env --json                   # { sent, skipped, fromTerminal, keys }
+```
+
+- **Vão as chaves do arquivo**, com o valor que o `next dev` vê: uma variável exportada no
+  terminal com o mesmo nome vence a do arquivo, e o comando avisa quais. Variáveis que existem só
+  no terminal não vão (se for uma das credenciais, o comando avisa que o build vai falhar).
+- **Não vão**, sem atrapalhar as outras: as vazias (numa linha só, porque opcional em branco é
+  escolha), e, com um aviso por chave, nomes fora do formato (letras
+  maiúsculas, dígitos e `_`, começando por letra), valores acima de 16384 caracteres, e os nomes
+  reservados: `TZ` e os que começam com `VERCEL_`, `NEXT_PUBLIC_VERCEL_`, `NOW_`, `AWS_` e `LAMBDA_`.
+- **`NEXT_PUBLIC_SITE_URL` é gerenciada pela Unbox**: ela grava o endereço da loja na hospedagem
+  (produção e, quando a loja tem, o endereço fixo de preview), e por isso o lojista não define nem
+  remove. Lojas provisionadas antes de a Unbox passar a gravá-la só ganham a variável numa migração
+  futura. Se a Unbox reservar um nome novo que esta versão da CLI não conhece, o comando acha qual
+  é, pula com aviso e grava o resto.
+- **Só builds novos usam as variáveis.** Depois de mudar, rode `unbox deploy` para um preview com
+  elas, e publique esse commit. Publicar de novo o que já está no ar não refaz o build.
+- **Repetir é seguro**: a gravação substitui o valor. O `unbox env` nunca remove o que sumiu do
+  arquivo; para isso existe o `--unset`. Uma chave removida que continue no arquivo volta no
+  próximo `unbox env`.
+- **`--list` compara só os nomes.** A hospedagem nunca devolve valores, então um valor alterado no
+  arquivo não aparece como pendente: rode `unbox env` para enviar de novo.
+- **Os valores nunca são impressos**, nem com `--json`. A saída cita só os nomes.
 
 ### `unbox deploy`
 
@@ -316,7 +353,7 @@ Gate: `npm run unbox:editavel` mede toda página que a loja declara. Saída 0 = 
 
 Variáveis: `EDITOR_URL`, `NEXT_PUBLIC_EDITOR_ORIGIN`, `UNBOX_EDITOR_SHOP` (opcional: sobrepõe o slug carimbado). `META_CAPI_TOKEN` é segredo de servidor e nunca entra no documento do editor.
 
-A loja diz quem é e onde vive (0.20.4): `/api/unbox/paginas` responde `loja: { slug, nome, url }`. É por isso que o editor acha a loja sem registro nenhum (`https://<slug>.myunbox.com.br`) e, quando `NEXT_PUBLIC_SITE_URL` é o domínio próprio (https), confirma lá e abre a loja por ele: prévia, publicação e revalidação vão para o domínio de verdade. Em produção, `NEXT_PUBLIC_SITE_URL` certo é o único cuidado; `http://localhost` (dev) não é declarado.
+A loja diz quem é e onde vive (0.20.4): `/api/unbox/paginas` responde `loja: { slug, nome, url }`. É por isso que o editor acha a loja sem registro nenhum (`https://<slug>.myunbox.com.br`) e, quando `NEXT_PUBLIC_SITE_URL` é o domínio próprio (https), confirma lá e abre a loja por ele: prévia, publicação e revalidação vão para o domínio de verdade. Em produção, `NEXT_PUBLIC_SITE_URL` certo é o único cuidado; `http://localhost` (dev) não é declarado. No build do endereço fixo de preview, a variável é esse endereço, e é ele que a rota declara ali; o editor consulta a loja pelo endereço de produção, e lá a rota declara o endereço de produção.
 
 O lojista cria páginas, artigos e coleções (0.21.0). A loja nasce com quatro rotas que servem o que o lojista escreve no editor: `/paginas/<endereco>` (página avulsa), `/<colecao>/<endereco>` (artigo), `/<colecao>` (listagem) e `/<colecao>/pagina/N` (as seguintes), mais `/previa-do-editor`, por onde o editor abre uma página antes de ela existir na loja. A coleção que nasce com a loja é o `blog`, declarada em `lib/paginas-do-lojista.ts`; trocar o rótulo e o endereço dela é uma linha. O corpo da página é montado com as mesmas seções da home, mais uma seção de **Texto** com parágrafo, negrito, link, lista, subtítulo e citação. SEO: título, descrição, endereço canônico, Open Graph, dados estruturados (artigo, página, listagem e migalhas) e sitemap com a data de alteração verdadeira, tudo derivado do documento.
 

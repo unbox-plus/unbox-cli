@@ -34,16 +34,24 @@ const CODIGO = /CUSTOM_STOREFRONT_[A-Z0-9_]+_ERROR/;
  * CUSTOM_STOREFRONT_ALREADY_PROVISIONED_ERROR tem 43. A `cause` guarda o erro do SDK inteiro.
  */
 export function backendCode(err) {
-  for (let e = err, i = 0; e && i < 4; e = e.cause, i++) {
-    const msgs = [e.message, ...(Array.isArray(e.errors) ? e.errors.map((x) => x?.message) : [])];
-    for (const m of msgs) {
-      const achado = String(m ?? "").match(CODIGO);
-      if (achado) return achado[0];
-      // A validação do input (Joi) não tem código: a mensagem é o que identifica.
-      if (/deployPublicKey must be/.test(String(m ?? ""))) return INVALID_DEPLOY_PUBLIC_KEY;
-    }
+  for (const m of mensagensDoErro(err)) {
+    const achado = m.match(CODIGO);
+    if (achado) return achado[0];
+    // A validação do input (Joi) não tem código: a mensagem é o que identifica.
+    if (/deployPublicKey must be/.test(m)) return INVALID_DEPLOY_PUBLIC_KEY;
   }
   return undefined;
+}
+
+/**
+ * As mensagens de um erro da API, onde o SDK pode tê-las posto: `message`, `errors[].message` e a
+ * cadeia de `cause` (até 4 níveis).
+ */
+export function* mensagensDoErro(err) {
+  for (let e = err, i = 0; e && i < 4; e = e.cause, i++) {
+    yield String(e.message ?? "");
+    if (Array.isArray(e.errors)) for (const x of e.errors) yield String(x?.message ?? "");
+  }
 }
 
 const ORIENTACAO = {
