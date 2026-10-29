@@ -18,6 +18,7 @@ import * as provision from "./commands/provision.js";
 import * as deploy from "./commands/deploy.js";
 import * as env from "./commands/env.js";
 import * as publish from "./commands/publish.js";
+import * as rollback from "./commands/rollback.js";
 
 /**
  * Os comandos que EXISTEM. Só entra aqui (e na ajuda) o que está implementado: cada comando novo
@@ -55,6 +56,12 @@ const COMMANDS = {
     uso: "publish [commit]",
     help: publish.help,
     run: (args, globals, ctx) => publish.runPublish(args, globals, ctx),
+  },
+  rollback: {
+    resumo: "volta produção para a publicação anterior (ou para a página \"Em breve\")",
+    uso: "rollback",
+    help: rollback.help,
+    run: (args, globals, ctx) => rollback.runRollback(args, globals, ctx),
   },
 };
 

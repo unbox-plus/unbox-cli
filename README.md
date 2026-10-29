@@ -103,17 +103,17 @@ unbox <comando> --help       # uso e exemplos de um comando
 | `unbox env` | envia as variáveis do `.env.local` para a hospedagem da loja (`--list` mostra, `--unset` remove) |
 | `unbox deploy` | commita as mudanças, envia a branch `deploy` para a Unbox e mostra a URL do preview |
 | `unbox publish [commit]` | publica em produção um commit com preview pronto e acompanha até o fim |
+| `unbox rollback` | volta produção para a publicação anterior (ou para a página "Em breve") |
 
-Os demais comandos de publicação (`rollback`, `status`) entram nas
-próximas versões. Eles falam com a Partners API da Unbox, e por isso todos seguem as mesmas regras
-abaixo.
+O `status` entra numa próxima versão. Os comandos acima, menos o `create`, falam com a Partners API
+da Unbox, e por isso todos seguem as mesmas regras abaixo.
 
 **Flags globais**, que valem antes ou depois do comando:
 
 | Flag | Padrão | |
 |---|---|---|
 | `--help`, `-h` | | ajuda geral, ou do comando quando vem com um |
-| `--json` | | saída para agentes e scripts: um único objeto JSON em stdout (`{"ok":true,"data":...}` ou `{"ok":false,"error":{"code","message"}}`, este com `data` quando o comando já tinha um estado a mostrar, como no `publish`); o andamento vai para stderr |
+| `--json` | | saída para agentes e scripts: um único objeto JSON em stdout (`{"ok":true,"data":...}` ou `{"ok":false,"error":{"code","message"}}`, este com `data` quando o comando já tinha um estado a mostrar, como no `publish` e no `rollback`); o andamento vai para stderr |
 | `--yes`, `-y` | | não pede confirmação (no `create`, gera com os padrões, sem perguntas) |
 | `--dir <caminho>` | pasta atual | a pasta do projeto da loja |
 | `--env-file <arquivo>` | `.env.local` | o arquivo das credenciais (e das variáveis do `unbox env`), relativo ao `--dir` |
@@ -300,6 +300,39 @@ O que convém saber:
 - **De outra máquina ou de um CI**, sem o projeto ligado, o hash completo basta (com as credenciais).
 - **`--json`:** `{ state, commitSha, url, publishedAt, rollbackCommitSha, canRollback, operation,
   alreadyLive }`. Numa falha depois de ler a produção, o erro traz a mesma produção em `data`.
+
+### `unbox rollback`
+
+Desfaz a publicação que está no ar: volta para a publicação feita antes dela (na ordem em que foram
+publicadas), ou para a página "Em breve" quando a do ar é a primeira. Não há build novo: a troca é
+imediata.
+
+```bash
+unbox rollback                     # mostra o que está no ar e para onde volta, e pede confirmação
+unbox rollback --yes --json        # para agentes: sem pergunta, um objeto com a produção final
+```
+
+- **Cada rollback volta mais uma publicação.** Com A, B e C publicados (C no ar), rollbacks seguidos
+  levam para B, A e então à página "Em breve". Por isso o comando pede o rollback **uma vez só**,
+  em qualquer caminho, e nunca repete sozinho.
+- **Resposta perdida** (rede, timeout, 5xx): o comando confere a produção, e só dá o rollback por
+  aplicado se ela mostra um rollback novo. Sem resposta, o pedido pode ainda estar na Unbox: ele
+  procura por até 1 min e meio e, sem sinal, para com `ROLLBACK_INCERTO`. Antes de tentar de novo,
+  rode `unbox rollback` sem `--yes`: ele mostra o que está no ar e o destino antes de confirmar.
+- **Sem rollback possível, nada é pedido:** produção em "Em breve", alterada fora da Unbox, já na
+  publicação mais antiga que a Unbox guarda (as 20 últimas), ou com uma publicação ou rollback em
+  andamento. O comando diz qual é o caso.
+- **Produção mudou com a confirmação aberta** (outro terminal, a CI): o comando para com
+  `PRODUCAO_MUDOU`, sem pedir o rollback, porque o destino confirmado pode não ser mais o mesmo.
+- **Destino que não existe mais** na hospedagem (`CUSTOM_STOREFRONT_ROLLBACK_TARGET_UNAVAILABLE_ERROR`):
+  publique o commit desejado com `unbox publish <commit>`.
+- **Para pôr um commit específico no ar**, use `unbox publish <commit>`; o rollback não recebe
+  argumentos. A permissão é a mesma de publicar.
+- Não precisa do git: funciona em qualquer pasta com as credenciais. Num projeto ligado, confere
+  que o login é da mesma loja.
+- **`--json`:** a produção depois do rollback (`{ state, commitSha, url, publishedAt,
+  rollbackCommitSha, canRollback, operation }`); numa falha, o erro traz a última produção lida em
+  `data`.
 
 ### Dois cuidados com o `npx`
 

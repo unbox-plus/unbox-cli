@@ -1,6 +1,6 @@
 ## Changelog
 
-### v0.29.0 — `unbox env` e `unbox publish`: variáveis na hospedagem e o commit em produção
+### v0.29.0 — `unbox env`, `unbox publish` e `unbox rollback`: variáveis na hospedagem e produção
 
 O `.env.local` não vai no push, e sem as variáveis o build da loja falha no login da Partners API.
 `unbox env` grava as variáveis do arquivo no projeto de hospedagem, para os builds de preview e de
@@ -77,6 +77,31 @@ API por commit, e a Unbox refaz o build com a configuração de produção.
 - **`--json`:** a produção final com `alreadyLive`. Numa falha depois de ler a produção, o objeto de
   erro ganha `data` com ela; os demais comandos seguem com o contrato de sempre.
 - **`src/production.js`** fica com a consulta e o acompanhamento, para o `rollback` e o `status`.
+
+**`unbox rollback`** volta produção para a publicação anterior (na ordem de publicação), ou para a
+página "Em breve" quando a do ar é a primeira. Sem build novo.
+
+- **Uma chamada só, em qualquer caminho.** O rollback da Unbox não é idempotente (cada chamada volta
+  mais uma publicação): nada no comando repete o pedido.
+- **Resposta perdida:** quem decide é a produção, comparando o `operation.requestedAt` com o lido
+  antes de pedir (nunca o relógio local). Com resposta do servidor ou sem o pedido ter saído
+  (ECONNREFUSED, ENOTFOUND), uma leitura decide; sem resposta (timeout, 5xx, conexão caída no meio),
+  o pedido pode estar em voo, e o comando procura um rollback novo por até 90 s antes de parar com
+  `ROLLBACK_INCERTO`. A mutation vai pelo novo `api.requestOnce`: espera até 60 s pela resposta
+  (o padrão do SDK é 15 s, só para ela) e não passa pela renovação de sessão do SDK, que repetiria
+  a chamada num erro que "parece" token vencido.
+- **`canRollback: false` não chama a API**, e o comando diz o motivo: "Em breve", alterada fora da
+  Unbox, a publicação mais antiga guardada, operação em andamento, ou um rollback interrompido na
+  Unbox (`ROLLBACK_INTERROMPIDO`).
+- **Confirmação** mostra o que está no ar e o destino; `--yes` pula. Com a confirmação aberta, se
+  produção mudar, para com `PRODUCAO_MUDOU` sem pedir.
+- **Falha registrada, mas o destino no ar** (a troca foi feita e a resposta da hospedagem falhou):
+  dá o rollback por feito e avisa para não repetir. As mensagens de "tente de novo" pedem rodar sem
+  `--yes`, para conferir antes.
+- **Erros com mensagem própria:** `NOTHING_TO_ROLLBACK`, `PRODUCTION_BUSY` (diz qual operação),
+  `ROLLBACK_TARGET_UNAVAILABLE` (orienta `unbox publish`), sem permissão de publicar.
+- **`--json`:** como no `publish`, o sucesso traz a produção, e o erro ganha `data` com a última
+  produção lida.
 
 **5xx do Core vira `HTTP_5xx`.** Atrás do AppSync, um 5xx do Core chega como `errorType`
 `HttpError` ("Core HTTP error: 502", medido num rollout em stage), e a CLI o tratava como recusa

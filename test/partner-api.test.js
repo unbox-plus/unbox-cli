@@ -206,3 +206,12 @@ test("usuário ou senha incorretos: mensagem que diz isso, com o código do serv
   const api = await createPartnerApi({ env: ENV, out });
   await assert.rejects(api.request("query { x }"), (e) => e.code === "SIGN_IN_FAILED" && /Usuário ou senha incorretos/.test(e.message));
 });
+
+test("requestOnce: sessão vencida não renova nem repete (mutation não idempotente)", async () => {
+  respostas.push(() => json({ data: null, errors: [{ message: "Unauthorized - No authenticated user" }] }));
+  const { out } = saida();
+  const api = await createPartnerApi({ env: ENV, out });
+  await assert.rejects(api.requestOnce("mutation { rollbackCustomStorefront { state } }"), /No authenticated user/);
+  assert.equal(chamadas.filter((c) => c.signIn).length, 1, "um signIn só");
+  assert.equal(chamadas.filter((c) => !c.signIn).length, 1, "sem repetição");
+});

@@ -23,6 +23,9 @@ export const LIMITES = {
   falhasDeLeitura: 6,
 };
 
+/** Depois disso a Unbox dá um rollback PENDING por abandonado (CUSTOM_STOREFRONT_ROLLBACK_TTL_MS). */
+export const ROLLBACK_TTL = 60 * 1000;
+
 /** Erros em que ler de novo não muda nada. */
 const FATAIS = new Set(["MISSING_PERMISSION", "SIGN_IN_FAILED", "API_KEY_RECUSADA", NOT_READY, NOT_CONFIGURED]);
 
@@ -64,6 +67,19 @@ export function describeLive(view) {
   }
   if (view?.state === "UNKNOWN") return "alterado fora da Unbox (estado UNKNOWN)";
   return "a página \"Em breve\" (nada publicado ainda)";
+}
+
+/** O destino de um rollback: "abc1234", ou a página "Em breve" quando o commit é null. */
+export const describeTarget = (sha) => (sha ? curto(sha) : "a página \"Em breve\"");
+
+/**
+ * O que está no ar, comparável com o destino de um rollback: o commit (minúsculas), null para a
+ * página "Em breve", ou undefined quando produção foi alterada fora da Unbox.
+ */
+export function liveCommit(view) {
+  if (view?.state === "PUBLISHED") return view.commitSha?.toLowerCase();
+  if (view?.state === "NOT_PUBLISHED") return null;
+  return undefined;
 }
 
 /** "publicação de abc1234 desde 28/10/2026 14:03" ou "rollback para ... desde ...". */
