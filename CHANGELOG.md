@@ -1,5 +1,12 @@
 ## Changelog
 
+### Não lançado — liberação da incorporação via painel Admin Unbox
+
+**Infra do editor**: Adicionada `NEXT_PUBLIC_ADMIN_ORIGIN` ao `frame-ancestors` para liberar
+a incorporação da loja no editor via painel Admin Unbox.
+
+Variável nova: `NEXT_PUBLIC_ADMIN_ORIGIN`, apontando para o endereço do painel Admin Unbox.
+
 ### v0.29.0 — `unbox env` e `unbox publish`: variáveis na hospedagem e o commit em produção
 
 O `.env.local` não vai no push, e sem as variáveis o build da loja falha no login da Partners API.
