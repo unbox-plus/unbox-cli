@@ -236,7 +236,7 @@ export function ProductPicker({
 
           <button type="button" onClick={checkout} disabled={busy || remaining > 0 || picked === 0}
             className="font-display mt-4 w-full rounded-full bg-[var(--store-cta,#D97706)] py-4 text-[15.5px] font-extrabold tracking-[0.3px] text-[var(--store-cta-fg,#1C1207)] transition-colors hover:bg-[var(--store-cta-dark,#B45309)] disabled:bg-[var(--store-faint)] disabled:text-white">
-            {busy ? "Preparando o pagamento..." : remaining > 0 ? `Selecione mais ${remaining} ${remaining === 1 ? "pacote" : "pacotes"} →` : "Ir pro pagamento →"}
+            {busy ? "Preparando o pagamento..." : remaining > 0 ? `Selecione mais ${remaining} ${remaining === 1 ? "pacote" : "pacotes"}` : "Ir pro pagamento"}
           </button>
 
           <div className="mt-4 mb-8 flex items-start gap-3.5 rounded-2xl border-2 border-dashed border-[var(--store-cta,#D97706)]/60 bg-white px-5 py-4">
