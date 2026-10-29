@@ -13,6 +13,8 @@ import { EmptyState } from "@/components/empty-state";
 import { StatusBadge } from "@/components/order-status";
 import { SubscriptionActions, type ItemDetalhe } from "@/components/account/subscription-actions";
 import { nameKey } from "@/lib/subscription-items";
+import type { CatalogProduct } from "@/components/account/subscription-editor/catalog-product-card";
+import { mockupOr } from "@/lib/mockup";
 
 export const metadata: Metadata = { title: "Assinatura", robots: { index: false } };
 
@@ -64,12 +66,48 @@ export default async function AssinaturaDetalhePage({ params }: { params: Promis
     detalhes[nameKey(it)] ??= d;
     return { it, ...d };
   });
+  const actions = shop?.recurringOrdersPolicy?.customerActions ?? {};
+  // catálogo do "Adicionar produto": só com a flag ligada; já filtrado por recurrenceAllowed pelo SDK
+  const catalogo: CatalogProduct[] = [];
+  if (actions.canAddProducts) {
+    const assinaveis = await mockupOr(withStoreClient((c) => c.getSubscribableCatalog()), [], "assinatura/getSubscribableCatalog");
+    for (const p of assinaveis) {
+      if (p.isVisible === false || !p.variants?.length) continue;
+      const preco = (x: any) => {
+        const unit = x.pricingOnRecurrence?.[0]?.price ?? x.pricing?.[0]?.price ?? null;
+        const avulso = x.pricing?.[0]?.price ?? null;
+        return { unit, riscado: unit != null && avulso != null && avulso > unit ? avulso : null };
+      };
+      const [v0] = p.variants;
+      const { unit, riscado } = preco(v0);
+      if (unit == null) continue;
+      const multiplas = p.variants.length > 1;
+      // títulos no formato "Moagem: Em grãos": o prefixo comum vira a legenda dos chips e sai do rótulo
+      const prefixos = new Set(p.variants.map((x: any) => (x.title?.includes(":") ? x.title.split(":")[0].trim() : "")));
+      const legenda = prefixos.size === 1 ? [...prefixos][0] : "";
+      const rotulo = (x: any) => (legenda ? x.title.slice(x.title.indexOf(":") + 1).trim() : x.title);
+      catalogo.push({
+        productId: p.productId, title: p.title, imageUrl: p.imageUrls?.[0], price: unit, compareAtPrice: riscado,
+        categories: p.categories.map((c) => c.name), soldOut: p.isSoldOut,
+        variantId: multiplas ? null : v0._id,
+        variantsLegend: legenda || undefined,
+        variants: multiplas ? p.variants.map((x: any) => ({ id: x._id, label: rotulo(x), soldOut: !!x.isSoldOut })) : undefined,
+      });
+      // o modal desenha a linha do item novo a partir de `detalhes`, então toda variante do catálogo entra nele
+      for (const x of p.variants as any[]) {
+        const u = preco(x);
+        detalhes[nameKey({ productId: p.productId, variantId: x._id })] ??= {
+          titulo: p.title, variacao: x.title && x.title !== p.title ? x.title : null, foto: p.imageUrls?.[0], unit: u.unit, riscado: u.riscado,
+          variantes: multiplas ? p.variants.map((y: any) => ({ id: y._id, label: y.title, esgotado: !!y.isSoldOut })) : undefined,
+        };
+      }
+    }
+  }
   const totalItens = linhas.every((l: any) => l.unit != null) ? linhas.reduce((t: number, l: any) => t + l.unit * l.it.quantity, 0) : null;
   const comDesconto = linhas.some((l: any) => l.riscado != null);
 
   const ciclos = await lerDaConta("/conta/assinaturas/[referenceId]/ciclos", me.subscriptionCycles(sub._id, 12));
   const cycles = ciclos.ok ? ciclos.valor : { nodes: [] };
-  const actions = shop?.recurringOrdersPolicy?.customerActions ?? {};
   const status = sub.status?.value ?? "ACTIVE";
   const card = sub.unboxPayCustomerCreditCard;
   const addr = sub.shippingAddressBook;
@@ -139,6 +177,7 @@ export default async function AssinaturaDetalhePage({ params }: { params: Promis
         detalhes={detalhes}
         proximaEntrega={sub.cyclesInformation?.nextCycleDate ? formatarData(sub.cyclesInformation.nextCycleDate) : undefined}
         actions={actions}
+        catalogo={catalogo}
         items={(sub.items ?? []).map((it: any) => ({ productId: it.productId, variantId: it.variantId, quantity: it.quantity }))}
       />
 

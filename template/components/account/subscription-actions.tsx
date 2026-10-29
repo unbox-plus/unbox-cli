@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Calendar } from "@/lib/icons";
+import { Calendar, Plus } from "@/lib/icons";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -38,8 +38,11 @@ import {
   type AddressValue,
 } from "@/components/address-fields";
 import { InlineAlert } from "@/components/account/subscription-editor/inline-alert";
+import { AddProductPanel } from "@/components/account/subscription-editor/add-product-panel";
+import type { CatalogProduct } from "@/components/account/subscription-editor/catalog-product-card";
 import { VariantSwitcher, variantName } from "@/components/account/subscription-editor/variant-switcher";
 import { SubscriptionEditorItem } from "@/components/account/subscription-editor/subscription-editor-item";
+import { cn } from "@/lib/utils";
 import { nameKey } from "@/lib/subscription-items";
 
 const BTN_PRIMARY =
@@ -81,6 +84,7 @@ export function SubscriptionActions({
   actions,
   items,
   detalhes = {},
+  catalogo = [],
   proximaEntrega,
 }: {
   recurringOrderId: string;
@@ -88,6 +92,7 @@ export function SubscriptionActions({
   actions: Actions;
   items: Item[];
   detalhes?: Record<string, ItemDetalhe>;
+  catalogo?: CatalogProduct[];
   proximaEntrega?: string;
 }) {
   const router = useRouter();
@@ -96,6 +101,7 @@ export function SubscriptionActions({
   const [addrOpen, setAddrOpen] = React.useState(false);
   const [cardOpen, setCardOpen] = React.useState(false);
   const [itemsOpen, setItemsOpen] = React.useState(false);
+  const [etapa, setEtapa] = React.useState<"lista" | "adicionar">("lista"); // no mobile o painel de adicionar ocupa o lugar da lista
   const [removidos, setRemovidos] = React.useState<Set<number>>(new Set()); // índices marcados; só saem ao salvar
 
   const [addr, setAddr] = React.useState<AddressValue>(emptyAddress);
@@ -109,6 +115,7 @@ export function SubscriptionActions({
   const [editItems, setEditItems] = React.useState<Item[]>(items);
 
   const temVariantes = Object.values(detalhes).some((d) => d.variantes && d.variantes.length > 1); // trocar variante vale mesmo sem nenhuma flag
+  const podeAdicionar = !!actions.canAddProducts && catalogo.length > 0;
   const canceled = status === "CANCELED";
   const paused = status === "PAUSED";
 
@@ -215,6 +222,7 @@ export function SubscriptionActions({
             onClick={() => {
               setEditItems(items);
               setRemovidos(new Set());
+              setEtapa("lista");
               setItemsOpen(true);
             }}
           >
@@ -371,13 +379,34 @@ export function SubscriptionActions({
 
       {/* Itens */}
       <Dialog open={itemsOpen} onOpenChange={setItemsOpen}>
-        <DialogContent className="sm:max-w-2xl">
-          <DialogHeader>
+        <DialogContent
+          className={cn(
+            "grid-cols-[minmax(0,1fr)] sm:max-w-2xl",
+            // desktop: o modal nunca passa da tela; só o miolo rola, então Salvar e fechar ficam sempre visíveis
+            "lg:max-h-[calc(100dvh-2rem)] lg:grid-rows-[auto_minmax(0,1fr)_auto]",
+            podeAdicionar && "lg:max-w-4xl",
+            // mobile: tela cheia nas duas etapas, então abrir, fechar e trocar de etapa não muda o tamanho do modal.
+            // Sem animação de zoom (em tela cheia ela só pisca); o cabeçalho, o miolo e o rodapé são faixas.
+            "max-lg:top-0 max-lg:left-0 max-lg:flex max-lg:h-dvh max-lg:max-w-none! max-lg:translate-x-0 max-lg:translate-y-0 max-lg:flex-col max-lg:gap-0 max-lg:rounded-none max-lg:p-0 max-lg:data-open:animate-none max-lg:data-closed:animate-none",
+          )}
+        >
+          <DialogHeader
+            className={cn(
+              etapa === "lista" ? "max-lg:shrink-0 max-lg:border-b max-lg:p-4 max-lg:pr-14" : "sr-only lg:not-sr-only",
+            )}
+          >
             <DialogTitle>Alterar itens</DialogTitle>
             <DialogDescription>
               Ajuste as quantidades dos próximos ciclos.
             </DialogDescription>
           </DialogHeader>
+          <div
+            className={cn(
+              "flex min-h-0 min-w-0 flex-col gap-6 max-lg:flex-1 lg:flex-row lg:overflow-y-auto",
+              etapa === "lista" ? "max-lg:overflow-y-auto max-lg:p-4" : "max-lg:overflow-hidden",
+            )}
+          >
+            <div className={cn("flex min-w-0 flex-1 flex-col gap-4", etapa === "adicionar" && "hidden lg:flex")}>
           <InlineAlert variant="info" icon={Calendar} title={`As mudanças valem a partir da próxima entrega${proximaEntrega ? `, em ${proximaEntrega}` : ""}.`}>
             A entrega que já está a caminho não muda.
           </InlineAlert>
@@ -418,6 +447,7 @@ export function SubscriptionActions({
                         canChangeQuantity={actions.canChangeProductQuantity}
                         canRemove={actions.canRemoveProducts}
                         isLastActiveItem={editItems.length - removidos.size <= 1 && !removido}
+                        isNew={i >= items.length}
                         isRemoved={removido}
                         variantAction={link}
                         onQuantityChange={(q) => setEditItems((arr) => arr.map((x, j) => (j === i ? { ...x, quantity: q } : x)))}
@@ -438,7 +468,23 @@ export function SubscriptionActions({
               );
             })}
           </ul>
-          <DialogFooter>
+              {podeAdicionar && (
+                <button type="button" className={cn(BTN_OUTLINE, "lg:hidden")} onClick={() => setEtapa("adicionar")}>
+                  <Plus aria-hidden weight="bold" /> Adicionar produto
+                </button>
+              )}
+            </div>
+            {podeAdicionar && (
+              <AddProductPanel
+                className={cn(etapa === "lista" && "hidden lg:flex", "lg:border-l lg:border-[var(--store-surface-2)] lg:pl-6")}
+                catalog={catalogo}
+                subscribedKeys={new Set(editItems.map(nameKey))}
+                onAdd={(novo) => setEditItems((arr) => [...arr, novo])}
+                onBack={() => setEtapa("lista")}
+              />
+            )}
+          </div>
+          <DialogFooter className={cn("max-lg:mx-0 max-lg:mb-0 max-lg:shrink-0 max-lg:rounded-none max-lg:bg-white max-lg:pb-[max(1rem,env(safe-area-inset-bottom))]", etapa === "adicionar" && "hidden lg:flex")}>
             <button
               type="button"
               className={BTN_OUTLINE}
