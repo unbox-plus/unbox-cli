@@ -17,6 +17,7 @@ import * as create from "./commands/create.js";
 import * as provision from "./commands/provision.js";
 import * as deploy from "./commands/deploy.js";
 import * as env from "./commands/env.js";
+import * as publish from "./commands/publish.js";
 
 /**
  * Os comandos que EXISTEM. Só entra aqui (e na ajuda) o que está implementado: cada comando novo
@@ -48,6 +49,12 @@ const COMMANDS = {
     uso: "deploy [-m <msg>]",
     help: deploy.help,
     run: (args, globals, ctx) => deploy.runDeploy(args, globals, ctx),
+  },
+  publish: {
+    resumo: "publica em produção um commit com preview pronto e acompanha até o fim",
+    uso: "publish [commit]",
+    help: publish.help,
+    run: (args, globals, ctx) => publish.runPublish(args, globals, ctx),
   },
 };
 

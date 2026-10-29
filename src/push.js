@@ -51,6 +51,58 @@ export function deployProblem(st, keyPath) {
 }
 
 /**
+ * O que impede o `unbox publish` de conferir o commit no git local, só lendo. O publish não commita
+ * nem envia: não importa a branch atual, a árvore suja nem um rebase em andamento; só o vínculo e a
+ * chave, para o fetch.
+ */
+export function publishProblem(st, keyPath) {
+  if (st.insideOtherRepo) return repoProblem(st);
+  if (!st.isRepo || !st.savedShopId || !st.unboxRemoteUrl || !keyPath) {
+    return naoProvisionado("Este projeto ainda não está ligado à Unbox.");
+  }
+  if (!fs.existsSync(keyPath)) {
+    return naoProvisionado(`A chave de deploy deste projeto (${keyPath}) não está nesta máquina.`);
+  }
+  return undefined;
+}
+
+const DEPLOY_DA_UNBOX = "refs/remotes/unbox/deploy";
+
+/**
+ * O commit a publicar, procurado só entre os da deploy da Unbox (depois do fetch): uma branch ou tag
+ * com nome de hash não interfere, e um commit achado já é um commit enviado. Sem `prefixo`, o topo.
+ * Devolve `{ sha, topo }`.
+ *
+ * Os candidatos vêm de `--disambiguate` (todos os objetos com o prefixo, de qualquer tipo e origem) e
+ * ficam os que a deploy da Unbox contém. Listar o histórico da deploy não serve: ela herda o do
+ * projeto, e um histórico grande estoura a saída.
+ */
+export function resolveCommit(dir, prefixo) {
+  const topo = saida(["rev-parse", "--verify", "-q", DEPLOY_DA_UNBOX], dir);
+  if (!topo) throw naoProvisionado("Não achei a branch deploy da Unbox neste repositório.");
+  if (!prefixo) return { sha: topo, topo };
+
+  const candidatos = linhas(saida(["rev-parse", `--disambiguate=${prefixo.toLowerCase()}`], dir));
+  const achados = candidatos.filter((c) => git(["merge-base", "--is-ancestor", c, DEPLOY_DA_UNBOX], { cwd: dir }).status === 0);
+  if (achados.length === 1) return { sha: achados[0], topo };
+  if (achados.length > 1) {
+    const lista = achados.slice(0, 5).map((s) => s.slice(0, 12)).join(", ");
+    throw new CliError(
+      `O hash ${prefixo} corresponde a ${achados.length} commits da deploy da Unbox (${lista}${achados.length > 5 ? ", ..." : ""}). Use mais caracteres.`,
+      "COMMIT_AMBIGUO",
+    );
+  }
+  throw new CliError(
+    `O commit ${prefixo} não está na branch deploy da Unbox. Se ainda não foi enviado, rode unbox deploy; ` +
+      "se a deploy foi rebaseada no envio, o hash mudou: veja os commits enviados com git log --oneline unbox/deploy.",
+    "COMMIT_NAO_ENVIADO",
+  );
+}
+
+/** Mudanças não commitadas, inclusive arquivos novos (o `unbox deploy` leva todos). */
+export const dirtyTree = (dir) => (saida(["status", "--porcelain"], dir) ?? "") !== "";
+
+/**
  * Arquivos de .forgejo/, .github/ e .gitea/ que o push levaria: o que a deploy local mudou desde a
  * base comum com a da Unbox, contando a árvore de trabalho (é ela que vai para o commit) e os não
  * rastreados que o `add -A` pegaria. A base comum, e não a ponta da Unbox: um .forgejo que a Unbox

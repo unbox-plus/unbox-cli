@@ -47,11 +47,15 @@ export function createOutput({ json = false, stdout = process.stdout, stderr = p
       if (json) stdout.write(limpo(JSON.stringify({ ok: true, data })) + "\n");
       else if (texto) stdout.write(limpo(texto(data)) + "\n");
     },
-    /** Falha final. A stack só com UNBOX_DEBUG=1, e filtrada como o resto. */
+    /**
+     * Falha final. A stack só com UNBOX_DEBUG=1, e filtrada como o resto. No --json, `err.data`
+     * (quando o comando o preenche) vai junto: o estado que ele já tinha lido quando falhou.
+     */
     fail(err) {
       const code = err?.code && typeof err.code === "string" ? err.code : "ERRO";
       const message = limpo(err?.message ?? String(err));
-      if (json) stdout.write(limpo(JSON.stringify({ ok: false, error: { code, message } })) + "\n");
+      const data = err?.data;
+      if (json) stdout.write(limpo(JSON.stringify({ ok: false, error: { code, message }, ...(data !== undefined && { data }) })) + "\n");
       else stderr.write(`\n✗ ${message}\n`);
       if (process.env.UNBOX_DEBUG === "1" && err?.stack) stderr.write(limpo(err.stack) + "\n");
     },

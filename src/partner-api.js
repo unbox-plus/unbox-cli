@@ -48,6 +48,13 @@ export function toPartnerApiError(e, { sdk, endpoint }) {
     return new PartnerApiError(`Não foi possível conectar a ${endpoint}${causa}. Confira a rede e o UNBOX_PARTNER_GRAPHQL_URL.`, "NETWORK", e);
   }
 
+  // 5xx do Core atrás do AppSync (medido: "Core HTTP error: 502", errorType HttpError, num rollout)
+  // vira o mesmo HTTP_5xx de um 5xx do gateway: quem espera trata como falha passageira.
+  const core = /^Core HTTP error: (5\d\d)\b/.exec(primeiroErro(e)?.errorType === "HttpError" ? primeiroErro(e).message : "");
+  if (core) {
+    return new PartnerApiError(`A Unbox não conseguiu responder (Core HTTP error: ${core[1]}). Tente de novo em instantes.`, `HTTP_${core[1]}`, e);
+  }
+
   // O SDK prefixa com "signIn" o que falhou no login. A mensagem tem de apontar a credencial certa:
   // "recusou o login" com a senha certa manda a pessoa trocar o que não está errado.
   if (/^signIn\b/.test(e?.message ?? "")) {

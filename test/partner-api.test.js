@@ -165,6 +165,20 @@ test("login com 502 do gateway: HTTP_502, sem dizer que a senha foi recusada", a
   });
 });
 
+test("5xx do Core atrás do AppSync (errorType HttpError): HTTP_502, que quem espera trata como passageiro", async () => {
+  const coreHttp = (status) => () => json({ data: null, errors: [{ message: `Core HTTP error: ${status}`, errorType: "HttpError" }] });
+  respostas.push(coreHttp(502), coreHttp(404));
+  const { out } = saida();
+  const api = await createPartnerApi({ env: ENV, out });
+  await assert.rejects(api.request("query { customStorefront { status } }"), (e) => {
+    assert.equal(e.code, "HTTP_502");
+    assert.match(e.message, /não conseguiu responder \(Core HTTP error: 502\)/);
+    return true;
+  });
+  // 4xx não é passageiro: segue o errorType, como antes.
+  await assert.rejects(api.request("query { customStorefront { status } }"), (e) => e.code === "HttpError");
+});
+
 test("403 sem errors[] (api key errada): HTTP_403, e não MISSING_PERMISSION", async () => {
   respostas.push(() => json({ message: "Forbidden" }, 403));
   const { out } = saida();

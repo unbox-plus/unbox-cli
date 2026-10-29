@@ -1,6 +1,6 @@
 ## Changelog
 
-### v0.29.0 — `unbox env`: as variáveis do `.env.local` na hospedagem da loja
+### v0.29.0 — `unbox env` e `unbox publish`: variáveis na hospedagem e o commit em produção
 
 O `.env.local` não vai no push, e sem as variáveis o build da loja falha no login da Partners API.
 `unbox env` grava as variáveis do arquivo no projeto de hospedagem, para os builds de preview e de
@@ -44,6 +44,44 @@ seguem iguais.
   `VERCEL_ENV` quando existe. Na Vercel o `NODE_ENV` é production também no preview, e o preview
   sem endereço fixo não tem a variável, então o aviso saía em todo build de preview. Só lojas
   criadas com o `unbox create` desta versão em diante têm o ajuste (o template é copiado na criação).
+
+**`unbox publish`** põe em produção um commit com preview pronto e acompanha até o fim. Substitui o
+antigo `ubx publish`, que forçava a preview na production pelo git: agora é uma chamada à Partners
+API por commit, e a Unbox refaz o build com a configuração de produção.
+
+- **Qual commit:** sem argumento, o topo da `deploy` da Unbox (depois de um fetch). Com argumento, o
+  hash curto (4 caracteres ou mais) ou completo, procurado só entre os commits da `deploy` da Unbox:
+  uma branch ou tag com nome de hash não desvia o prefixo, e um commit achado já é um commit
+  enviado. Prefixo ambíguo, ou commit fora da `deploy` (não enviado, ou reescrito por rebase no
+  envio), param antes de qualquer chamada à API.
+- **Só lê o git:** não importa a branch atual, a árvore suja nem um rebase em andamento. Sem
+  argumento, avisa se a `deploy` local tem commits não enviados ou mudanças não commitadas.
+- **Sem o projeto ligado** (outra máquina, CI), o hash completo publica com aviso: a Unbox confere
+  o commit. Hash curto ou nenhum argumento precisam do vínculo.
+- **Preview antes da confirmação:** com `FAILURE`, para sem publicar; ainda sendo gerado, espera
+  (até ~15 min) só se o commit for o topo enviado, porque um commit do meio de um push nunca gera
+  preview e a espera não terminaria.
+- **Já no ar:** sai com `0` sem refazer o build, e lembra que variáveis mudadas com `unbox env` pedem
+  um commit novo. Publicação do mesmo commit já em andamento: só acompanha.
+- **Confirmação** mostra o que está no ar, o commit e o preview; `--yes` pula. Com `--json` ou sem
+  terminal, sem `--yes`, para com `CONFIRMACAO_NECESSARIA`.
+- **Repetir é seguro** (idempotente por commit): falha de rede e códigos sem tratamento próprio são
+  repetidos uma vez. `PRODUCTION_BUSY` com a publicação deste mesmo commit (uma tentativa anterior
+  que chegou primeiro) vira acompanhamento; com outra operação, para e diz qual.
+- **Acompanhamento:** a cada 10 s até a sua operação (tipo, commit e `requestedAt`) sair de
+  `PENDING`. Teto de 25 min contado também do `requestedAt`, para retomar uma publicação antiga não
+  somar mais 25; uma pendente há mais disso é dada como presa. `UNKNOWN` no meio é esperado.
+- **Falhas:** mensagens próprias para cada `operation.errorCode` (build de produção, timeout,
+  commit inválido) e para os erros síncronos (preview não pronto, removido após 90 dias, sem
+  permissão de publicar, que é separada da de deploy).
+- **`--json`:** a produção final com `alreadyLive`. Numa falha depois de ler a produção, o objeto de
+  erro ganha `data` com ela; os demais comandos seguem com o contrato de sempre.
+- **`src/production.js`** fica com a consulta e o acompanhamento, para o `rollback` e o `status`.
+
+**5xx do Core vira `HTTP_5xx`.** Atrás do AppSync, um 5xx do Core chega como `errorType`
+`HttpError` ("Core HTTP error: 502", medido num rollout em stage), e a CLI o tratava como recusa
+definitiva: o `provision` parava no meio da espera. Agora tem o mesmo código de um 5xx do gateway,
+e quem espera (`provision`, `deploy`, `publish`) repete a leitura. Um 4xx do Core segue como antes.
 
 ### v0.28.0 — `unbox deploy`: as mudanças viram preview, sem passos de git à mão
 
