@@ -1,30 +1,6 @@
 ## Changelog
 
-### v0.30.0 — `unbox status`: a loja, o preview e a produção num comando só
-
-`unbox status` mostra o provisionamento, o preview do commit atual, o que está em produção e o que
-ainda não foi enviado, sem alterar nada. **Nada quebrou:** os outros comandos seguem iguais.
-
-- **Três consultas em paralelo** (`customStorefront`, `customStorefrontDeployment` do `HEAD` e
-  `customStorefrontProduction`), depois de um login só. A falha de uma não esconde as outras: a
-  seção vem `null`, com `errors.<seção>` no `--json`, e a saída é `0`; só todas falhando dá `1`.
-- **Todos os estados:** loja não provisionada (sugere `unbox provision`), provisionando (passo
-  atual), `FAILED` (código que repetir não resolve, como `HOSTING_DOMAIN_IN_USE`, orienta a falar
-  com a Unbox informando o `_id`), pronta sem publicação (`NOT_PUBLISHED`, com o endereço de
-  produção e o aviso de "Em breve"), publicada, `UNKNOWN` e operação em andamento ou que falhou.
-  Loja que não está pronta não mostra deploy nem produção.
-- **Endereço fixo de preview** (`storefront.previewUrl`) na seção da loja; a linha some quando é
-  `null`.
-- **Parte local** só num projeto ligado: `git fetch unbox deploy` (sem chave ou rede, avisa e usa a
-  cópia local), commits não enviados, mudanças não commitadas e branch fora da `deploy`. Commit não
-  enviado aparece como "não enviado", e não como deploy em andamento. Projeto ligado a outra loja:
-  avisa e omite a parte local.
-- **Destaque "há preview pronto para unbox publish"** (`publishable` no `--json`) quando o commit
-  atual foi enviado, o preview dele está pronto e não é o que está no ar.
-- **`--json`:** `{ storefront, deployment, production, local: { ahead, dirty, branch, commitSha },
-  publishable }`.
-
-### v0.29.0 — `unbox env` e `unbox publish`: variáveis na hospedagem e o commit em produção
+### v0.29.0 — `unbox env`, `unbox publish` e `unbox status`: variáveis na hospedagem, o commit em produção e o estado da loja
 
 O `.env.local` não vai no push, e sem as variáveis o build da loja falha no login da Partners API.
 `unbox env` grava as variáveis do arquivo no projeto de hospedagem, para os builds de preview e de
@@ -106,6 +82,28 @@ API por commit, e a Unbox refaz o build com a configuração de produção.
 `HttpError` ("Core HTTP error: 502", medido num rollout em stage), e a CLI o tratava como recusa
 definitiva: o `provision` parava no meio da espera. Agora tem o mesmo código de um 5xx do gateway,
 e quem espera (`provision`, `deploy`, `publish`) repete a leitura. Um 4xx do Core segue como antes.
+
+**`unbox status`** mostra o provisionamento, o preview do commit atual, o que está em produção e o que
+ainda não foi enviado, sem alterar nada.
+
+- **Três consultas em paralelo** (`customStorefront`, `customStorefrontDeployment` do `HEAD` e
+  `customStorefrontProduction`), depois de um login só. A falha de uma não esconde as outras: a
+  seção vem `null`, com `errors.<seção>` no `--json`, e a saída é `0`; só todas falhando dá `1`.
+- **Todos os estados:** loja não provisionada (sugere `unbox provision`), provisionando (passo
+  atual), `FAILED` (código que repetir não resolve, como `HOSTING_DOMAIN_IN_USE`, orienta a falar
+  com a Unbox informando o `_id`), pronta sem publicação (`NOT_PUBLISHED`, com o endereço de
+  produção e o aviso de "Em breve"), publicada, `UNKNOWN` e operação em andamento ou que falhou.
+  Loja que não está pronta não mostra deploy nem produção.
+- **Endereço fixo de preview** (`storefront.previewUrl`) na seção da loja; a linha some quando é
+  `null`.
+- **Parte local** só num projeto ligado: `git fetch unbox deploy` (sem chave ou rede, avisa e usa a
+  cópia local), commits não enviados, mudanças não commitadas e branch fora da `deploy`. Commit não
+  enviado aparece como "não enviado", e não como deploy em andamento. Projeto ligado a outra loja:
+  avisa e omite a parte local.
+- **Destaque "há preview pronto para unbox publish"** (`publishable` no `--json`) quando o commit
+  atual foi enviado, o preview dele está pronto e não é o que está no ar.
+- **`--json`:** `{ storefront, deployment, production, local: { ahead, dirty, branch, commitSha },
+  publishable }`.
 
 ### v0.28.0 — `unbox deploy`: as mudanças viram preview, sem passos de git à mão
 
