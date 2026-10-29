@@ -19,6 +19,7 @@ const SEM_NENHUM = [
   "src/deploy-key.js", "src/storefront.js", "src/provisioning.js", "src/git.js",
   "src/commands/deploy.js", "src/deployment.js", "src/push.js", "src/identity.js",
   "src/commands/env.js", "src/environment.js", "src/commands/publish.js", "src/production.js",
+  "src/commands/status.js",
 ];
 
 test("arquivos novos da CLI sem travessão", () => {
