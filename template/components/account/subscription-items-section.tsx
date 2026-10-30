@@ -18,13 +18,21 @@ export type { ItemDetalhe };
 export const CANCEL_EVENT = "subscription:cancel";
 export const EDIT_ITEMS_EVENT = "subscription:edit-items"; // o botão "Alterar itens" (SubscriptionActions) pede para abrir o modal
 export const EDIT_ITEMS_BUTTON_ID = "alterar-itens";
-const LINK = "cursor-pointer border-none bg-transparent p-0 text-[13px] font-bold text-[var(--store-ink)] underline underline-offset-3";
+const LINK =
+  "cursor-pointer border-none bg-transparent p-0 text-[13px] font-bold text-[var(--store-ink)] underline underline-offset-3";
 
 // Uma lista ordenada de "produto:variante=quantidade", para comparar duas listas de itens.
-const signature = (l: SavedItem[]) => l.map((i) => `${nameKey(i)}=${i.quantity}`).sort().join("|");
+const signature = (l: SavedItem[]) =>
+  l
+    .map((i) => `${nameKey(i)}=${i.quantity}`)
+    .sort()
+    .join("|");
 
 class SaveBlocked extends Error {
-  constructor(message: string, readonly reload = false) {
+  constructor(
+    message: string,
+    readonly reload = false,
+  ) {
     super(message);
   }
 }
@@ -69,11 +77,24 @@ export function SubscriptionItemsSection({
   const basis = React.useRef(savedItems); // a lista que o cliente viu quando abriu o modal
 
   // Trocar a variante vale mesmo com as 3 flags desligadas; por isso ela também abre o modal.
-  const canSwap = Object.values(details).some((d) => d.variantes && d.variantes.length > 1);
-  const canEdit = !!(actions.canChangeProductQuantity || actions.canRemoveProducts || (actions.canAddProducts && catalog.length > 0) || canSwap);
-  const onlyAdd = !!actions.canAddProducts && !actions.canChangeProductQuantity && !actions.canRemoveProducts;
+  const canSwap = Object.values(details).some(
+    (d) => d.variantes && d.variantes.length > 1,
+  );
+  const canEdit = !!(
+    actions.canChangeProductQuantity ||
+    actions.canRemoveProducts ||
+    (actions.canAddProducts && catalog.length > 0) ||
+    canSwap
+  );
+  const onlyAdd =
+    !!actions.canAddProducts &&
+    !actions.canChangeProductQuantity &&
+    !actions.canRemoveProducts;
 
-  const focusEditButton = () => requestAnimationFrame(() => document.getElementById(EDIT_ITEMS_BUTTON_ID)?.focus());
+  const focusEditButton = () =>
+    requestAnimationFrame(() =>
+      document.getElementById(EDIT_ITEMS_BUTTON_ID)?.focus(),
+    );
 
   const active = status === "ACTIVE" && canEdit;
   React.useEffect(() => {
@@ -94,11 +115,25 @@ export function SubscriptionItemsSection({
     setSaveError(null);
     try {
       const fresh = await post(recurringOrderId, { action: "get" });
-      if (fresh.status !== "ACTIVE") throw new SaveBlocked("Esta assinatura não está mais ativa.", true);
+      if (fresh.status !== "ACTIVE")
+        throw new SaveBlocked("Esta assinatura não está mais ativa.", true);
       if (signature(fresh.items ?? []) !== signature(basis.current)) {
-        throw new SaveBlocked("Os itens desta assinatura mudaram desde que você abriu a edição. Recarregamos a página para você ver a versão atual.", true);
+        throw new SaveBlocked(
+          "Os itens desta assinatura mudaram desde que você abriu a edição. Recarregamos a página para você ver a versão atual.",
+          true,
+        );
       }
-      await post(recurringOrderId, { action: "items", items: payload });
+      // o kit vai no formato da API: productKitId + os itens escolhidos
+      const items = payload.map(({ kit, ...item }) =>
+        kit
+          ? {
+              ...item,
+              productKitId: kit.productKitId,
+              productKitItemsConfigurations: kit.picks,
+            }
+          : item,
+      );
+      await post(recurringOrderId, { action: "items", items });
       toast.success("Itens atualizados.");
       setOpen(false);
       router.refresh(); // só depois da resposta 200: nada muda na página antes disso
@@ -112,7 +147,7 @@ export function SubscriptionItemsSection({
     }
   }
 
-  // Pausada: o modal não abre; o link leva ao botão de reativar
+  // Pausada: o modal não abre; o link leva ao botão de retomar
   const entry =
     canEdit && status === "PAUSED" ? (
       <a href="#gerenciar" className={LINK}>

@@ -19,6 +19,7 @@ export type EditorItem = {
   compareAtPrice?: number | null
   status?: "outOfStock" | "ineligible"
   previousQuantity?: number // quantidade salva, para o aviso "Antes: N"
+  kitPicks?: { title: string; quantity: number }[] // kit: o que o cliente escolheu dentro dele
 }
 
 const LINK_BTN = "inline-flex cursor-pointer items-center gap-1.5 border-none bg-transparent p-1.5 text-[13px] font-bold"
@@ -49,6 +50,7 @@ export function SubscriptionEditorItem({
   variantAction?: React.ReactNode // ao lado da variante, ex.: "Trocar"
   children?: React.ReactNode // abaixo do cabeçalho: painel de troca de variante, "Editar sabores"
 }) {
+  const [picksOpen, setPicksOpen] = React.useState(false)
   const removeRef = React.useRef<HTMLButtonElement>(null)
   const undoRef = React.useRef<HTMLButtonElement>(null)
   const moveFocus = React.useRef(false) // só depois de um clique, não na primeira renderização
@@ -110,6 +112,27 @@ export function SubscriptionEditorItem({
           />
         ) : (
           <>
+            {item.kitPicks && item.kitPicks.length > 0 && (
+              <div className="mt-1">
+                <button
+                  type="button"
+                  aria-expanded={picksOpen}
+                  className="cursor-pointer border-none bg-transparent p-0 text-[13px] font-bold text-[var(--store-ink)] underline underline-offset-3"
+                  onClick={() => setPicksOpen((o) => !o)}
+                >
+                  {picksOpen ? "Esconder itens escolhidos" : "Ver itens escolhidos"}
+                </button>
+                {picksOpen && (
+                  <ul className="mt-1.5 flex flex-col gap-0.5 text-[13px] text-[var(--store-muted)]">
+                    {item.kitPicks.map((p, i) => (
+                      <li key={i}>
+                        {p.quantity}× {p.title}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
             {children}
             {item.price != null && (
               <p className="mt-2 text-[13px] text-[var(--store-muted)]">
