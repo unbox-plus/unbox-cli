@@ -18,10 +18,8 @@ import {
 } from "@/components/account/subscription-items-section";
 import { InlineAlert } from "@/components/account/subscription-editor/inline-alert";
 import { nameKey } from "@/lib/subscription-items";
-import type {
-  CatalogProduct,
-  KitOption,
-} from "@/components/account/subscription-editor/catalog-product-card";
+import type { KitComponent } from "@/components/account/subscription-editor/kit-picks-builder";
+import type { CatalogProduct, KitOption } from "@/components/account/subscription-editor/catalog-product-card";
 import { mockupOr } from "@/lib/mockup";
 
 export const metadata: Metadata = {
@@ -208,17 +206,21 @@ export default async function AssinaturaDetalhePage({
       if (k) kitInfo.set(id, k);
     }),
   );
-  const componentes = (k: any) =>
-    ((k?.kitComponents ?? []) as any[]).filter(
-      (c) => c.productId && c.productVariantId,
-    );
-  const nomes = (k: any) =>
-    Object.fromEntries(
-      componentes(k).map((c) => [
-        c.productVariantId,
-        c.productTitle ?? c.label ?? "Item",
-      ]),
-    );
+  const componentes = (k: any) => ((k?.kitComponents ?? []) as any[]).filter((c) => c.productId && c.productVariantId);
+  // `kitLabelImage` é uma imagem opcional do kit e quase sempre vem vazia: sem ela, vale a foto do próprio produto do item.
+  const semImagemDoKit = new Set<string>();
+  for (const k of kitInfo.values()) for (const c of componentes(k)) if (!c.kitLabelImage) semImagemDoKit.add(c.productId);
+  const fotoDoProduto = new Map<string, string>();
+  if (semImagemDoKit.size) {
+    const itens = await mockupOr(withStoreClient((c) => c.getProductsByIds([...semImagemDoKit])), [], "assinatura/getProductsByIds(itens do kit)");
+    for (const p of itens) if (p.imageUrls?.[0]) fotoDoProduto.set(p.productId, p.imageUrls[0]);
+  }
+  // os itens que se pode escolher no kit, no formato do construtor
+  const itensDoKit = (k: any): KitComponent[] =>
+    componentes(k).map((c) => ({
+      productId: c.productId, variantId: c.productVariantId, title: c.productTitle ?? c.label ?? "Item",
+      subtitle: c.label && c.label !== c.productTitle ? c.label : null, imageUrl: c.kitLabelImage ?? fotoDoProduto.get(c.productId),
+    }));
   // Na loja cada tamanho de kit ("2 Box", "3 Box"...) é um produto de kit à parte. Para o cliente é UM kit com
   // opções: os produtos de kit de mesmo título viram um cartão só, com uma opção por produto.
   const resultado: CatalogProduct[] = [];
@@ -233,28 +235,15 @@ export default async function AssinaturaDetalhePage({
     if (!k || !(k.requiredPicksPerGroup > 0) || !comps.length || !e.variantId)
       continue; // sem cota ou sem componentes não dá para montar o kit
     const opcao: KitOption = {
-      productId: e.productId,
-      variantId: e.variantId,
-      requiredPicks: k.requiredPicksPerGroup,
-      label:
-        k.relatedInfo?.title ||
-        `${k.requiredPicksPerGroup} ${k.requiredPicksPerGroup === 1 ? "item" : "itens"}`,
-      price: e.price,
-      compareAtPrice: e.compareAtPrice,
-      highlight: k.relatedInfo?.highlightLabel || null,
-      soldOut: e.soldOut,
-      components: comps.map((c) => ({
-        productId: c.productId,
-        variantId: c.productVariantId,
-        title: c.productTitle ?? c.label ?? "Item",
-        subtitle: c.label && c.label !== c.productTitle ? c.label : null,
-        imageUrl: c.kitLabelImage,
-      })),
+      productId: e.productId, variantId: e.variantId, requiredPicks: k.requiredPicksPerGroup,
+      label: k.relatedInfo?.title || `${k.requiredPicksPerGroup} ${k.requiredPicksPerGroup === 1 ? "item" : "itens"}`,
+      price: e.price, compareAtPrice: e.compareAtPrice, highlight: k.relatedInfo?.highlightLabel || null, soldOut: e.soldOut,
+      components: itensDoKit(k),
     };
     const dk =
       detalhes[nameKey({ productId: e.productId, variantId: e.variantId })];
     if (dk) {
-      dk.kitNames = nomes(k); // o modal nomeia os itens escolhidos a partir daqui
+      dk.kit = { cap: opcao.requiredPicks, options: opcao.components }; // o modal nomeia e edita os itens a partir daqui
       dk.variacao = opcao.label; // e a linha do kit diz qual opção é
     }
     const chave = e.title.trim().toLowerCase();
@@ -278,8 +267,8 @@ export default async function AssinaturaDetalhePage({
   catalogo.splice(0, catalogo.length, ...resultado);
   for (const it of sub.items ?? []) {
     const d = it.productKitId && detalhes[nameKey(it)];
-    if (d)
-      d.kitNames = { ...d.kitNames, ...nomes(kitInfo.get(it.productKitId)) };
+    const k = d ? kitInfo.get(it.productKitId) : null;
+    if (d && k?.requiredPicksPerGroup > 0) d.kit = { cap: k.requiredPicksPerGroup, options: itensDoKit(k) };
   }
   const totalItens = linhas.every((l: any) => l.unit != null)
     ? linhas.reduce((t: number, l: any) => t + l.unit * l.it.quantity, 0)

@@ -1,18 +1,6 @@
 // Self-check do rascunho de itens da assinatura: npx tsx scripts/check-subscription-draft.ts
 import assert from "node:assert/strict";
-import {
-  addItem,
-  changeCount,
-  createDraft,
-  isDirty,
-  isLastActive,
-  removeItem,
-  setQuantity,
-  swapVariant,
-  toPayload,
-  undoRemove,
-  validateDraft,
-} from "../lib/subscription-draft";
+import { addItem, changeCount, createDraft, kitPicksChanged, setKitPicks, isDirty, isLastActive, removeItem, setQuantity, swapVariant, toPayload, undoRemove, validateDraft } from "../lib/subscription-draft";
 
 const a = { productId: "A", variantId: "a1", quantity: 2 };
 const b = { productId: "B", variantId: "b1", quantity: 1 };
@@ -88,27 +76,17 @@ const savedKit = [{ productId: "K", variantId: "k1", quantity: 1, kit: kitA }];
 d = createDraft(savedKit);
 assert.equal(isDirty(savedKit, d), false, "kit igual ao salvo");
 assert.deepEqual(toPayload(d)[0].kit, kitA, "o kit vai no payload");
-const novo = addItem(createDraft(saved), {
-  productId: "K2",
-  variantId: "k2",
-  quantity: 1,
-  kit: kitB,
-});
-assert.deepEqual(
-  toPayload(novo)[2].kit,
-  kitB,
-  "kit adicionado mantém os itens escolhidos",
-);
-assert.equal(
-  changeCount(savedKit, [{ ...savedKit[0], kit: kitB }]),
-  1,
-  "trocar os itens do kit é 1 alteração",
-);
-assert.equal(
-  isDirty(savedKit, [
-    { ...savedKit[0], kit: { ...kitA, picks: [...kitA.picks].reverse() } },
-  ]),
-  false,
-  "ordem dos itens não conta",
-);
+const novo = addItem(createDraft(saved), { productId: "K2", variantId: "k2", quantity: 1, kit: kitB });
+assert.deepEqual(toPayload(novo)[2].kit, kitB, "kit adicionado mantém os itens escolhidos");
+assert.equal(changeCount(savedKit, [{ ...savedKit[0], kit: kitB }]), 1, "trocar os itens do kit é 1 alteração");
+assert.equal(isDirty(savedKit, [{ ...savedKit[0], kit: { ...kitA, picks: [...kitA.picks].reverse() } }]), false, "ordem dos itens não conta");
+// editar só os itens do kit: continua 1 item, conta 1 alteração e a cota é conferida
+d = setKitPicks(createDraft(savedKit), 0, kitB.picks);
+assert.equal(d.length, 1, "o kit continua sendo 1 item");
+assert.equal(changeCount(savedKit, d), 1);
+assert.equal(kitPicksChanged(savedKit[0], toPayload(d)[0]), true, "etiqueta de itens alterados");
+assert.equal(kitPicksChanged(savedKit[0], savedKit[0]), false);
+assert.equal(validateDraft(createDraft(savedKit), { K: 3 }), null, "cota batendo");
+assert.ok(validateDraft(createDraft(savedKit), { K: 4 }), "kit incompleto não salva");
+assert.equal(validateDraft(createDraft(saved), { K: 4 }), null, "cota só vale para item de kit");
 console.log("ok");

@@ -3,14 +3,12 @@
 import * as React from "react";
 import { CircleNotch } from "@phosphor-icons/react/dist/ssr";
 
-import { AddProductPanel } from "@/components/account/subscription-editor/add-product-panel";
-import type { CatalogProduct } from "@/components/account/subscription-editor/catalog-product-card";
-import { InlineAlert } from "@/components/account/subscription-editor/inline-alert";
-import { SubscriptionEditorItem } from "@/components/account/subscription-editor/subscription-editor-item";
-import {
-  VariantSwitcher,
-  variantName,
-} from "@/components/account/subscription-editor/variant-switcher";
+import { AddProductPanel } from "@/components/account/subscription-editor/add-product-panel"
+import type { KitComponent } from "@/components/account/subscription-editor/kit-picks-builder"
+import type { CatalogProduct } from "@/components/account/subscription-editor/catalog-product-card"
+import { InlineAlert } from "@/components/account/subscription-editor/inline-alert"
+import { SubscriptionEditorItem } from "@/components/account/subscription-editor/subscription-editor-item"
+import { VariantSwitcher, variantName } from "@/components/account/subscription-editor/variant-switcher"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,6 +37,8 @@ import {
   createDraft,
   isDirty,
   isLastActive,
+  kitPicksChanged,
+  setKitPicks,
   removeItem,
   setQuantity,
   swapVariant,
@@ -51,13 +51,13 @@ import { nameKey } from "@/lib/subscription-items";
 import { cn } from "@/lib/utils";
 
 export interface ItemDetalhe {
-  titulo: string;
-  variacao: string | null;
-  foto?: string;
-  unit: number | null; // preço de assinatura
-  riscado: number | null; // preço avulso
-  variantes?: { id: string; label: string; esgotado?: boolean }[];
-  kitNames?: Record<string, string>; // kit: nome de cada componente, por productVariantId
+  titulo: string
+  variacao: string | null
+  foto?: string
+  unit: number | null // preço de assinatura
+  riscado: number | null // preço avulso
+  variantes?: { id: string; label: string; esgotado?: boolean }[]
+  kit?: { cap: number; options: KitComponent[] } // kit: a cota e os itens que se pode escolher
 }
 
 export type EditorPermissions = {
@@ -118,14 +118,13 @@ export function SubscriptionItemsEditor({
     }
   }
 
-  const canAdd = !!permissions.canAddProducts && catalog.length > 0;
-  const dirty = isDirty(savedItems, draft);
-  const invalid = validateDraft(draft);
-  const active = activeItems(draft);
-  const nameOf = (it: SavedItem) =>
-    details[nameKey(it)]?.titulo ??
-    catalog.find((p) => p.productId === it.productId)?.title ??
-    it.productId;
+  const canAdd = !!permissions.canAddProducts && catalog.length > 0
+  const dirty = isDirty(savedItems, draft)
+  // a cota de cada kit: um kit incompleto não salva
+  const kitCaps = Object.fromEntries(draft.flatMap((x) => (x.kit && details[nameKey(x)]?.kit ? [[x.kit.productKitId, details[nameKey(x)].kit!.cap]] : [])))
+  const invalid = validateDraft(draft, kitCaps)
+  const active = activeItems(draft)
+  const nameOf = (it: SavedItem) => details[nameKey(it)]?.titulo ?? catalog.find((p) => p.productId === it.productId)?.title ?? it.productId
 
   // sair da página (fechar a aba, recarregar, navegar para fora) com alterações pendentes pede confirmação ao navegador
   React.useEffect(() => {
@@ -279,16 +278,9 @@ export function SubscriptionItemsEditor({
                               price: d?.unit,
                               compareAtPrice: d?.riscado,
                               previousQuantity: before,
-                              kitPicks: it.kit?.picks.map((p) => ({
-                                title:
-                                  d?.kitNames?.[p.productVariantId] ?? "Item",
-                                quantity: p.quantity,
-                              })),
-                              status: swappable.find(
-                                (v) => v.id === it.variantId,
-                              )?.esgotado
-                                ? "outOfStock"
-                                : undefined,
+                              badge: it.kit ? "Kit" : undefined,
+                              kitPicks: it.kit?.picks.map((p) => ({ title: d?.kit?.options.find((o) => o.variantId === p.productVariantId)?.title ?? "Item", quantity: p.quantity })),
+                              status: swappable.find((v) => v.id === it.variantId)?.esgotado ? "outOfStock" : undefined,
                             }}
                             canChangeQuantity={
                               permissions.canChangeProductQuantity
@@ -298,9 +290,21 @@ export function SubscriptionItemsEditor({
                             isNew={it.isNew}
                             isRemoved={it.removed}
                             variantAction={link}
-                            onQuantityChange={(q) =>
-                              setDraft((dr) => setQuantity(dr, i, q))
+                            picksChanged={kitPicksChanged(savedItems.find((x) => nameKey(x) === nameKey(it)), it)}
+                            kitEdit={
+                              it.kit && d?.kit
+                                ? {
+                                    cap: d.kit.cap,
+                                    options: d.kit.options,
+                                    initialPicks: it.kit.picks,
+                                    onConfirm: (picks) => {
+                                      setDraft((dr) => setKitPicks(dr, i, picks))
+                                      setStatus(`Itens do kit atualizados: ${nameOf(it)}`)
+                                    },
+                                  }
+                                : undefined
                             }
+                            onQuantityChange={(q) => setDraft((dr) => setQuantity(dr, i, q))}
                             onRemove={() => {
                               setDraft((dr) => removeItem(dr, i));
                               setStatus(`Item removido: ${nameOf(it)}`);
@@ -401,13 +405,7 @@ export function SubscriptionItemsEditor({
                   em produtos, sem frete
                 </span>
               )}
-              <span>
-                {changes === 0
-                  ? "Nenhuma alteração"
-                  : changes === 1
-                    ? "1 alteração não salva"
-                    : `${changes} alterações não salvas`}
-              </span>
+              <span>{invalid && changes > 0 ? invalid : changes === 0 ? "Nenhuma alteração" : changes === 1 ? "1 alteração não salva" : `${changes} alterações não salvas`}</span>
             </p>
             <div className="flex items-center justify-end gap-3">
               <button

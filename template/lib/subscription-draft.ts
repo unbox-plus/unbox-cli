@@ -24,14 +24,15 @@ export const createDraft = (saved: SavedItem[]): DraftItem[] =>
 const at = (d: DraftItem[], i: number, patch: Partial<DraftItem>) =>
   d.map((x, j) => (j === i ? { ...x, ...patch } : x));
 
-export const setQuantity = (d: DraftItem[], i: number, quantity: number) =>
-  at(d, i, { quantity: Math.max(1, Math.floor(quantity)) });
-export const swapVariant = (d: DraftItem[], i: number, variantId: string) =>
-  at(d, i, { variantId });
-export const removeItem = (d: DraftItem[], i: number) =>
-  at(d, i, { removed: true });
-export const undoRemove = (d: DraftItem[], i: number) =>
-  at(d, i, { removed: false });
+export const setQuantity = (d: DraftItem[], i: number, quantity: number) => at(d, i, { quantity: Math.max(1, Math.floor(quantity)) });
+/** Troca só os itens escolhidos dentro do kit; o kit continua sendo 1 item, com a mesma quantidade. */
+export const setKitPicks = (d: DraftItem[], i: number, picks: KitPick[]) => {
+  const kit = d[i].kit;
+  return kit ? at(d, i, { kit: { ...kit, picks } }) : d;
+};
+export const swapVariant = (d: DraftItem[], i: number, variantId: string) => at(d, i, { variantId });
+export const removeItem = (d: DraftItem[], i: number) => at(d, i, { removed: true });
+export const undoRemove = (d: DraftItem[], i: number) => at(d, i, { removed: false });
 /** Mesmo produto e variante que já estão no rascunho não entram de novo: devolve o rascunho como veio. */
 export const addItem = (d: DraftItem[], item: SavedItem): DraftItem[] =>
   d.some((x) => nameKey(x) === nameKey(item))
@@ -69,14 +70,19 @@ const norm = (l: SavedItem[]) =>
 export const isDirty = (saved: SavedItem[], d: DraftItem[]) =>
   norm(saved) !== norm(toPayload(d));
 
-/** Mensagem de erro do rascunho, ou null se pode salvar. */
-export function validateDraft(d: DraftItem[]): string | null {
+/** Os itens escolhidos de um kit mudaram em relação ao salvo? (ignora a ordem) */
+export const kitPicksChanged = (saved: SavedItem | undefined, now: SavedItem) => !!saved?.kit && !!now.kit && kitKey(saved.kit) !== kitKey(now.kit);
+
+/** Soma dos itens escolhidos no kit. */
+export const kitPicked = (k?: KitSelection) => (k ? k.picks.reduce((a, p) => a + p.quantity, 0) : 0);
+
+/** Mensagem de erro do rascunho, ou null se pode salvar. `kitCaps` = cota de cada kit (chave: productKitId). */
+export function validateDraft(d: DraftItem[], kitCaps: Record<string, number> = {}): string | null {
   const p = toPayload(d);
   if (p.length === 0) return "A assinatura precisa de pelo menos 1 produto.";
-  if (p.some((i) => !Number.isInteger(i.quantity) || i.quantity < 1))
-    return "A quantidade mínima é 1.";
-  if (new Set(p.map(nameKey)).size !== p.length)
-    return "Há um produto repetido na lista.";
+  if (p.some((i) => !Number.isInteger(i.quantity) || i.quantity < 1)) return "A quantidade mínima é 1.";
+  if (new Set(p.map(nameKey)).size !== p.length) return "Há um produto repetido na lista.";
+  if (p.some((i) => i.kit && kitCaps[i.kit.productKitId] != null && kitPicked(i.kit) !== kitCaps[i.kit.productKitId])) return "Complete os itens do kit antes de salvar.";
   return null;
 }
 

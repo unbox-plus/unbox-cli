@@ -2,28 +2,22 @@
 
 import * as React from "react";
 
-import { ItemStatusTag } from "@/components/account/subscription-editor/item-status-tag";
-import { PriceCompare } from "@/components/account/subscription-editor/price-compare";
-import { VariantChips } from "@/components/account/subscription-editor/variant-chips";
-import { QuantityStepper } from "@/components/quantity-stepper";
-import { Button } from "@/components/ui/button";
-import { Foto } from "@/components/ui/foto";
-import { formatBRL } from "@/lib/format";
-import { InfoIcon } from "@/lib/icons";
-import type { KitSelection } from "@/lib/subscription-draft";
-import { nameKey } from "@/lib/subscription-items";
-import { cn } from "@/lib/utils";
+import { KitPicksBuilder, type KitComponent } from "@/components/account/subscription-editor/kit-picks-builder"
+import { ItemStatusTag } from "@/components/account/subscription-editor/item-status-tag"
+import { PriceCompare } from "@/components/account/subscription-editor/price-compare"
+import { VariantChips } from "@/components/account/subscription-editor/variant-chips"
+import { QuantityStepper } from "@/components/quantity-stepper"
+import { Button } from "@/components/ui/button"
+import { Foto } from "@/components/ui/foto"
+import { formatBRL } from "@/lib/format"
+import { InfoIcon } from "@/lib/icons"
+import type { KitPick, KitSelection } from "@/lib/subscription-draft"
+import { nameKey } from "@/lib/subscription-items"
+import { cn } from "@/lib/utils"
 
 export type CatalogVariant = { id: string; label: string; soldOut?: boolean };
 
-// Um componente do kit: o cliente escolhe quantas unidades de cada um até fechar a cota.
-export type KitComponent = {
-  productId: string;
-  variantId: string;
-  title: string;
-  subtitle?: string | null;
-  imageUrl?: string | null;
-};
+export type { KitComponent }
 
 // Uma opção do kit (ex.: "4 Box"): na loja cada opção é um produto de kit com a sua cota, o seu preço e os seus componentes.
 export type KitOption = {
@@ -78,30 +72,21 @@ export function CatalogProductCard({
   onAdd: (item: AddedItem) => void;
   className?: string;
 }) {
-  const { productId, title, variants } = product;
-  const [open, setOpen] = React.useState(false);
-  const [picked, setPicked] = React.useState<string | null>(null);
-  const [quantity, setQuantity] = React.useState(1);
-  const [optionId, setOptionId] = React.useState<string | null>(null); // kit: a opção escolhida
-  const [picks, setPicks] = React.useState<Record<string, number>>({}); // kit: quantidade por componente
-  const bodyId = React.useId();
+  const { productId, title, variants } = product
+  const [open, setOpen] = React.useState(false)
+  const [picked, setPicked] = React.useState<string | null>(null)
+  const [quantity, setQuantity] = React.useState(1)
+  const [optionId, setOptionId] = React.useState<string | null>(null) // kit: a opção escolhida
+  const bodyId = React.useId()
 
   const has = (pid: string, variantId: string | null | undefined) =>
     subscribedKeys.has(nameKey({ productId: pid, variantId }));
 
   // ---- kit
-  const kitOptions = product.kit?.options;
-  const option = kitOptions
-    ? kitOptions.length === 1
-      ? kitOptions[0]
-      : (kitOptions.find((o) => o.productId === optionId) ?? null)
-    : null;
-  const optionSubscribed = (o: KitOption) => has(o.productId, o.variantId);
-  const chosen = Object.values(picks).reduce((a, b) => a + b, 0);
-  const remaining = option ? option.requiredPicks - chosen : 0;
-  const cheapest = kitOptions
-    ? kitOptions.reduce((m, o) => (o.price < m.price ? o : m), kitOptions[0])
-    : null;
+  const kitOptions = product.kit?.options
+  const option = kitOptions ? (kitOptions.length === 1 ? kitOptions[0] : (kitOptions.find((o) => o.productId === optionId) ?? null)) : null
+  const optionSubscribed = (o: KitOption) => has(o.productId, o.variantId)
+  const cheapest = kitOptions ? kitOptions.reduce((m, o) => (o.price < m.price ? o : m), kitOptions[0]) : null
 
   // ---- produto comum
   const options = variants?.map((v) => ({
@@ -128,42 +113,27 @@ export function CatalogProductCard({
       ? variants.every((v) => has(productId, v.id))
       : has(productId, product.variantId);
   const canAdd = kitOptions
-    ? !!option &&
-      !option.soldOut &&
-      !optionSubscribed(option) &&
-      remaining === 0
-    : !product.soldOut && variantId != null && !has(productId, variantId);
+    ? !!option && !option.soldOut && !optionSubscribed(option)
+    : !product.soldOut && variantId != null && !has(productId, variantId)
 
   const reset = () => {
-    setOpen(false);
-    setPicked(null);
-    setQuantity(1);
-    setOptionId(null);
-    setPicks({});
-  };
+    setOpen(false)
+    setPicked(null)
+    setQuantity(1)
+    setOptionId(null)
+  }
 
   const add = () => {
-    if (!canAdd) return;
-    if (option) {
-      const selected = option.components.filter(
-        (c) => (picks[c.variantId] ?? 0) > 0,
-      );
-      onAdd({
-        productId: option.productId,
-        variantId: option.variantId,
-        quantity: 1,
-        kit: {
-          productKitId: option.productId,
-          picks: selected.map((c) => ({
-            productId: c.productId,
-            productVariantId: c.variantId,
-            quantity: picks[c.variantId],
-          })),
-        },
-      });
-    } else if (variantId != null) onAdd({ productId, variantId, quantity });
-    reset();
-  };
+    if (!canAdd || kitOptions || variantId == null) return
+    onAdd({ productId, variantId, quantity })
+    reset()
+  }
+  // kit: o construtor só chama isto com a cota fechada, então o kit nunca entra incompleto
+  const addKit = (picks: KitPick[]) => {
+    if (!option || !canAdd) return
+    onAdd({ productId: option.productId, variantId: option.variantId, quantity: 1, kit: { productKitId: option.productId, picks } })
+    reset()
+  }
 
   return (
     <div
@@ -207,7 +177,7 @@ export function CatalogProductCard({
           {kitOptions && (
             <p className="text-[13px] text-[var(--store-muted)]">
               {kitOptions.length > 1
-                ? `Kit · ${kitOptions.length} opções`
+                ? "Kit · escolha as opções"
                 : `Kit · monte com ${kitOptions[0].requiredPicks} ${kitOptions[0].requiredPicks === 1 ? "item" : "itens"}`}
             </p>
           )}
@@ -268,72 +238,22 @@ export function CatalogProductCard({
               }))}
               value={optionId}
               onChange={(id) => {
-                setOptionId(id);
-                setPicks({}); // cada opção tem outra cota e outros componentes
+                setOptionId(id) // o construtor abaixo recomeça: cada opção tem outra cota e outros itens
               }}
             />
           )}
 
           {option ? (
             <>
-              {option.highlight && (
-                <p className="text-xs font-bold text-[var(--store-primary)]">
-                  {option.highlight}
-                </p>
-              )}
-              <p
-                role="status"
-                className="text-xs font-bold text-[var(--store-ink-2)]"
-              >
-                {chosen} de {option.requiredPicks}{" "}
-                {option.requiredPicks === 1
-                  ? "item escolhido"
-                  : "itens escolhidos"}
-              </p>
-              <ul className="flex flex-col divide-y divide-[var(--store-surface-2)]">
-                {option.components.map((c) => {
-                  const n = picks[c.variantId] ?? 0;
-                  return (
-                    <li
-                      key={c.variantId}
-                      className="flex items-center gap-3 py-3"
-                    >
-                      <div className="size-10 shrink-0 overflow-hidden rounded-lg bg-[var(--store-surface-2)]">
-                        {c.imageUrl && (
-                          <Foto
-                            src={c.imageUrl}
-                            alt=""
-                            width={40}
-                            height={40}
-                            sizes="40px"
-                            className="size-full object-cover"
-                          />
-                        )}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="font-bold text-[var(--store-ink)]">
-                          {c.title}
-                        </p>
-                        {c.subtitle && (
-                          <p className="text-[13px] text-[var(--store-muted)]">
-                            {c.subtitle}
-                          </p>
-                        )}
-                      </div>
-                      <QuantityStepper
-                        value={n}
-                        min={0}
-                        max={n + remaining}
-                        label={c.title}
-                        onChange={(v) =>
-                          setPicks((p) => ({ ...p, [c.variantId]: v }))
-                        }
-                        className="rounded-xl"
-                      />
-                    </li>
-                  );
-                })}
-              </ul>
+              {option.highlight && <p className="text-xs font-bold text-[var(--store-primary)]">{option.highlight}</p>}
+              <KitPicksBuilder
+                key={option.productId}
+                cap={option.requiredPicks}
+                options={option.components}
+                confirmLabel={`Adicionar · ${formatBRL(option.price)}`}
+                confirmDisabled={!canAdd}
+                onConfirm={addKit}
+              />
             </>
           ) : (
             <p
@@ -345,17 +265,12 @@ export function CatalogProductCard({
             </p>
           )}
 
-          <Button
-            type="button"
-            className={ADD_BTN}
-            disabled={!canAdd}
-            onClick={add}
-          >
-            {option ? `Adicionar · ${formatBRL(option.price)}` : "Adicionar"}
-          </Button>
-          <p className="text-center text-xs text-[var(--store-muted)]">
-            Entra na assinatura quando você salvar as alterações.
-          </p>
+          {!option && (
+            <Button type="button" className={ADD_BTN} disabled>
+              Adicionar
+            </Button>
+          )}
+          <p className="text-center text-xs text-[var(--store-muted)]">Entra na assinatura quando você salvar as alterações.</p>
         </div>
       )}
 
