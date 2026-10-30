@@ -2,7 +2,7 @@
 // e estável para a UI. Mantém o preço/total SEMPRE como displayAmount do servidor (autoritativo).
 
 export interface UiCartItem {
-  id: string;            // cartItemId (node._id) — usado em update/remove
+  id: string; // cartItemId (node._id) — usado em update/remove
   productId: string;
   variantId: string;
   title: string;
@@ -12,7 +12,10 @@ export interface UiCartItem {
   displayUnitPrice: string;
   thumbnail?: string;
   isRecurring?: boolean;
-  isBonus: boolean;      // isDiscountedBonusItem (brinde) — R$0, excluído do placeOrder
+  kitId?: string;
+  kitLabel?: string;
+  kitPicks?: string[];
+  isBonus: boolean; // isDiscountedBonusItem (brinde) — R$0, excluído do placeOrder
 }
 
 export interface UiShippingAddress {
@@ -40,7 +43,8 @@ function cleanAddressField(v: unknown): string {
 /** Endereço de entrega já gravado no carrinho (se houver), com placeholders de cotação removidos. */
 export function extractShippingAddress(cart: any): UiShippingAddress | null {
   const fg = cart?.checkout?.fulfillmentGroups ?? [];
-  const raw = fg.find((g: any) => g.data?.shippingAddress)?.data?.shippingAddress;
+  const raw = fg.find((g: any) => g.data?.shippingAddress)?.data
+    ?.shippingAddress;
   if (!raw) return null;
   const addr: UiShippingAddress = {
     fullName: cleanAddressField(raw.fullName),
@@ -73,7 +77,11 @@ export interface UiCart {
   items: UiCartItem[];
   discounts: Array<{ id: string; code?: string; displayAmount?: string }>;
   fulfillmentGroupIds: string[];
-  selectedShipping?: { methodId: string; displayName?: string; displayAmount?: string } | null;
+  selectedShipping?: {
+    methodId: string;
+    displayName?: string;
+    displayAmount?: string;
+  } | null;
   summary: {
     itemTotal?: string;
     discountTotal?: string;
@@ -85,47 +93,75 @@ export interface UiCart {
   cartEvents: Array<{ type: string; data?: any }>;
 }
 
-export function normalizeCart(cart: any, extraEvents: any[] = []): UiCart | null {
+function kitPickLines(kit: any): string[] {
+  const picks: any[] = kit?.productKitItemsConfigurations ?? [];
+  return picks
+    .filter((k) => k.variantTitle)
+    .map((k) => `${k.quantity} × ${k.variantTitle}`);
+}
+
+export function normalizeCart(
+  cart: any,
+  extraEvents: any[] = [],
+): UiCart | null {
   if (!cart) return null;
   const edges = cart.items?.edges ?? [];
   const items: UiCartItem[] = edges.map((e: any) => {
     const n = e.node;
     return {
       id: n._id,
-      productId: n.productConfiguration?.productId,
-      variantId: n.productConfiguration?.productVariantId,
+      productId:
+        n.productConfiguration?.productId ??
+        n.kitItemConfigurations?.productKitId,
+      variantId:
+        n.productConfiguration?.productVariantId ??
+        n.kitItemConfigurations?.productKitId,
       title: n.title,
-      variantTitle: n.variantTitle,
+      variantTitle:
+        kitPickLines(n.kitItemConfigurations).join(", ") || n.variantTitle,
       quantity: n.quantity,
       unitPrice: n.price?.amount ?? 0,
       displayUnitPrice: n.price?.displayAmount ?? "—",
       thumbnail: n.thumbnail || undefined,
       isRecurring: n.isRecurring ?? false,
+      kitId: n.kitItemConfigurations?.productKitId ?? undefined,
+      kitPicks: n.kitItemConfigurations
+        ? kitPickLines(n.kitItemConfigurations)
+        : undefined,
       isBonus: n.isDiscountedBonusItem === true,
     };
   });
 
   const fg = cart.checkout?.fulfillmentGroups ?? [];
-  const selected = fg.find((g: any) => g.selectedFulfillmentOption)?.selectedFulfillmentOption;
+  const selected = fg.find(
+    (g: any) => g.selectedFulfillmentOption,
+  )?.selectedFulfillmentOption;
   const summary = cart.checkout?.summary ?? {};
 
   return {
     cartId: cart._id,
-    totalItemQuantity: cart.totalItemQuantity ?? items.reduce((s, i) => s + i.quantity, 0),
+    totalItemQuantity:
+      cart.totalItemQuantity ?? items.reduce((s, i) => s + i.quantity, 0),
     expiresAt: cart.expiresAt,
     email: cart.email || undefined,
     shippingAddress: extractShippingAddress(cart),
     recurringItemsFrequencyId: cart.recurringItemsFrequencyId ?? null,
     hasRecurring: items.some((i) => i.isRecurring),
     items,
-    discounts: (cart.appliedDiscounts ?? cart.discounts ?? []).map((d: any) => ({
-      id: d._id, code: d.code, displayAmount: d.amount?.displayAmount,
-    })),
+    discounts: (cart.appliedDiscounts ?? cart.discounts ?? []).map(
+      (d: any) => ({
+        id: d._id,
+        code: d.code,
+        displayAmount: d.amount?.displayAmount,
+      }),
+    ),
     fulfillmentGroupIds: fg.map((g: any) => g._id),
     selectedShipping: selected
       ? {
           methodId: selected.fulfillmentMethod?._id,
-          displayName: selected.fulfillmentMethod?.displayName ?? selected.fulfillmentMethod?.name,
+          displayName:
+            selected.fulfillmentMethod?.displayName ??
+            selected.fulfillmentMethod?.name,
           displayAmount: selected.price?.displayAmount,
         }
       : null,
