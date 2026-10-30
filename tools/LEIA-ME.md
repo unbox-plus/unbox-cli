@@ -118,3 +118,22 @@ próprio topo da página diz isso, para quem chegar por lá não editar o change
 
 O link ficava aqui e não no `README.md` porque aquele README é público: viaja no pacote do npm
 e está no repositório do GitHub. Agora não fica em lugar nenhum dos dois.
+
+## `partner-api-smoke.mjs` · a conexão com a Partners API, contra um ambiente real
+
+Faz o caminho inteiro que os comandos de publicação da CLI fazem, sem mudar nada no servidor: lê
+as credenciais do projeto (como a CLI lê), faz o signIn, mostra de onde veio cada credencial e o
+`shopId` do token, e roda a consulta `customStorefront`, que só lê. Ela exige a permissão
+`read:custom:storefront` e responde `null` quando a loja nunca foi provisionada.
+
+```bash
+node tools/partner-api-smoke.mjs --dir <pasta da loja>                 # .env.local da loja
+node tools/partner-api-smoke.mjs --dir <loja> --env-file .env.stage     # outro arquivo
+node tools/partner-api-smoke.mjs --dir <loja> --json                    # um objeto JSON em stdout
+node tools/partner-api-smoke.mjs --dir <loja> --query "query { ... }"   # outra consulta
+```
+
+Para o stage, `UNBOX_PARTNER_GRAPHQL_URL` no arquivo aponta o endpoint. Vale rodar nos quatro
+casos que a CLI precisa explicar bem: credencial certa, senha errada (mensagem do signIn), arquivo
+sem credencial (a instrução) e conta sem permissão (a mensagem de permissão).
+
