@@ -78,7 +78,7 @@ export default function CarrinhoPage() {
                 {!it.isBonus && (
                   <div className="mt-3 flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
-                      <QuantityStepper value={it.quantity} onChange={(q) => updateQty(it.id, q)} disabled={loading} />
+                      <QuantityStepper value={it.quantity} onChange={(q) => updateQty(it.id, q)} disabled={loading} label={it.title} />
                       <Button variant="ghost" size="sm" onClick={() => remove(it.id)} disabled={loading}>
                         <Trash2 /> Remover
                       </Button>
