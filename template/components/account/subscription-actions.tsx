@@ -152,7 +152,7 @@ export function SubscriptionActions({
             ) : (
               <Pause weight="bold" />
             )}{" "}
-            {paused ? "Retomar" : "Pausar"}
+            {paused ? "Reativar" : "Pausar"}
           </button>
         )}
         {actions.canSkipCycle && (

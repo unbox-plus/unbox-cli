@@ -24,10 +24,18 @@ assert.equal(isDirty(saved, d), false, "trocar e voltar não é mudança");
 d = setQuantity(d, 0, 0);
 assert.equal(d[0].quantity, 1, "mínimo 1");
 
-d = addItem(createDraft(saved), { productId: "C", variantId: "c1", quantity: 3 });
+d = addItem(createDraft(saved), {
+  productId: "C",
+  variantId: "c1",
+  quantity: 3,
+});
 assert.equal(d.length, 3);
 assert.equal(d[2].isNew, true);
-assert.equal(addItem(d, { productId: "C", variantId: "c1", quantity: 1 }), d, "mesma variante não entra duas vezes");
+assert.equal(
+  addItem(d, { productId: "C", variantId: "c1", quantity: 1 }),
+  d,
+  "mesma variante não entra duas vezes",
+);
 assert.ok(!("isNew" in toPayload(d)[2]), "payload sem marcas do rascunho");
 
 d = removeItem(removeItem(createDraft(saved), 0), 1);
@@ -35,12 +43,35 @@ assert.ok(validateDraft(d), "lista vazia não salva");
 assert.equal(validateDraft(createDraft(saved)), null);
 d = createDraft(saved);
 assert.equal(changeCount(saved, d), 0);
-assert.equal(changeCount(saved, swapVariant(d, 0, "a2")), 1, "trocar variante conta 1");
-assert.equal(changeCount(saved, setQuantity(removeItem(d, 1), 0, 5)), 2, "remover um e mudar a quantidade de outro");
-assert.equal(changeCount(saved, addItem(d, { productId: "C", variantId: "c1", quantity: 1 })), 1);
+assert.equal(
+  changeCount(saved, swapVariant(d, 0, "a2")),
+  1,
+  "trocar variante conta 1",
+);
+assert.equal(
+  changeCount(saved, setQuantity(removeItem(d, 1), 0, 5)),
+  2,
+  "remover um e mudar a quantidade de outro",
+);
+assert.equal(
+  changeCount(
+    saved,
+    addItem(d, { productId: "C", variantId: "c1", quantity: 1 }),
+  ),
+  1,
+);
 // kit: os itens escolhidos viajam no payload e contam como mudança quando mudam
-const kitA = { productKitId: "K", picks: [{ productId: "x", productVariantId: "x1", quantity: 2 }, { productId: "y", productVariantId: "y1", quantity: 1 }] };
-const kitB = { productKitId: "K", picks: [{ productId: "x", productVariantId: "x1", quantity: 3 }] };
+const kitA = {
+  productKitId: "K",
+  picks: [
+    { productId: "x", productVariantId: "x1", quantity: 2 },
+    { productId: "y", productVariantId: "y1", quantity: 1 },
+  ],
+};
+const kitB = {
+  productKitId: "K",
+  picks: [{ productId: "x", productVariantId: "x1", quantity: 3 }],
+};
 const savedKit = [{ productId: "K", variantId: "k1", quantity: 1, kit: kitA }];
 d = createDraft(savedKit);
 assert.equal(isDirty(savedKit, d), false, "kit igual ao salvo");

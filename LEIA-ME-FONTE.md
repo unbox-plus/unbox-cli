@@ -1,20 +1,37 @@
-# create-unbox-store — código-fonte (v0.25.0)
+# unbox (@unbox-plus/cli) · código-fonte (v0.27.0)
 
 Este repositório é o **repositório de trabalho**, não o artefato de uso. Quem só quer gerar loja
-roda o pacote publicado: `npx --package=@unbox-plus/cli create-unbox-store`.
+roda o pacote publicado: `npx --package=@unbox-plus/cli unbox create`.
 
 ```bash
-npm install          # só `prompts`; o resto é do template
-node bin/cli.js      # roda o CLI daqui, sem empacotar
-npm pack             # gera o tarball (o prepack roda o gate de neutralidade antes)
+npm install                 # prompts, @unbox-plus/sdk e @next/env; o resto é do template
+node bin/unbox.js --help    # roda a CLI daqui, sem empacotar
+npm test                    # node:test, sem dependência (ver "Os testes")
+npm pack                    # gera o tarball (o prepack roda o gate de neutralidade antes)
 ```
 
 ## O mapa
 
 | pasta | o que é |
 |---|---|
-| `bin/cli.js` | o wizard: perguntas, cópia do template, `.env.local`, `.mcp.json`, briefing |
-| `src/` | presets de estilo (`presets.js`), aplicação de tokens e receitas (`theme.js`), cor (`colors.js`) |
+| `bin/unbox.js` | o binário `unbox`: só chama `src/main.js` |
+| `bin/cli.js` | o binário antigo, `create-unbox-store`: avisa em stderr que o padrão é `unbox create` e roda o mesmo create |
+| `src/main.js` | o despachante: flags globais, registro de comandos, ajuda, códigos de saída |
+| `src/commands/create.js` | o wizard: perguntas, cópia do template, `.env.local`, `.mcp.json`, briefing |
+| `src/args.js` | o parser de argumentos (sem dependência); as globais saem de qualquer posição |
+| `src/output.js` | texto x `--json` (um objeto em stdout) e o filtro que tira credencial da saída |
+| `src/env.js` | o `.env` do projeto: `envValue` (quem escreve) e `loadProjectEnv` (quem lê, com o `@next/env`) |
+| `src/partner-api.js` | a conexão com a Partners API: camada fina sobre o `@unbox-plus/sdk`, traduz a recusa num `code` e numa mensagem |
+| `src/paths.js` | onde o pacote mora no disco (`TEMPLATE_DIR`) |
+| `src/commands/provision.js` | o `unbox provision`: checagens locais, provisionamento e vínculo, nessa ordem |
+| `src/provisioning.js` | o acompanhamento do provisionamento: quando chamar de novo, quando desistir (prazos medidos no backend) |
+| `src/storefront.js` | regras puras: códigos que não se repetem e o código do backend lido da mensagem do erro |
+| `src/git.js` | o estado do repositório (só leitura) e o vínculo com a `deploy` da Unbox, sem tocar nas branches do usuário |
+| `src/deploy-key.js` | a chave de deploy por loja e o `GIT_SSH_COMMAND` (nunca `core.sshCommand`) |
+| `src/known-hosts.js` | as host keys do servidor git, embutidas e conferidas com a infra |
+| `src/proc.js`, `src/config-dir.js` | programas externos sem shell, e a pasta `~/.config/unbox` |
+| `src/` (o resto) | presets de estilo (`presets.js`), aplicação de tokens e receitas (`theme.js`), cor (`colors.js`) |
+| `test/` | `node:test`; fora do tarball, público no GitHub (o gate varre) |
 | `template/` | **a foundation**: o projeto Next.js que vira a loja. É o grosso do repositório |
 | `tools/` | ferramentas do nosso lado, que NÃO vão para a loja gerada |
 
@@ -22,11 +39,55 @@ E um repositório a mais, fora deste: **[`unbox-sdk`](https://github.com/unbox-p
 pacote `@unbox-plus/sdk`, que é toda a conversa com a API de parceiros. Da v0.25.0 em diante o
 template não tem mais `lib/unbox/*.ts`: ele declara o pacote como dependência e amarra o ambiente
 a ele em `lib/unbox.ts`, um arquivo só. É o que faz a atualização de uma loja no ar caber num bump
-de versão do `package.json` dela.
+de versão do `package.json` dela. Da v0.26.0 em diante a própria CLI também depende dele
+(`src/partner-api.js`): signIn, cabeçalhos e renovação de token moram num lugar só.
+
+## Comando novo no `unbox`
+
+1. `src/commands/<nome>.js` exportando `help` (texto) e uma função que recebe
+   `(args, globals, { out })`. `globals` traz `json`, `yes`, `dir` e `env-file`; `out` é a saída
+   (`progress`, `warn`, `result`, `fail`).
+2. Uma linha no `COMMANDS` de `src/main.js`. Só o que está no registro aparece no `--help`.
+3. Credencial: `loadProjectEnv` + `requireCredentials` + `describeOrigins` (src/env.js), e só
+   depois `createPartnerApi` (src/partner-api.js). Nessa ordem, a falta de credencial nunca chega
+   ao SDK, que diria "modo mockup".
+4. Erro de uso é `UsageError` (sai com 2), falha da operação é `CliError` (sai com 1). Nada de
+   `process.exit` no comando: o despachante usa `process.exitCode`, que não corta o JSON num pipe.
+5. Texto impresso sem travessão (o `test/sem-travessao.test.js` cobra os arquivos novos).
+
+## Os testes
+
+`npm test` roda `node --test test/*.test.js`.
+
+- `create.test.js` é a regressão do scaffold: gera a loja com o código ANTERIOR (tirado do git,
+  `git merge-base HEAD develop`, ou `UNBOX_BASE_REF=<ref>`) e com o atual, pelas duas entradas, e
+  compara a árvore byte a byte. O wizard é respondido por `test/helpers/inject.mjs`
+  (`prompts.inject`), então credenciais, `.mcp.json` e checkout hospedado também são comparados.
+  Sem git ou sem `develop` (um checkout raso de CI, por exemplo), ele é pulado dizendo o motivo.
+- `git-link.test.js` e `provision.test.js` usam git e `ssh-keygen` de verdade numa HOME
+  temporária (`test/helpers/git-sandbox.mjs`): config global própria e um repositório bare no
+  papel do servidor da Unbox, com a URL SSH trocada por ele via `url.<bare>.insteadOf`. Nada do
+  `~/.gitconfig` ou do `~/.config/unbox` de quem roda é lido ou alterado. Sem `ssh-keygen`, os
+  testes que dependem dele são pulados.
+- `provisioning.test.js` usa uma API e um relógio falsos, com a linha do tempo do backend (uma
+  rodada que falha leva ~12 min até `FAILED`).
+- `partner-api.test.js` usa o SDK de verdade com um `fetch` falso, e as respostas de erro são as
+  medidas no stage (api key recusada, `INVALID_CREDENTIALS_ERROR`, 403 do gateway).
+
+## Mexer na CLI contra um SDK que ainda não foi publicado
+
+```bash
+npm install ../unbox-sdk        # grava file:../unbox-sdk no package.json e no lock
+npm test
+npm install @unbox-plus/sdk@^X.Y.Z   # volta para a versão publicada ANTES de commitar
+```
+
+O `prepack` recusa empacotar com `file:` ou `"link": true` no `package.json` ou no lock: publicado
+assim, o `npx` de quem gera loja procuraria uma pasta da máquina de quem empacotou.
 
 ## Mexer no template contra um SDK que ainda não foi publicado
 
-O `template/package.json` aponta para a versão publicada (`^0.1.0`), então rodar `npm install`
+O `template/package.json` aponta para a versão publicada (`^0.4.0`), então rodar `npm install`
 dentro de `template/` só funciona depois que o pacote está no registro. Para testar a foundation
 contra um SDK local, enquanto ele ainda está em desenvolvimento:
 
@@ -34,7 +95,7 @@ contra um SDK local, enquanto ele ainda está em desenvolvimento:
 cd template
 npm install @unbox-plus/sdk    # grava @unbox-plus/sdk no package.json
 npm run typecheck && npm run build
-git checkout package.json      # devolve o ^0.1.0 ANTES de commitar
+git checkout package.json      # devolve o ^0.4.0 ANTES de commitar
 rm -rf node_modules            # ver abaixo
 ```
 
@@ -47,7 +108,8 @@ gate do `prepack` recusa dizendo isso, mas é mais barato não chegar lá.
 
 | arquivo | o que faz |
 |---|---|
-| `check-template-neutro.mjs` | gate do `prepack`: bloqueia o empacotamento se a foundation tiver vocabulário de um ramo específico ou nome de cliente, comentário incluído. Também reprova travessão no texto que o wizard imprime |
+| `check-template-neutro.mjs` | gate do `prepack`: bloqueia o empacotamento se a foundation tiver vocabulário de um ramo específico ou nome de cliente, comentário incluído. Também reprova travessão no texto que o wizard imprime e dependência local (`file:`) no `package.json` |
+| `partner-api-smoke.mjs` | smoke test da conexão com a Partners API contra um ambiente real (ver `tools/LEIA-ME.md`) |
 | `notion-doc.mjs` | gera a página do Notion a partir do `CHANGELOG.md` e do `package.json` |
 | `tokenize-neutrals.mjs`, `tokenize-radius.mjs` | varreduras usadas nas migrações de paleta e de raio |
 | `workflow-storefront.legado.js` | legado da era anterior ao CLI, mantido só como referência |
