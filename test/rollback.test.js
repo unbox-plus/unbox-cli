@@ -378,6 +378,45 @@ test("o rollback voltou para outro destino que o confirmado: avisa", async () =>
   assert.match(r.stderr, /voltou para aaaaaaa, e não para bbbbbbb/);
 });
 
+/** Resposta com o rollback para B registrado, mas a hospedagem ainda mostrando C no ar. */
+const defasada = () => noAr(C, { alvo: B, operation: op("ROLLBACK", "SUCCESS", B, T1) });
+
+test("resposta com o deployment de antes no ar: relê até a produção mostrar o destino", async () => {
+  const falsa = apiFalsa({ rollback: [defasada()], producao: [noAr(), defasada(), voltou()] });
+  const r = await roda(pasta(), { json: true, yes: true }, { falsa });
+  assert.equal(r.erro, undefined, r.stderr);
+  assert.deepEqual(r.chamadas, ["producao", "rollback", "producao", "producao"]);
+  assert.equal(r.json.data.commitSha, B, "o --json traz a produção já trocada");
+  assert.doesNotMatch(r.stderr, /alguns segundos/);
+});
+
+test("a produção não mostra o destino a tempo: texto mostra o destino registrado, sem repetir", async () => {
+  const falsa = apiFalsa({ rollback: [defasada()], producao: [noAr(), defasada()] });
+  const r = await roda(pasta(), { yes: true }, { falsa });
+  assert.equal(r.erro, undefined, r.stderr);
+  assert.equal(rollbacks(r), 1);
+  assert.equal(r.chamadas.filter((c) => c === "producao").length, 1 + 4);
+  assert.match(r.stdout, /No ar: +bbbbbbb \(registrado pela Unbox; a última leitura ainda mostrava ccccccc/);
+  assert.match(r.stderr, /alguns segundos/);
+});
+
+test("outra operação começa enquanto relê: para de esperar e fica com a última leitura do rollback", async () => {
+  const outra = noAr(C, { canRollback: false, operation: op("PUBLISH", "PENDING", A, T2) });
+  const falsa = apiFalsa({ rollback: [defasada()], producao: [noAr(), outra] });
+  const r = await roda(pasta(), { json: true, yes: true }, { falsa });
+  assert.equal(r.erro, undefined, r.stderr);
+  assert.equal(r.chamadas.filter((c) => c === "producao").length, 2);
+  assert.equal(r.json.data.operation.type, "ROLLBACK");
+});
+
+test("produção mudou com a confirmação aberta: a mensagem diz qual operação", async () => {
+  prompts.inject([true]);
+  const falsa = apiFalsa({ producao: [noAr(), noAr(C, { alvo: B, operation: op("ROLLBACK", "SUCCESS", B, T1) })] });
+  const r = await roda(pasta(), {}, { interactive: true, falsa });
+  assert.equal(r.erro?.code, "PRODUCAO_MUDOU");
+  assert.match(r.erro.message, /rollback para bbbbbbb desde/);
+});
+
 test("NOTHING_TO_ROLLBACK, BUSY e TARGET_UNAVAILABLE: mensagens próprias, sem repetir", async () => {
   const casos = [
     [erroDoBackend("CUSTOM_STOREFRONT_NOTHING_TO_ROLLBACK_ERROR"), [noAr(), emBreve(null)], /mudou desde a leitura/],

@@ -14,7 +14,7 @@ import { createPartnerApi } from "../partner-api.js";
 import { requireProgram } from "../proc.js";
 import { git, otherShopError, repoState } from "../git.js";
 import {
-  CAMPOS_PRODUCAO, LIMITES, ROLLBACK_TTL, curto, describeLive, describeOperation, describeTarget, isStale, liveCommit, quando,
+  CAMPOS_PRODUCAO, LIMITES, curto, describeLive, describeOperation, describeTarget, isAbandonedRollback, liveCommit, quando,
   readProduction, storefrontUnavailable, waitOperation,
 } from "../production.js";
 import { NOTHING_TO_ROLLBACK, PRODUCTION_BUSY, ROLLBACK_TARGET_UNAVAILABLE, backendCode } from "../storefront.js";
@@ -49,6 +49,11 @@ export const LIMITES_ROLLBACK = {
   intervaloEmVoo: 10 * 1000,
   /** Acompanhamento de um rollback PENDING (síncrono na Unbox: só fica assim se a troca caiu). */
   pendente: { ...LIMITES, teto: 90 * 1000 },
+  /**
+   * Logo depois da troca, a hospedagem ainda pode responder com o deployment de antes como o do
+   * ar (medido em stage: 1 a 5 s): relê até a produção mostrar o destino.
+   */
+  propagacao: { leituras: 4, espera: 2000 },
 };
 
 const SHA = /^[0-9a-f]{7,64}$/i;
@@ -124,7 +129,7 @@ const ocupadaPor = (op) => {
 function semRollback(view, now) {
   const op = view.operation;
   if (op?.state === "PENDING") {
-    if (op.type === "ROLLBACK" && isStale(op, { now, limites: { teto: ROLLBACK_TTL, folgaRelogio: LIMITES.folgaRelogio } })) {
+    if (isAbandonedRollback(view, { now })) {
       return new CliError(
         `Um rollback pedido em ${quando(op.requestedAt)} foi interrompido na Unbox, e ela ainda não libera outro. ` +
           `No ar agora: ${noAr(view)}. Para pôr outro commit no ar, use unbox publish <commit>; persistindo, fale com a Unbox.`,
@@ -181,13 +186,16 @@ const assinatura = (v) => JSON.stringify([
   v?.state, v?.commitSha, v?.canRollback, v?.rollbackCommitSha, v?.operation?.requestedAt, v?.operation?.state,
 ]);
 
-const textoFeito = (antes) => (v) => [
+/** `atrasada`: o destino, quando a produção lida ainda não o mostra no ar. */
+const textoFeito = (antes, atrasada) => (v) => [
   "",
   "✓ Rollback feito",
   "",
-  `  No ar:      ${noAr(v)}`,
+  atrasada
+    ? `  No ar:      ${describeTarget(atrasada.alvo)} (registrado pela Unbox; a última leitura ainda mostrava ${noAr(v)})`
+    : `  No ar:      ${noAr(v)}`,
   `  Antes:      ${describeLive(antes)}`,
-  ...(v.url ? [`  Produção:   ${v.url}`, "              a troca pode levar alguns segundos para aparecer"] : []),
+  ...(v.url ? [`  Produção:   ${v.url}`] : []),
   "",
 ].join("\n");
 
@@ -252,8 +260,11 @@ async function volta(ctx, { yes, naoInterativo }) {
     const agora = await readProduction(api);
     estado.view = agora;
     if (assinatura(agora) !== assinatura(antes)) {
+      // Uma operação nova diz mais do que o "no ar", que a hospedagem pode ainda mostrar o de antes.
+      const nova = agora.operation && agora.operation.requestedAt !== antes.operation?.requestedAt;
       throw new CliError(
-        `Produção mudou enquanto a confirmação estava aberta (no ar agora: ${noAr(agora)}). Nada foi feito; rode unbox rollback de novo.`,
+        `Produção mudou enquanto a confirmação estava aberta (${nova ? describeOperation(agora.operation) : `no ar agora: ${noAr(agora)}`}). ` +
+          "Nada foi feito; rode unbox rollback de novo.",
         "PRODUCAO_MUDOU",
       );
     }
@@ -461,16 +472,44 @@ async function reporta(desfecho, view, ctx, pedido) {
   );
 }
 
-function feito(view, { out }, pedido) {
+async function feito(view, ctx, pedido) {
+  const { out } = ctx;
   const op = view.operation;
+  const alvo = alvoDe(op);
   const minha = decide(view, pedido.guardado) === "SUCESSO";
-  if (minha && alvoDe(op) !== pedido.alvo) {
+  if (minha && alvo !== pedido.alvo) {
     out.warn(
-      `  Aviso: produção mudou entre a leitura e o rollback: voltou para ${describeTarget(alvoDe(op))}, e não para ${describeTarget(pedido.alvo)}.`,
+      `  Aviso: produção mudou entre a leitura e o rollback: voltou para ${describeTarget(alvo)}, e não para ${describeTarget(pedido.alvo)}.`,
     );
   }
-  if (minha && liveCommit(view) !== alvoDe(op)) {
-    out.warn(`  A Unbox registrou a volta para ${describeTarget(alvoDe(op))}; o endereço pode levar alguns segundos para mostrá-la.`);
+  const atual = minha && liveCommit(view) !== alvo ? await esperaTroca(view, ctx) : view;
+  const atrasada = minha && liveCommit(atual) !== alvo;
+  if (atrasada) {
+    out.warn(`  A Unbox registrou a volta para ${describeTarget(alvo)}; o endereço pode levar alguns segundos para mostrá-la.`);
   }
-  out.result(view, textoFeito(pedido.antes));
+  out.result(atual, textoFeito(pedido.antes, atrasada && { alvo }));
+}
+
+/**
+ * Relê a produção, por alguns segundos, até ela mostrar no ar o destino do rollback `view.operation`.
+ * Para se outra operação começar (a leitura dela não diz nada sobre esta) e devolve a última leitura
+ * desta operação. Ler é seguro: falha de leitura só encerra a espera mais cedo.
+ */
+async function esperaTroca(view, { api, sleep, limites, estado }) {
+  const { requestedAt } = view.operation;
+  const alvo = alvoDe(view.operation);
+  let atual = view;
+  for (let i = 0; i < limites.propagacao.leituras && liveCommit(atual) !== alvo; i++) {
+    await sleep(limites.propagacao.espera);
+    let lida;
+    try {
+      lida = await readProduction(api);
+    } catch {
+      break;
+    }
+    if (lida?.operation?.requestedAt !== requestedAt) break;
+    atual = lida;
+    estado.view = lida;
+  }
+  return atual;
 }
