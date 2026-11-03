@@ -105,7 +105,10 @@ página "Em breve" quando a do ar é a primeira. Sem build novo.
 - **A troca demora a aparecer:** logo depois do rollback, a hospedagem ainda pode responder com o
   deployment de antes como o do ar (medido em stage: 1 a 5 s), e a resposta da Unbox vem com ele.
   A CLI relê a produção por até 8 s até ver o destino, e é essa leitura que vai no texto e no
-  `--json`; se não vir, o texto mostra o destino registrado e avisa.
+  `--json`; se não vir, o texto mostra o destino registrado e avisa. O mesmo vale antes de
+  confirmar: se uma troca acabou de terminar e a leitura ainda não a mostra, a CLI relê, para não
+  mostrar um destino uma publicação atrás do que a Unbox vai usar. Se mesmo assim o destino usado
+  for outro, o aviso diz qual foi e pede conferir antes de rodar de novo.
 - **Rollback abandonado** (a troca caiu no meio): a Unbox libera outro depois de 60 s. A
   confirmação do `rollback` e a do `publish` o mostram como "Interrompida antes", e não como
   operação em andamento.
