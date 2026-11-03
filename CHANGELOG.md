@@ -102,6 +102,13 @@ página "Em breve" quando a do ar é a primeira. Sem build novo.
   `ROLLBACK_TARGET_UNAVAILABLE` (orienta `unbox publish`), sem permissão de publicar.
 - **`--json`:** como no `publish`, o sucesso traz a produção, e o erro ganha `data` com a última
   produção lida.
+- **A troca demora a aparecer:** logo depois do rollback, a hospedagem ainda pode responder com o
+  deployment de antes como o do ar (medido em stage: 1 a 5 s), e a resposta da Unbox vem com ele.
+  A CLI relê a produção por até 8 s até ver o destino, e é essa leitura que vai no texto e no
+  `--json`; se não vir, o texto mostra o destino registrado e avisa.
+- **Rollback abandonado** (a troca caiu no meio): a Unbox libera outro depois de 60 s. A
+  confirmação do `rollback` e a do `publish` o mostram como "Interrompida antes", e não como
+  operação em andamento.
 
 **5xx do Core vira `HTTP_5xx`.** Atrás do AppSync, um 5xx do Core chega como `errorType`
 `HttpError` ("Core HTTP error: 502", medido num rollout em stage), e a CLI o tratava como recusa
