@@ -103,10 +103,10 @@ unbox <comando> --help       # uso e exemplos de um comando
 | `unbox env` | envia as variáveis do `.env.local` para a hospedagem da loja (`--list` mostra, `--unset` remove) |
 | `unbox deploy` | commita as mudanças, envia a branch `deploy` para a Unbox e mostra a URL do preview |
 | `unbox publish [commit]` | publica em produção um commit com preview pronto e acompanha até o fim |
+| `unbox status` | mostra o estado da loja, do preview do commit atual e da produção, e o que falta enviar |
 
-Os demais comandos de publicação (`rollback`, `status`) entram nas
-próximas versões. Eles falam com a Partners API da Unbox, e por isso todos seguem as mesmas regras
-abaixo.
+O `rollback` entra numa próxima versão. Os comandos falam com a Partners API da Unbox, e por isso
+todos seguem as mesmas regras abaixo.
 
 **Flags globais**, que valem antes ou depois do comando:
 
@@ -300,6 +300,38 @@ O que convém saber:
 - **De outra máquina ou de um CI**, sem o projeto ligado, o hash completo basta (com as credenciais).
 - **`--json`:** `{ state, commitSha, url, publishedAt, rollbackCommitSha, canRollback, operation,
   alreadyLive }`. Numa falha depois de ler a produção, o erro traz a mesma produção em `data`.
+
+### `unbox status`
+
+Só lê: não altera a loja, a produção nem o repositório.
+
+```bash
+unbox status            # na pasta do projeto
+unbox status --json     # para agentes: { storefront, deployment, production, local, publishable }
+```
+
+- **Loja:** o provisionamento. Não provisionada: sugere `unbox provision`. Em andamento: o passo
+  atual e a falha que o servidor está repetindo. `FAILED`: com um código que repetir não resolve
+  (como `CUSTOM_STOREFRONT_HOSTING_DOMAIN_IN_USE_ERROR`), diz para falar com a Unbox informando o
+  `_id`; com os outros, manda rodar `unbox provision`, que retoma do passo que falhou. Pronta:
+  o repositório e o **endereço fixo de preview** (`storefront.previewUrl`); a linha some quando a
+  loja não tem o endereço Unbox.
+- **Preview do commit atual:** o `customStorefrontDeployment` do `HEAD`. Commit ainda não enviado
+  aparece como "não enviado", e não como em andamento (ele ficaria `PENDING` para sempre).
+- **Produção:** `NOT_PUBLISHED` mostra o endereço, que exibe "Em breve" até o primeiro
+  `unbox publish`; `PUBLISHED`, o commit no ar, a data e se há rollback; `UNKNOWN`, que a produção
+  foi alterada fora da Unbox. A publicação ou o rollback em andamento, ou o último que falhou,
+  aparece junto.
+- **Local** (só num projeto ligado à Unbox): busca a `deploy` da Unbox (`git fetch unbox deploy`;
+  sem a chave ou sem rede, compara com a última cópia local e avisa) e mostra os commits não
+  enviados, as mudanças não commitadas e se você está fora da `deploy`. No `--json`,
+  `local: { ahead, dirty, branch, commitSha }`, ou `null` fora de um projeto ligado.
+- **"Há preview pronto para unbox publish"** (`publishable: true`): o commit atual já foi enviado, o
+  preview dele está pronto e não é o que está no ar.
+- **As três consultas vão em paralelo**, e a falha de uma não esconde as outras: a seção fica `null`
+  e o `--json` traz `errors.<seção>` com `{ code, message }`. Só se todas falharem a saída é `1`.
+- Fora da pasta do projeto, mostra só a parte da API, com as credenciais do terminal ou do
+  `--env-file`.
 
 ### Dois cuidados com o `npx`
 
