@@ -110,6 +110,16 @@ const prazoDoPedido = (requestedAt, limites) => {
 export const isStale = (op, { now = Date.now, limites = LIMITES } = {}) => now() > prazoDoPedido(op?.requestedAt, limites);
 
 /**
+ * Um rollback PENDING que ninguém vai fechar (a troca caiu no meio): a Unbox já libera outro rollback
+ * (`canRollback`, depois de ROLLBACK_TTL), ou o prazo passou pelo relógio local.
+ */
+export function isAbandonedRollback(view, { now = Date.now } = {}) {
+  const op = view?.operation;
+  if (op?.type !== "ROLLBACK" || op.state !== "PENDING") return false;
+  return view.canRollback === true || isStale(op, { now, limites: { teto: ROLLBACK_TTL, folgaRelogio: LIMITES.folgaRelogio } });
+}
+
+/**
  * Consulta a produção até a operação `isMine` sair de PENDING. Devolve `{ view, outcome }`, com
  * `outcome` SUCCESS, FAILURE, SUBSTITUIDA ou TETO; neste, `view` é a última lida. O teto conta do
  * início do acompanhamento e, com `requestedAt` (só numa operação retomada, porque compara o relógio
