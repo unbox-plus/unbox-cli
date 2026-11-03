@@ -409,6 +409,26 @@ test("outra operação começa enquanto relê: para de esperar e fica com a últ
   assert.equal(r.json.data.operation.type, "ROLLBACK");
 });
 
+test("troca recente que a leitura ainda não mostra: relê antes de confirmar, e o destino vem da leitura nova", async () => {
+  // Um rollback para B terminou agora, mas a hospedagem ainda mostra C no ar (com destino B).
+  const recente = op("ROLLBACK", "SUCCESS", B, T1, { finishedAt: T1 });
+  const defasadaAntes = noAr(C, { alvo: B, operation: recente });
+  const certa = noAr(B, { alvo: A, operation: recente });
+  const falsa = apiFalsa({ producao: [defasadaAntes, certa], rollback: [voltou("SUCCESS", { sha: A, alvo: A, requestedAt: T2 })] });
+  const r = await roda(pasta(), { json: true, yes: true }, { falsa });
+  assert.equal(r.erro, undefined, r.stderr);
+  assert.deepEqual(r.chamadas, ["producao", "producao", "rollback"]);
+  assert.doesNotMatch(r.stderr, /Aviso/, "o destino pedido é o que a Unbox usou");
+});
+
+test("troca antiga que não está no ar: não espera", async () => {
+  const antiga = op("PUBLISH", "SUCCESS", A, T0, { finishedAt: T0 });
+  const falsa = apiFalsa({ producao: [noAr(C, { operation: antiga })] });
+  const r = await roda(pasta(), { json: true, yes: true }, { falsa });
+  assert.equal(r.erro, undefined, r.stderr);
+  assert.deepEqual(r.chamadas, ["producao", "rollback"]);
+});
+
 test("produção mudou com a confirmação aberta: a mensagem diz qual operação", async () => {
   prompts.inject([true]);
   const falsa = apiFalsa({ producao: [noAr(), noAr(C, { alvo: B, operation: op("ROLLBACK", "SUCCESS", B, T1) })] });

@@ -249,9 +249,11 @@ export async function runRollback(args, globals = {}, { out, interactive = proce
 async function volta(ctx, { yes, naoInterativo }) {
   const { api, st, out, estado, now } = ctx;
 
-  // 1. O que está no ar e para onde volta.
+  // 1. O que está no ar e para onde volta. Logo depois de uma troca, a leitura ainda pode mostrar o
+  // deployment de antes, e o destino sairia uma publicação atrás do que a Unbox vai usar.
   let antes = await readProduction(api);
   estado.view = antes;
+  if (trocaRecente(antes, now)) antes = await esperaTroca(antes, ctx);
   if (!antes.canRollback) throw semRollback(antes, now);
 
   // 2. Confirmação. Se ela ficou aberta, produção pode ter mudado no meio: a pessoa confirmou o
@@ -479,7 +481,9 @@ async function feito(view, ctx, pedido) {
   const minha = decide(view, pedido.guardado) === "SUCESSO";
   if (minha && alvo !== pedido.alvo) {
     out.warn(
-      `  Aviso: produção mudou entre a leitura e o rollback: voltou para ${describeTarget(alvo)}, e não para ${describeTarget(pedido.alvo)}.`,
+      `  Aviso: voltou para ${describeTarget(alvo)}, e não para ${describeTarget(pedido.alvo)}: a leitura de antes do pedido ` +
+        "podia estar defasada (a hospedagem leva alguns segundos para mostrar uma troca), ou produção mudou no meio. " +
+        "Confira o que está no ar antes de rodar de novo.",
     );
   }
   const atual = minha && liveCommit(view) !== alvo ? await esperaTroca(view, ctx) : view;
@@ -490,8 +494,24 @@ async function feito(view, ctx, pedido) {
   out.result(atual, textoFeito(pedido.antes, atrasada && { alvo }));
 }
 
+/** Até quanto tempo depois de uma troca a leitura ainda pode mostrar o deployment de antes. */
+const JANELA_TROCA = 60 * 1000;
+
 /**
- * Relê a produção, por alguns segundos, até ela mostrar no ar o destino do rollback `view.operation`.
+ * Uma operação terminou com sucesso há pouco, e a produção lida não mostra o destino dela no ar: a
+ * leitura pode estar defasada. Com folga para o relógio local; uma troca antiga que não está no ar
+ * foi desfeita por outro caminho, e esperar não muda nada.
+ */
+function trocaRecente(view, now) {
+  const op = view?.operation;
+  if (op?.state !== "SUCCESS" || liveCommit(view) === alvoDe(op)) return false;
+  const fim = Date.parse(op.finishedAt);
+  return Number.isFinite(fim) && now() - fim < JANELA_TROCA + LIMITES.folgaRelogio;
+}
+
+/**
+ * Relê a produção, por alguns segundos, até ela mostrar no ar o destino da operação `view.operation`
+ * (um rollback ou uma publicação).
  * Para se outra operação começar (a leitura dela não diz nada sobre esta) e devolve a última leitura
  * desta operação. Ler é seguro: falha de leitura só encerra a espera mais cedo.
  */
