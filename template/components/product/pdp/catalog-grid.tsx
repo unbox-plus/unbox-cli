@@ -52,7 +52,7 @@ export function CatalogGrid({ items }: { items: CatalogItem[] }) {
   return (
     <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5" data-editor-ignore>
       {items.map((p) => (
-        <Card key={p.slug} item={p} />
+        <Card key={p.productId ?? p.slug} item={p} />
       ))}
     </div>
   );

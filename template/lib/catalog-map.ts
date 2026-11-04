@@ -1,4 +1,5 @@
 // Mapeia o catálogo cru da Unbox para os itens do catálogo da loja (client-side filtering).
+import { kitBundleKey } from "@unbox-plus/sdk";
 import { resolveProductPrice, parseBRL } from "@/lib/format";
 import type { CatalogProductItem, CatalogCategory } from "@/components/catalog/catalog-client";
 
@@ -33,10 +34,25 @@ export function catalogoDasVitrines(items: CatalogProductItem[], vitrines: Recor
   return items.filter((it) => (it.productId && citados.has(it.productId)) || citados.has(it.slug));
 }
 
+/**
+ * Um kit por bundle. Cada opção de cota ("2 Caixas", "4 Caixas") é um produto próprio, todos de mesmo
+ * título: listados juntos, o card se repete. A listagem mostra o bundle uma vez (o primeiro que chega)
+ * e a PDP traz as outras opções. Produto que não é kit passa direto. `ignorar` tira também o bundle
+ * de quem já está na tela (a PDP de um kit não sugere as próprias opções).
+ */
+export function umKitPorBundle<T extends { title?: string | null; productType?: string | null }>(products: T[], ignorar?: string | null): T[] {
+  const vistos = new Set<string>(ignorar ? [kitBundleKey(ignorar)] : []);
+  return products.filter((p) => {
+    if (p.productType !== "KIT") return true;
+    const k = kitBundleKey(p.title);
+    if (vistos.has(k)) return false;
+    vistos.add(k);
+    return true;
+  });
+}
+
 export function mapCatalogItems(nodes: any[], tagMap: Map<string, string>): CatalogProductItem[] {
-  return (nodes ?? [])
-    .map((n: any) => n.product ?? n)
-    .filter((p: any) => p?.slug)
+  return umKitPorBundle((nodes ?? []).map((n: any) => n.product ?? n).filter((p: any) => p?.slug))
     .map((p: any): CatalogProductItem => {
       const v0 = p.variants?.[0];
       const rp = resolveProductPrice(p);
