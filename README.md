@@ -181,9 +181,11 @@ unbox provision --json     # para agentes: um objeto { status, repositorySshUrl,
 
 Rodar de novo é seguro: mesma chave, nada duplicado. O que convém saber:
 
-- **A chave de deploy** fica em `~/.config/unbox/keys/<loja>_ed25519`, só nesta máquina. É a única
-  credencial do push. Em outra máquina, o `provision` para e explica: a loja já está ligada à
-  chave da primeira, e a troca é pedida à Unbox. Não copie a chave privada entre máquinas.
+- **A chave de deploy** fica em `~/.config/unbox/keys/<shopId>_ed25519`, só nesta máquina. É a única
+  credencial do push. Em outra máquina a loja continua ligada à chave da primeira: o `provision`
+  de lá para no `git fetch` com `Permission denied (publickey)` (`GIT_FETCH_FALHOU`), e o `deploy`
+  com `CHAVE_RECUSADA`. A troca é pedida à Unbox, informando a chave pública da máquina nova. Não
+  copie a chave privada entre máquinas.
 - **O push só confia nas chaves do servidor git da Unbox que vêm na CLI** (gravadas em
   `~/.config/unbox/known_hosts`). Se o servidor apresentar outra, o comando para: atualize a CLI e,
   se continuar, fale com a Unbox.
@@ -225,10 +227,9 @@ unbox env --json                   # { sent, skipped, fromTerminal, keys }
   escolha), e, com um aviso por chave, nomes fora do formato (letras
   maiúsculas, dígitos e `_`, começando por letra), valores acima de 16384 caracteres, e os nomes
   reservados: `TZ` e os que começam com `VERCEL_`, `NEXT_PUBLIC_VERCEL_`, `NOW_`, `AWS_` e `LAMBDA_`.
-- **`NEXT_PUBLIC_SITE_URL` é gerenciada pela Unbox**: ela grava o endereço da loja na hospedagem
-  (produção e, quando a loja tem, o endereço fixo de preview), e por isso o lojista não define nem
-  remove. Lojas provisionadas antes de a Unbox passar a gravá-la só ganham a variável numa migração
-  futura. Se a Unbox reservar um nome novo que esta versão da CLI não conhece, o comando acha qual
+- **`NEXT_PUBLIC_SITE_URL` é reservada e gerenciada pela Unbox**, que vai preenchê-la com o
+  endereço de produção da loja; por isso o lojista não define nem remove (o valor do `.env.local`
+  vale só para o `next dev`). Ela ainda não é preenchida automaticamente. Se a Unbox reservar um nome novo que esta versão da CLI não conhece, o comando acha qual
   é, pula com aviso e grava o resto.
 - **Só builds novos usam as variáveis.** Depois de mudar, rode `unbox deploy` para um preview com
   elas, e publique esse commit. Publicar de novo o que já está no ar não refaz o build.
@@ -313,7 +314,7 @@ unbox publish --yes --json         # para agentes: sem pergunta, um objeto com a
 O que convém saber:
 
 - **Preview ok não garante produção ok.** Produção é um build novo, com a configuração de produção
-  (variáveis, `VERCEL_ENV`, `NEXT_PUBLIC_SITE_URL`). Se ele falhar
+  (as mesmas variáveis, mas `VERCEL_ENV` vale `production`). Se ele falhar
   (`CUSTOM_STOREFRONT_PRODUCTION_BUILD_ERROR`), produção continua com o que estava no ar.
 - **Publicar o commit que já está no ar não refaz o build**: o comando avisa e sai com `0`
   (`alreadyLive: true` no `--json`). Variáveis mudadas com `unbox env` pedem um commit novo
@@ -347,7 +348,7 @@ unbox rollback --yes --json        # para agentes: sem pergunta, um objeto com a
   procura por até 1 min e meio e, sem sinal, para com `ROLLBACK_INCERTO`. Antes de tentar de novo,
   rode `unbox rollback` sem `--yes`: ele mostra o que está no ar e o destino antes de confirmar.
 - **Sem rollback possível, nada é pedido:** produção em "Em breve", alterada fora da Unbox, já na
-  publicação mais antiga que a Unbox guarda (as 20 últimas), ou com uma publicação ou rollback em
+  publicação mais antiga que a Unbox guarda, ou com uma publicação ou rollback em
   andamento. O comando diz qual é o caso.
 - **Produção mudou com a confirmação aberta** (outro terminal, a CI): o comando para com
   `PRODUCAO_MUDOU`, sem pedir o rollback, porque o destino confirmado pode não ser mais o mesmo.
