@@ -1,17 +1,17 @@
 import Link from "next/link";
-import { House, Package, Gear, CaretRight } from "@phosphor-icons/react/dist/ssr";
+import { House, Package, Gear, CaretRight, ArrowsClockwise } from "@phosphor-icons/react/dist/ssr";
 import { SignOutButton } from "@/components/account/signout-button";
+import { getShopData } from "@/lib/queries";
 
-// Menu enxuto por decisão de produto: Assinaturas e Endereços saíram da navegação
-// (as rotas /conta/assinaturas e /conta/enderecos continuam existindo pra deep links,
-// ex.: e-mail de assinatura). Pra reexibir, basta recolocar os itens aqui.
+// Menu enxuto por decisão de produto: Endereços saiu da navegação (a rota /conta/enderecos continua
+// existindo pra deep links). Assinaturas só entra quando a loja tem recurringOrdersPolicy.enabled.
 const NAV = [
   { href: "/conta", label: "Visão geral", icon: House },
   { href: "/conta/pedidos", label: "Pedidos", icon: Package },
   { href: "/conta/preferencias", label: "Preferências", icon: Gear },
 ];
 
-export function AccountShell({
+export async function AccountShell({
   title,
   /** Ao lado do título: o selo do pedido, na página do pedido. */
   aoLado,
@@ -21,6 +21,10 @@ export function AccountShell({
   aoLado?: React.ReactNode;
   children: React.ReactNode;
 }) {
+  const shop = await getShopData().catch(() => null);
+  const nav = shop?.recurringOrdersPolicy?.enabled
+    ? [NAV[0], NAV[1], { href: "/conta/assinaturas", label: "Assinaturas", icon: ArrowsClockwise }, NAV[2]]
+    : NAV;
   return (
     <div className="store-layout full-bleed bg-white text-[var(--store-ink)]">
       <div className="mx-auto max-w-[1240px] px-4 py-7 sm:px-6">
@@ -36,7 +40,7 @@ export function AccountShell({
               navegação. A partir de md volta a ser a coluna da esquerda. */}
           <aside className="order-2 h-fit rounded-xl border border-[var(--store-line)] bg-white p-3 md:order-1 md:sticky md:top-6">
             <nav className="flex flex-col gap-1">
-              {NAV.map(({ href, label, icon: Icon }) => (
+              {nav.map(({ href, label, icon: Icon }) => (
                 <Link key={href} href={href} className="flex items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-[14px] font-semibold text-[var(--store-ink-2)] no-underline transition-colors hover:bg-[var(--store-primary-soft,#F1F1F3)] hover:text-[var(--store-primary,#18181B)]">
                   <Icon weight="bold" className="text-[18px] text-[var(--store-primary,#18181B)]" /> {label}
                 </Link>

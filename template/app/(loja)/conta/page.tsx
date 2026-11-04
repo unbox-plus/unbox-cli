@@ -1,15 +1,17 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Package, Gear, CaretRight } from "@phosphor-icons/react/dist/ssr";
+import { Package, Gear, CaretRight, ArrowsClockwise } from "@phosphor-icons/react/dist/ssr";
 import { getCustomerClient, lerDaConta } from "@/lib/customer-session";
 import { AccountShell } from "@/components/account/account-shell";
+import { getShopData } from "@/lib/queries";
 
 export const metadata: Metadata = { title: "Minha conta", robots: { index: false } };
 
-// Cards enxutos (Assinaturas e Endereços saíram da navegação da conta — ver account-shell.tsx)
+// Cards enxutos (Endereços saiu da navegação da conta; Assinaturas só com a política ligada, ver account-shell.tsx)
 const CARDS = [
   { href: "/conta/pedidos", label: "Meus pedidos", desc: "Acompanhe status e rastreio", icon: Package },
+  { href: "/conta/assinaturas", label: "Minhas assinaturas", desc: "Itens, endereço, cartão e próximas entregas", icon: ArrowsClockwise, soComPolitica: true },
   { href: "/conta/preferencias", label: "Preferências", desc: "Notificações e dados da conta", icon: Gear },
 ];
 
@@ -18,7 +20,8 @@ export default async function ContaPage() {
   if (!me) redirect("/conta/entrar");
 
   // a visão geral só usa a conta para a saudação: sem ela, cai no genérico, mas a falha fica no log
-  const leitura = await lerDaConta("/conta", me.me());
+  const [leitura, shop] = await Promise.all([lerDaConta("/conta", me.me()), getShopData().catch(() => null)]);
+  const cards = CARDS.filter((c) => !c.soComPolitica || shop?.recurringOrdersPolicy?.enabled);
   const account = leitura.ok ? leitura.valor : null;
 
   return (
@@ -29,7 +32,7 @@ export default async function ContaPage() {
       </p>
 
       <div className="grid gap-4 sm:grid-cols-3">
-        {CARDS.map(({ href, label, desc, icon: Icon }) => (
+        {cards.map(({ href, label, desc, icon: Icon }) => (
           <Link key={href} href={href} className="group flex flex-col rounded-xl border border-[var(--store-line)] bg-white p-5 no-underline transition-all hover:-translate-y-0.5 hover:border-[var(--store-primary,#18181B)] hover:shadow-[0_10px_28px_rgba(24,24,27,.10)]">
             <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--store-primary-soft,#F1F1F3)] text-[var(--store-primary,#18181B)]">
               <Icon weight="bold" className="text-[22px]" />
