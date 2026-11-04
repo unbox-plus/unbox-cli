@@ -9,7 +9,7 @@ Tailwind CSS v4 e shadcn/ui.
 - **Tailwind CSS v4** + shadcn/ui sobre Base UI
 - **SDK da Unbox**: o pacote `@unbox-plus/sdk` (atualizar a integração = bump de versão no
   `package.json`). A fiação com o ambiente desta loja fica em `lib/unbox.ts`
-- Hospedagem recomendada: **Vercel**
+- Hospedagem: **Unbox** (CLI `unbox`, ver [DEPLOY.md](./DEPLOY.md))
 
 ## Setup rápido
 
@@ -104,12 +104,15 @@ npm run unbox:abandoned     # dispara evento de carrinho abandonado pro CRM (dem
 
 ## Deploy
 
-Ver [DEPLOY.md](./DEPLOY.md) para checklist completo, configuração do Vercel e erros comuns.
+Ver [DEPLOY.md](./DEPLOY.md): o passo a passo de `unbox create` até produção, os endereços da loja
+e os erros comuns.
 
-Resumo rápido:
-1. `nvm use 22` (Node 22 LTS)
-2. Env vars em **Production + Preview + Development** antes do primeiro deploy
-3. Framework Preset no Vercel: **Next.js** (não "Other")
+Resumo rápido (Node 22 LTS, credenciais no `.env.local`, na pasta do projeto):
+1. `unbox provision`: cria o repositório e a hospedagem na Unbox (uma vez)
+2. `unbox env`: envia as variáveis do `.env.local` (de novo a cada mudança)
+3. `unbox deploy`: envia o código e gera o preview
+4. `unbox publish`: põe em produção o preview conferido
+5. `unbox status` mostra o que está no ar; `unbox rollback` volta a publicação anterior
 
 ## API de Parceiros (a única API que a loja usa)
 

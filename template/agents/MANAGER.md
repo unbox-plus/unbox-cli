@@ -2,7 +2,7 @@
 
 Sistema de agentes que originalmente construiu, seção por seção, o storefront headless que virou
 a foundation do `create-unbox-store`. Stack: **Next.js 15 (App Router) · TypeScript · Tailwind v4 ·
-shadcn/ui + Base UI · Vercel**.
+shadcn/ui + Base UI · hospedagem Unbox**.
 
 > 🎉 **Se você chegou aqui via `npx create-unbox-store`, os agentes 00-11 já rodaram por você.**
 > Layout, catálogo, PDP, carrinho, checkout, login, área de conta e SEO básico já estão
@@ -119,7 +119,7 @@ Referência do que cada um cobriu, caso precise entender/estender alguma parte e
 | 13 | **Unbox AI CRO Package** | 10 módulos: prova social, urgência de estoque, countdown flash sale, frete grátis¹, upsell pós-checkout, recently viewed, sticky CTA mobile, trust strip, kits & combos, brindes¹ | **Só frete grátis está implementado.** Os outros 9 exigem rodar o agente `13-cro.md`. |
 | 14 | **Unbox AI SEO Agent** | 7 módulos: schemas JSON-LD avançados, OG images dinâmicas, breadcrumbs, templates de título/description, canonical + paginação, Core Web Vitals, Search Console setup | **Nenhum módulo completo** (só o JSON-LD básico do agente 11). Rodar `14-seo.md`. |
 | 17 | **AEO** | 6 módulos: llms.txt, FAQ answer-friendly, Product schema enriquecido, FAQ por produto, bots de IA (conferência), entidade da marca | Opcional, depois do 14. Rodar `17-aeo.md`. |
-| 12 | **Deploy** | build de produção, variáveis de ambiente, publicação (Vercel) | Rodar `12-deploy.md` por último. |
+| 12 | **Deploy** | build de produção, variáveis de ambiente, publicação (`unbox deploy` / `unbox publish`, ver `DEPLOY.md`) | Rodar `12-deploy.md` por último. |
 
 > ¹ Módulos **frete grátis** e **brindes** exigem configuração no painel Unbox antes do lançamento.
 

@@ -23,6 +23,9 @@ export const LIMITES = {
   falhasDeLeitura: 6,
 };
 
+/** Depois disso a Unbox dá um rollback PENDING por abandonado (CUSTOM_STOREFRONT_ROLLBACK_TTL_MS). */
+export const ROLLBACK_TTL = 60 * 1000;
+
 /** Erros em que ler de novo não muda nada. */
 const FATAIS = new Set(["MISSING_PERMISSION", "SIGN_IN_FAILED", "API_KEY_RECUSADA", NOT_READY, NOT_CONFIGURED]);
 
@@ -66,6 +69,19 @@ export function describeLive(view) {
   return "a página \"Em breve\" (nada publicado ainda)";
 }
 
+/** O destino de um rollback: "abc1234", ou a página "Em breve" quando o commit é null. */
+export const describeTarget = (sha) => (sha ? curto(sha) : "a página \"Em breve\"");
+
+/**
+ * O que está no ar, comparável com o destino de um rollback: o commit (minúsculas), null para a
+ * página "Em breve", ou undefined quando produção foi alterada fora da Unbox.
+ */
+export function liveCommit(view) {
+  if (view?.state === "PUBLISHED") return view.commitSha?.toLowerCase();
+  if (view?.state === "NOT_PUBLISHED") return null;
+  return undefined;
+}
+
 /** "publicação de abc1234 desde 28/10/2026 14:03" ou "rollback para ... desde ...". */
 export function describeOperation(op) {
   const alvo = op.type === "PUBLISH"
@@ -92,6 +108,16 @@ const prazoDoPedido = (requestedAt, limites) => {
 
 /** A operação está PENDING há mais tempo do que a Unbox leva para fechá-la: não adianta esperar. */
 export const isStale = (op, { now = Date.now, limites = LIMITES } = {}) => now() > prazoDoPedido(op?.requestedAt, limites);
+
+/**
+ * Um rollback PENDING que ninguém vai fechar (a troca caiu no meio): a Unbox já libera outro rollback
+ * (`canRollback`, depois de ROLLBACK_TTL), ou o prazo passou pelo relógio local.
+ */
+export function isAbandonedRollback(view, { now = Date.now } = {}) {
+  const op = view?.operation;
+  if (op?.type !== "ROLLBACK" || op.state !== "PENDING") return false;
+  return view.canRollback === true || isStale(op, { now, limites: { teto: ROLLBACK_TTL, folgaRelogio: LIMITES.folgaRelogio } });
+}
 
 /**
  * Consulta a produção até a operação `isMine` sair de PENDING. Devolve `{ view, outcome }`, com
