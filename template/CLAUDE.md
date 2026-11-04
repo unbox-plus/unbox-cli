@@ -104,6 +104,10 @@ Ordem barata → cara: `typecheck` → `unbox:honestidade` → `unbox:receita` �
 subir o servidor e capturar tela. Screenshot é o passo mais caro do ciclo; não use como primeiro
 diagnóstico.
 
+Publicar é pela CLI da Unbox, nunca por outro serviço de hospedagem: `unbox deploy` envia o código e
+gera o preview, e `unbox publish` põe em produção, **só com o ok do lojista**. O passo a passo, os
+endereços da loja e os erros comuns estão em `DEPLOY.md`; o agente é o `agents/definitions/12-deploy.md`.
+
 ## Medidores de sistema visual (relatório, ainda não gate)
 
 `npm run unbox:medir` roda dois medidores de Python que contam o que faz uma loja ter "cara de

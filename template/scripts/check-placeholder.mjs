@@ -143,7 +143,7 @@ if (!base) {
   console.error(
     "\n✗ o gate NÃO RODOU: não há build de produção para subir (.next ausente).\n" +
     "   Rode `npm run build` antes, ou aponte para um servidor já de pé:\n" +
-    "   PLACEHOLDER_BASE=https://sua-loja.vercel.app npm run unbox:placeholder\n",
+    "   PLACEHOLDER_BASE=https://sua-loja.com.br npm run unbox:placeholder\n",
   );
   process.exit(2);
 }
