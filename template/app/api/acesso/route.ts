@@ -33,8 +33,8 @@ function cidadeDe(req: Request): string | null {
 }
 
 /**
- * Uma linha estruturada por tentativa. No painel de Logs da Vercel, filtrar por
- * `[preview-acesso]` e `"evento":"entrou"` dá a contagem de quem entrou.
+ * Uma linha estruturada por tentativa. Nos logs da loja, filtrar por `[preview-acesso]` e
+ * `"evento":"entrou"` dá a contagem de quem entrou (o registro de cada lead fica no Pipedrive).
  *
  * ⚠️ NÃO grava o IP: é dado pessoal sob a LGPD, e cidade/país já respondem "quem entrou".
  */

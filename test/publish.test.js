@@ -325,6 +325,17 @@ test("interativo: mostra o que está no ar e o que entra; recusar cancela", asyn
   assert.deepEqual(publicou(r), []);
 });
 
+test("interativo: um rollback abandonado aparece como interrompido, e não em andamento", async () => {
+  const { dir } = projeto();
+  commit(dir, "vitrine");
+  const abandonado = { ...op("b".repeat(40), "PENDING"), type: "ROLLBACK" };
+  prompts.inject([false]);
+  const r = await roda(dir, {}, { interactive: true, falsa: apiFalsa({ producao: [publicada("c".repeat(40), abandonado)] }) });
+  assert.equal(r.erro.code, "CANCELADO");
+  assert.match(r.stderr, /Interrompida antes: rollback para bbbbbbb/);
+  assert.doesNotMatch(r.stderr, /Em andamento/);
+});
+
 test("interativo: confirmar publica", async () => {
   const { dir } = projeto();
   const sha = commit(dir, "vitrine");

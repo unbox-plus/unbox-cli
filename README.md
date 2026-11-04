@@ -103,17 +103,18 @@ unbox <comando> --help       # uso e exemplos de um comando
 | `unbox env` | envia as variáveis do `.env.local` para a hospedagem da loja (`--list` mostra, `--unset` remove) |
 | `unbox deploy` | commita as mudanças, envia a branch `deploy` para a Unbox e mostra a URL do preview |
 | `unbox publish [commit]` | publica em produção um commit com preview pronto e acompanha até o fim |
+| `unbox rollback` | volta produção para a publicação anterior (ou para a página "Em breve") |
 | `unbox status` | mostra o estado da loja, do preview do commit atual e da produção, e o que falta enviar |
 
-O `rollback` entra numa próxima versão. Os comandos falam com a Partners API da Unbox, e por isso
-todos seguem as mesmas regras abaixo.
+Os comandos acima, menos o `create`, falam com a Partners API da Unbox, e por isso todos seguem
+as mesmas regras abaixo.
 
 **Flags globais**, que valem antes ou depois do comando:
 
 | Flag | Padrão | |
 |---|---|---|
 | `--help`, `-h` | | ajuda geral, ou do comando quando vem com um |
-| `--json` | | saída para agentes e scripts: um único objeto JSON em stdout (`{"ok":true,"data":...}` ou `{"ok":false,"error":{"code","message"}}`, este com `data` quando o comando já tinha um estado a mostrar, como no `publish`); o andamento vai para stderr |
+| `--json` | | saída para agentes e scripts: um único objeto JSON em stdout (`{"ok":true,"data":...}` ou `{"ok":false,"error":{"code","message"}}`, este com `data` quando o comando já tinha um estado a mostrar, como no `publish` e no `rollback`); o andamento vai para stderr |
 | `--yes`, `-y` | | não pede confirmação (no `create`, gera com os padrões, sem perguntas) |
 | `--dir <caminho>` | pasta atual | a pasta do projeto da loja |
 | `--env-file <arquivo>` | `.env.local` | o arquivo das credenciais (e das variáveis do `unbox env`), relativo ao `--dir` |
@@ -127,6 +128,32 @@ e, opcional, `UNBOX_PARTNER_GRAPHQL_URL`. O arquivo é lido pelo mesmo parser do
 senha que funciona na loja funciona na CLI. Uma variável exportada no terminal vence a do arquivo,
 como no Next; por isso a CLI diz de onde veio cada credencial, para uma variável esquecida de outra
 loja não passar despercebida. Faltando alguma das três, o comando para e diz qual.
+
+### Do `unbox create` à produção
+
+O fluxo completo, na pasta do projeto, com as credenciais no `.env.local`:
+
+```bash
+unbox create minha-loja && cd minha-loja   # gera a loja (veja o começo deste README)
+unbox provision                            # uma vez: repositório, hospedagem e branch deploy
+unbox env                                  # a cada mudança no .env.local (o provision já envia)
+unbox deploy                               # a cada mudança: commit, envio e preview
+unbox publish                              # o preview conferido vai para produção
+unbox status                               # o que está no ar e o que falta enviar
+unbox rollback                             # volta a publicação anterior (não é idempotente)
+```
+
+- **Produção** fica em `https://<slug>.myunbox.com.br`, com a página "Em breve" até o primeiro
+  `unbox publish`. No futuro, um domínio próprio da loja substitui esse endereço.
+- **Preview estável** em `https://preview.<slug>.myunbox.com.br`: o envio mais recente que terminou
+  com sucesso, além da URL de cada commit. É público para quem tem o link (o `noindex` só afasta
+  buscadores). No código, `process.env.VERCEL_TARGET_ENV === "preview-unbox"`.
+- **Preview ok não garante produção ok:** o `publish` refaz o build com a configuração de produção.
+- **`unbox rollback` não é idempotente:** cada execução é um rollback novo, a partir do que estiver
+  no ar. Confira com `unbox status` antes de repetir.
+
+O projeto gerado traz o mesmo caminho para o lojista e para os agentes, com os endereços, o preview
+estável e a tabela de erros comuns, no `DEPLOY.md`.
 
 ### `unbox provision`
 
@@ -154,9 +181,11 @@ unbox provision --json     # para agentes: um objeto { status, repositorySshUrl,
 
 Rodar de novo é seguro: mesma chave, nada duplicado. O que convém saber:
 
-- **A chave de deploy** fica em `~/.config/unbox/keys/<loja>_ed25519`, só nesta máquina. É a única
-  credencial do push. Em outra máquina, o `provision` para e explica: a loja já está ligada à
-  chave da primeira, e a troca é pedida à Unbox. Não copie a chave privada entre máquinas.
+- **A chave de deploy** fica em `~/.config/unbox/keys/<shopId>_ed25519`, só nesta máquina. É a única
+  credencial do push. Em outra máquina a loja continua ligada à chave da primeira: o `provision`
+  de lá para no `git fetch` com `Permission denied (publickey)` (`GIT_FETCH_FALHOU`), e o `deploy`
+  com `CHAVE_RECUSADA`. A troca é pedida à Unbox, informando a chave pública da máquina nova. Não
+  copie a chave privada entre máquinas.
 - **O push só confia nas chaves do servidor git da Unbox que vêm na CLI** (gravadas em
   `~/.config/unbox/known_hosts`). Se o servidor apresentar outra, o comando para: atualize a CLI e,
   se continuar, fale com a Unbox.
@@ -198,10 +227,9 @@ unbox env --json                   # { sent, skipped, fromTerminal, keys }
   escolha), e, com um aviso por chave, nomes fora do formato (letras
   maiúsculas, dígitos e `_`, começando por letra), valores acima de 16384 caracteres, e os nomes
   reservados: `TZ` e os que começam com `VERCEL_`, `NEXT_PUBLIC_VERCEL_`, `NOW_`, `AWS_` e `LAMBDA_`.
-- **`NEXT_PUBLIC_SITE_URL` é gerenciada pela Unbox**: ela grava o endereço da loja na hospedagem
-  (produção e, quando a loja tem, o endereço fixo de preview), e por isso o lojista não define nem
-  remove. Lojas provisionadas antes de a Unbox passar a gravá-la só ganham a variável numa migração
-  futura. Se a Unbox reservar um nome novo que esta versão da CLI não conhece, o comando acha qual
+- **`NEXT_PUBLIC_SITE_URL` é reservada e gerenciada pela Unbox**, que vai preenchê-la com o
+  endereço de produção da loja; por isso o lojista não define nem remove (o valor do `.env.local`
+  vale só para o `next dev`). Ela ainda não é preenchida automaticamente. Se a Unbox reservar um nome novo que esta versão da CLI não conhece, o comando acha qual
   é, pula com aviso e grava o resto.
 - **Só builds novos usam as variáveis.** Depois de mudar, rode `unbox deploy` para um preview com
   elas, e publique esse commit. Publicar de novo o que já está no ar não refaz o build.
@@ -286,7 +314,7 @@ unbox publish --yes --json         # para agentes: sem pergunta, um objeto com a
 O que convém saber:
 
 - **Preview ok não garante produção ok.** Produção é um build novo, com a configuração de produção
-  (variáveis, `VERCEL_ENV`, `NEXT_PUBLIC_SITE_URL`). Se ele falhar
+  (as mesmas variáveis, mas `VERCEL_ENV` vale `production`). Se ele falhar
   (`CUSTOM_STOREFRONT_PRODUCTION_BUILD_ERROR`), produção continua com o que estava no ar.
 - **Publicar o commit que já está no ar não refaz o build**: o comando avisa e sai com `0`
   (`alreadyLive: true` no `--json`). Variáveis mudadas com `unbox env` pedem um commit novo
@@ -300,6 +328,39 @@ O que convém saber:
 - **De outra máquina ou de um CI**, sem o projeto ligado, o hash completo basta (com as credenciais).
 - **`--json`:** `{ state, commitSha, url, publishedAt, rollbackCommitSha, canRollback, operation,
   alreadyLive }`. Numa falha depois de ler a produção, o erro traz a mesma produção em `data`.
+
+### `unbox rollback`
+
+Desfaz a publicação que está no ar: volta para a publicação feita antes dela (na ordem em que foram
+publicadas), ou para a página "Em breve" quando a do ar é a primeira. Não há build novo: a troca é
+imediata.
+
+```bash
+unbox rollback                     # mostra o que está no ar e para onde volta, e pede confirmação
+unbox rollback --yes --json        # para agentes: sem pergunta, um objeto com a produção final
+```
+
+- **Cada rollback volta mais uma publicação.** Com A, B e C publicados (C no ar), rollbacks seguidos
+  levam para B, A e então à página "Em breve". Por isso o comando pede o rollback **uma vez só**,
+  em qualquer caminho, e nunca repete sozinho.
+- **Resposta perdida** (rede, timeout, 5xx): o comando confere a produção, e só dá o rollback por
+  aplicado se ela mostra um rollback novo. Sem resposta, o pedido pode ainda estar na Unbox: ele
+  procura por até 1 min e meio e, sem sinal, para com `ROLLBACK_INCERTO`. Antes de tentar de novo,
+  rode `unbox rollback` sem `--yes`: ele mostra o que está no ar e o destino antes de confirmar.
+- **Sem rollback possível, nada é pedido:** produção em "Em breve", alterada fora da Unbox, já na
+  publicação mais antiga que a Unbox guarda, ou com uma publicação ou rollback em
+  andamento. O comando diz qual é o caso.
+- **Produção mudou com a confirmação aberta** (outro terminal, a CI): o comando para com
+  `PRODUCAO_MUDOU`, sem pedir o rollback, porque o destino confirmado pode não ser mais o mesmo.
+- **Destino que não existe mais** na hospedagem (`CUSTOM_STOREFRONT_ROLLBACK_TARGET_UNAVAILABLE_ERROR`):
+  publique o commit desejado com `unbox publish <commit>`.
+- **Para pôr um commit específico no ar**, use `unbox publish <commit>`; o rollback não recebe
+  argumentos. A permissão é a mesma de publicar.
+- Não precisa do git: funciona em qualquer pasta com as credenciais. Num projeto ligado, confere
+  que o login é da mesma loja.
+- **`--json`:** a produção depois do rollback (`{ state, commitSha, url, publishedAt,
+  rollbackCommitSha, canRollback, operation }`); numa falha, o erro traz a última produção lida em
+  `data`.
 
 ### `unbox status`
 
@@ -380,8 +441,8 @@ dois independentes lendo o mesmo `dataLayer`. Três coisas que não são óbvias
 
 Next.js 15 (App Router) + Tailwind v4 + shadcn/ui sobre Base UI, com catálogo, carrinho,
 checkout, área do cliente (OTP login, pedidos, assinaturas, endereços), páginas legais, PWA e
-SEO básico já implementados — ver `DEPLOY.md` e `QA.md` dentro do projeto gerado para o checklist
-de deploy na Vercel.
+SEO básico já implementados — ver `DEPLOY.md` e `QA.md` dentro do projeto gerado para o caminho até
+produção pela hospedagem da Unbox (`unbox provision`, `env`, `deploy`, `publish`).
 
 ## ⚠️ Antes de publicar a loja — decisões que ficam para quem usa
 

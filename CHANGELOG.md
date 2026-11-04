@@ -1,6 +1,18 @@
 ## Changelog
 
-### v0.29.0 — `unbox env`, `unbox publish` e `unbox status`: variáveis na hospedagem, o commit em produção e o estado da loja
+### v0.29.0 — `unbox env`, `unbox publish`, `unbox rollback` e `unbox status`: variáveis na hospedagem, produção e o estado da loja
+
+**Infra do editor**: Adicionada `NEXT_PUBLIC_ADMIN_ORIGIN` ao `frame-ancestors` para liberar
+a incorporação da loja no editor via painel Admin Unbox.
+
+Variável nova: `NEXT_PUBLIC_ADMIN_ORIGIN`, apontando para o endereço do painel Admin Unbox.
+
+**Docs de deploy (template):** o `DEPLOY.md` cobre o fluxo inteiro (`provision`, `env`, `deploy`,
+`publish`, `rollback` e `status`) e a tabela de erros comuns passa a listar todos os códigos que a
+CLI emite, por comando. `PROTECTED_PATHS` (provision) e `ARQUIVO_PROTEGIDO` (deploy) deixam de ser
+confundidos, e a falha do build de preview aparece com o código real, `DEPLOY_FAILURE`. O agente de
+deploy pede o ok do lojista antes do rollback e nunca o repete depois de `ROLLBACK_INCERTO`. O
+`unbox status` chama de "Em breve" o destino de rollback sem commit, como o `unbox rollback`.
 
 O `.env.local` não vai no push, e sem as variáveis o build da loja falha no login da Partners API.
 `unbox env` grava as variáveis do arquivo no projeto de hospedagem, para os builds de preview e de
@@ -14,9 +26,9 @@ seguem iguais.
 - **O filtro local poupa o lote.** A API recusa a chamada inteira por uma chave reservada ou fora do
   formato. A CLI pula, com aviso pelo nome, as vazias, os nomes inválidos, os valores acima de 16384
   caracteres e os reservados (`TZ`, `VERCEL_*`, `NEXT_PUBLIC_VERCEL_*`, `NOW_*`, `AWS_*`, `LAMBDA_*`).
-  `NEXT_PUBLIC_SITE_URL` tem aviso próprio: é gerenciada pela Unbox, que grava o endereço da loja
-  na hospedagem (produção e, quando a loja tem, o endereço fixo de preview). Lojas provisionadas
-  antes de a Unbox passar a gravá-la só ganham a variável numa migração futura.
+  `NEXT_PUBLIC_SITE_URL` tem aviso próprio: é reservada e gerenciada pela Unbox, que vai
+  preenchê-la com o endereço de produção da loja (ainda não é preenchida automaticamente); o valor
+  do `.env.local` vale só para o `next dev`.
 - **Vazias numa linha só.** O template traz dezenas de opcionais em branco (pixel, GA, WhatsApp);
   um aviso por chave escondia o que pede ação. As vazias saem juntas, com os nomes, e o texto final
   as conta à parte.
@@ -78,6 +90,41 @@ API por commit, e a Unbox refaz o build com a configuração de produção.
   erro ganha `data` com ela; os demais comandos seguem com o contrato de sempre.
 - **`src/production.js`** fica com a consulta e o acompanhamento, para o `rollback` e o `status`.
 
+**`unbox rollback`** volta produção para a publicação anterior (na ordem de publicação), ou para a
+página "Em breve" quando a do ar é a primeira. Sem build novo.
+
+- **Uma chamada só, em qualquer caminho.** O rollback da Unbox não é idempotente (cada chamada volta
+  mais uma publicação): nada no comando repete o pedido.
+- **Resposta perdida:** quem decide é a produção, comparando o `operation.requestedAt` com o lido
+  antes de pedir (nunca o relógio local). Com resposta do servidor ou sem o pedido ter saído
+  (ECONNREFUSED, ENOTFOUND), uma leitura decide; sem resposta (timeout, 5xx, conexão caída no meio),
+  o pedido pode estar em voo, e o comando procura um rollback novo por até 90 s antes de parar com
+  `ROLLBACK_INCERTO`. A mutation vai pelo novo `api.requestOnce`: espera até 60 s pela resposta
+  (o padrão do SDK é 15 s, só para ela) e não passa pela renovação de sessão do SDK, que repetiria
+  a chamada num erro que "parece" token vencido.
+- **`canRollback: false` não chama a API**, e o comando diz o motivo: "Em breve", alterada fora da
+  Unbox, a publicação mais antiga guardada, operação em andamento, ou um rollback interrompido na
+  Unbox (`ROLLBACK_INTERROMPIDO`).
+- **Confirmação** mostra o que está no ar e o destino; `--yes` pula. Com a confirmação aberta, se
+  produção mudar, para com `PRODUCAO_MUDOU` sem pedir.
+- **Falha registrada, mas o destino no ar** (a troca foi feita e a resposta da hospedagem falhou):
+  dá o rollback por feito e avisa para não repetir. As mensagens de "tente de novo" pedem rodar sem
+  `--yes`, para conferir antes.
+- **Erros com mensagem própria:** `NOTHING_TO_ROLLBACK`, `PRODUCTION_BUSY` (diz qual operação),
+  `ROLLBACK_TARGET_UNAVAILABLE` (orienta `unbox publish`), sem permissão de publicar.
+- **`--json`:** como no `publish`, o sucesso traz a produção, e o erro ganha `data` com a última
+  produção lida.
+- **A troca demora a aparecer:** logo depois do rollback, a hospedagem ainda pode responder com o
+  deployment de antes como o do ar (medido em stage: 1 a 5 s), e a resposta da Unbox vem com ele.
+  A CLI relê a produção por até 8 s até ver o destino, e é essa leitura que vai no texto e no
+  `--json`; se não vir, o texto mostra o destino registrado e avisa. O mesmo vale antes de
+  confirmar: se uma troca acabou de terminar e a leitura ainda não a mostra, a CLI relê, para não
+  mostrar um destino uma publicação atrás do que a Unbox vai usar. Se mesmo assim o destino usado
+  for outro, o aviso diz qual foi e pede conferir antes de rodar de novo.
+- **Rollback abandonado** (a troca caiu no meio): a Unbox libera outro depois de 60 s. A
+  confirmação do `rollback` e a do `publish` o mostram como "Interrompida antes", e não como
+  operação em andamento.
+
 **5xx do Core vira `HTTP_5xx`.** Atrás do AppSync, um 5xx do Core chega como `errorType`
 `HttpError` ("Core HTTP error: 502", medido num rollout em stage), e a CLI o tratava como recusa
 definitiva: o `provision` parava no meio da espera. Agora tem o mesmo código de um 5xx do gateway,
@@ -103,7 +150,7 @@ ainda não foi enviado, sem alterar nada.
 - **Destaque "há preview pronto para unbox publish"** (`publishable` no `--json`) quando o commit
   atual foi enviado, o preview dele está pronto e não é o que está no ar.
 - **`--json`:** `{ storefront, deployment, production, local: { ahead, dirty, branch, commitSha },
-  publishable }`.
+publishable }`.
 
 ### v0.28.0 — `unbox deploy`: as mudanças viram preview, sem passos de git à mão
 
@@ -209,8 +256,7 @@ que compara as duas coisas a cada `npm test`.
 - **A loja gerada passa a usar o `@unbox-plus/sdk` `^0.4.0`** (era `^0.2.0`, que no `0.x` não
   aceitava nem a 0.3.0). O que muda para a loja: a renovação do token passa a cobrir também a
   resposta "No authenticated user" do gateway (o token vencido, que volta como `Core HTTP error:
-  401`, já renovava), e um HTTP de erro do gateway sem `errors[]` (uma api key errada, um
-  502) passa a ser erro com a causa, `HTTP 403: {"message":"Forbidden"}`, no lugar de um
+401`, já renovava), e um HTTP de erro do gateway sem `errors[]` (uma api key errada, um 502) passa a ser erro com a causa, `HTTP 403: {"message":"Forbidden"}`, no lugar de um
   `Cannot read properties of undefined` no log. A página continua indo para o `error.tsx` como
   antes. Medido numa loja gerada: typecheck e build limpos, as mesmas 71 rotas, os mesmos avisos de
   lint e o mesmo JS no navegador, sem nenhuma consulta do SDK no bundle do cliente. Lojas já no ar
@@ -643,8 +689,7 @@ verificação, a entidade completa, a linha do rodapé, termos e privacidade sem
 redirecionamentos em 308; sem dados, `app/icon.svg`, entidade só com nome, sem linha no rodapé, marcadores de
 volta e 404. Termos, privacidade, produto e categoria mantêm o modo de renderização.
 
-Não entraram, da tela de SEO do painel da Unbox: **palavras-chave** (o Google ignora a meta keywords desde
-2009) e **URL externa de robots.txt e sitemap.xml** (a loja gera os dois do catálogo e das páginas).
+Não entraram, da tela de SEO do painel da Unbox: **palavras-chave** (o Google ignora a meta keywords desde 2009) e **URL externa de robots.txt e sitemap.xml** (a loja gera os dois do catálogo e das páginas).
 
 Loja já gerada: atualizar `lib/editable/`, acrescentar `lib/dados-da-loja.ts`, e trocar `app/layout.tsx`,
 `lib/paginas-seo.ts`, `components/site-footer.tsx`, `components/paginas/{colecao,pagina}-do-lojista.tsx`,
@@ -1008,12 +1053,12 @@ artigo, só o cabeçalho, que é o que o card mostra.
 
 Medido numa loja com 40 artigos, build de produção:
 
-| rota | antes | depois |
-|---|---|---|
-| página inicial | 276 KB | 81 KB |
+| rota              | antes  | depois |
+| ----------------- | ------ | ------ |
+| página inicial    | 276 KB | 81 KB  |
 | página de produto | 295 KB | 100 KB |
-| artigo | 266 KB | 71 KB |
-| listagem do blog | 266 KB | 73 KB |
+| artigo            | 266 KB | 71 KB  |
+| listagem do blog  | 266 KB | 73 KB  |
 
 O gate passa a cobrar o par: rota do lojista sem a fatia REPROVA o build, porque adotar metade da
 mudança esvazia a página em silêncio.
@@ -1276,7 +1321,7 @@ contra o caso conhecido: a cereja `F20A64` dá 4,22 contra tinta e 4,20 contra b
 classificada como acento.
 
 **Composição da home:** sem teto de seções. Entrou uma recomendação em `agents/PADROES.md`, com a
-pergunta que importa (*o que esta seção faz que a anterior não fez?*) e os sinais de que sobrou
+pergunta que importa (_o que esta seção faz que a anterior não fez?_) e os sinais de que sobrou
 seção. A receita default tem 16 porque é biblioteca, não recomendação.
 
 **O header passa a ser escolha da marca**, não do preset: tabela em `PADROES.md` ligando o tipo de
@@ -1295,15 +1340,15 @@ vocabulário gráfico da marca foi distribuído ou vive numa seção só.
 **Entram como relatório, não como gate**, e a medição explica por quê. Rodados contra cinco lojas
 geradas e contra um scaffold recém-criado:
 
-| | tipos | raios | hex | containers |
-|---|---:|---:|---:|---:|
-| foundation (scaffold novo) | 55 | 16 | 20 | 2 |
-| loja gerada A | 49 | 15 | 22 | 2 |
-| loja gerada B | 84 | 29 | 51 | 4 |
-| loja gerada C | 84 | 24 | 18 | 5 |
-| loja gerada D | 88 | 23 | 56 | 4 |
-| loja gerada E | 116 | 41 | 135 | 4 |
-| *teto que veio no script* | *8* | *5* | *0* | *1* |
+|                            | tipos | raios | hex | containers |
+| -------------------------- | ----: | ----: | --: | ---------: |
+| foundation (scaffold novo) |    55 |    16 |  20 |          2 |
+| loja gerada A              |    49 |    15 |  22 |          2 |
+| loja gerada B              |    84 |    29 |  51 |          4 |
+| loja gerada C              |    84 |    24 |  18 |          5 |
+| loja gerada D              |    88 |    23 |  56 |          4 |
+| loja gerada E              |   116 |    41 | 135 |          4 |
+| _teto que veio no script_  |   _8_ |   _5_ | _0_ |        _1_ |
 
 **A foundation já estoura todos os tetos antes de qualquer briefing.** Ligar como gate hoje
 reprovaria o build de um projeto que ninguém tocou, então a régua fica para depois. O relatório
@@ -1631,6 +1676,7 @@ antes de entrar aqui. Nenhum foi corrigido "por precaução": o que está abaixo
 até uma loja em produção.
 
 **Segurança**
+
 - **Qualquer pessoa abria qualquer pedido pelo `referenceId`.** A página do pedido só testava se
   o cookie de posse EXISTIA (o valor não era conferido) e, no modo parceiro, a Unbox nem recebe o
   token. Um `referenceId` curto + um cookie com qualquer conteúdo entregava e-mail, endereço,
@@ -1642,6 +1688,7 @@ até uma loja em produção.
 - O `env-check` imprimia o VALOR das variáveis malformadas no log de build. Só a chave agora.
 
 **Dinheiro**
+
 - **Timeout de 15 s no `placeOrder` + botão "Pagar" reaberto = cobrança dupla.** Abortar no
   cliente não aborta no servidor: o pedido nascia depois que a loja desistiu e a tela convidava a
   pagar de novo. `placeOrder` tem timeout próprio (90 s) e erro próprio (`PLACE_ORDER_TIMEOUT`,
@@ -1660,6 +1707,7 @@ até uma loja em produção.
   expirado. Só `NOT_FOUND`/`INVALID_*`/`CART_EXPIRED` apagam.
 
 **Produção**
+
 - **`.catch(() => [])` em toda página tratava "Unbox fora do ar" igual a "sem credenciais".**
   Com credenciais, uma oscilação produzia home e catálogo VAZIOS com HTTP 200 que o ISR cacheava
   por 5 minutos no lugar da versão boa; nos layouts de produto e categoria virava um 404
@@ -1667,6 +1715,7 @@ até uma loja em produção.
   (modo mockup); com credenciais loga e relança, e o ISR mantém a página anterior.
 
 **SEO** (dois itens eram regressões da v0.15.6)
+
 - `canonical: "/"` no layout raiz era herdado por catálogo, categorias e páginas legais: todas
   declaravam a home como canônica e saíam do índice. Canonical agora é por página; a PDP usa o
   caminho próprio (o `publishedUrl` do painel pode ser outro domínio).
@@ -1677,6 +1726,7 @@ até uma loja em produção.
   h1 invisível com o nome da loja.
 
 **CLI**
+
 - **Checkout hospedado com domínio em branco apagava o checkout do projeto** e a loja ficava sem
   nenhum (404 no "finalizar"). O domínio é validado; inválido ou vazio, o checkout customizável
   fica e o CLI avisa.
@@ -1692,6 +1742,7 @@ até uma loja em produção.
   respeitam o checkout hospedado. `engines.node >= 20.11`.
 
 **Foundation: o que restava com default plausível**
+
 - `purchase-hero` pintava 5 estrelas sem avaliação e prometia "envio com rastreio"; `trust-bar`
   dizia "Entrega rápida para todo o Brasil" e "Satisfação garantida"; `spec-table` afirmava
   "Origem: Brasil"; `founder-story` trazia uma história inventada assinada "Time da loja";
@@ -1701,6 +1752,7 @@ até uma loja em produção.
   "entrega rápida", "satisfação garantida", prazo de troca diferente do CDC).
 
 **Docs dos agentes**
+
 - O módulo CRO mandava fabricar "47 pessoas compraram nas últimas 24h" com "valor mockup" e usar
   um `productStock` que não existe; o módulo SEO colocava "Frete grátis acima de R$149" e "Entrega
   rápida" em meta description, chamava `getUnboxClient()` (não existe) e mandava criar um
@@ -1711,11 +1763,12 @@ até uma loja em produção.
   briefing (lê o `briefing.json` antes de perguntar o nome).
 
 **O que a revisão apontou e NÃO entrou nesta versão (decisão consciente)**
+
 - Lock de checkout, dedupe de webhook e rate limit vivem em memória do processo: em serverless
   cada instância tem a sua. Resolver exige um KV (Redis/Upstash) e é decisão de infraestrutura por
   loja; está documentado como limitação, não escondido.
 - Paginação do catálogo é no cliente (`PAGE = 12` sobre 100 itens) e os filtros são `<label
-  onClick>`: funcional, mas não é a11y ideal nem escala pra catálogos grandes. Fica pro roadmap.
+onClick>`: funcional, mas não é a11y ideal nem escala pra catálogos grandes. Fica pro roadmap.
 - Presets ainda listam `video-wall` e `newsletter` na receita; as duas seções agora não renderizam
   sem dado, então o efeito é nulo, mas a limpeza das receitas é da próxima rodada.
 
@@ -1731,6 +1784,7 @@ saído nas versões 0.15.1 a 0.15.3 (JSON-LD condicional, "Sem glúten" default,
 tempero, FAQ inventado, zoom bloqueado). O que restava:
 
 **Afirmações falsas, removidas — sem default, o bloco some:**
+
 - Nota "4,9 · 25.347 avaliações" e estrelas fixas na buy box, no card de avaliações e no catálogo.
   Agora só com avaliação real do enriquecimento; a distribuição por estrela é calculada delas.
 - "793 vendidos esta semana": fora.
@@ -1756,6 +1810,7 @@ token sem espaço nem `#`). Vale o mesmo para `UNBOX_WEBHOOK_SECRET`: com lixo, 
 legítimo passava, em silêncio.
 
 **Identidade e SEO por padrão:**
+
 - `app/favicon.ico` era o triângulo da Vercel (25 KB, do create-next-app) e vencia o `icon.svg` da
   marca na aba. Apagado.
 - `alternates.canonical`, `twitter.card: summary_large_image`, e uma **imagem Open Graph gerada**
@@ -1789,6 +1844,7 @@ todo o e-commerce. E mesmo sem GA_ID, a compra chegava vazia lá: o container l�
 `ecommerce.purchase.*` (formato Universal Analytics) e a foundation emitia só o GA4 plano.
 
 **O que mudou em `lib/analytics.ts` (reescrito):**
+
 - **dataLayer sempre, em objeto**, com o formato GA4 (`ecommerce.items`, `item_id`) e, na compra,
   também `ecommerce.purchase.*` e `transactionId`/`transactionTotal`, que são o que o container
   central lê. Um push, todos os leitores.
@@ -1798,7 +1854,7 @@ todo o e-commerce. E mesmo sem GA_ID, a compra chegava vazia lá: o container l�
   Dez de dez.
 - **`dataLayerReady { pageType, products[] }`** em produto, carrinho, checkout e confirmação — é o
   que alimenta remarketing do Google Ads no container central. Na confirmação, `pageType:
-  "purchase"` só com pedido PAGO: Pix pendente não vira conversão de Ads.
+"purchase"` só com pedido PAGO: Pix pendente não vira conversão de Ads.
 - **`discount` por item** rateado do desconto do carrinho, para a soma dos itens fechar com o
   valor pago. `shipping` e `tax` na compra. `item_brand`, `item_list_name`, `index`.
 - **Dados de correspondência da Meta**: `em`, `ph`, `fn`, `ln`, `zp`, `external_id`, todos
@@ -1817,6 +1873,7 @@ nunca conta, porque este é o webhook de pagamento, não de criação. `lib/capi
 compartilhado com `/api/capi`.
 
 **O que a foundation NÃO resolve (e por quê):**
+
 - **Compra server-side no GA4** (Measurement Protocol). Exige o `client_id` do `_ga` capturado no
   checkout e guardado até o webhook; a foundation não tem banco. Fica como próximo passo, com a
   decisão de onde persistir.
@@ -1891,7 +1948,7 @@ de hex.
 - Copy: "Leve mais por bem menos", "Mais itens, mais economia", "Combina com o que você já
   escolheu", "materiais escolhidos".
 - Prompt do briefing pede **ficha técnica** (composição ou materiais, medidas ou peso, modo de
-  uso, tabela nutricional *quando for alimento ou suplemento*).
+  uso, tabela nutricional _quando for alimento ou suplemento_).
 - Todos os comentários que davam exemplo de tempero para o agente ("Molho de Pimenta Sriracha",
   "Páprica Defumada", "combo churrasco", "Garlic Powder") foram trocados por exemplos neutros —
   comentário ensina o agente a escrever igual.
@@ -1956,7 +2013,7 @@ apareciam depois, em produção.
   (nota literal na marcação, volume abreviado "(2,1k)", contagem de avaliações nas duas ordens,
   nota em texto corrido) e o cabeçalho do script agora diz o que ele vê e onde falha.
 - **🔴 Passe mobile falso no QA.** Confirmado por medição: `chrome --headless
-  --window-size=390,844` gera um PNG de 390px de largura, mas a página renderiza a **500** — o
+--window-size=390,844` gera um PNG de 390px de largura, mas a página renderiza a **500** — o
   tamanho do arquivo parece certo, e é por isso que ninguém pegou. Novo `npm run unbox:qa` usa
   emulação de dispositivo do CDP, sem dependência nova (Node 22+ tem WebSocket nativo), e
   **confere a cada frame que `window.innerWidth` bateu com o pedido**, saindo com erro em vez
@@ -2009,7 +2066,7 @@ tudo ficava abrindo arquivo.
 - **Fase de construção em `agents/CONSTRUCAO.md`.** O prompt permanente perdeu 91 linhas que só
   valem depois que a entrevista fecha (contrato de design, ordem de aplicação, revisão, QA).
   Os marcos M2/M3 continuam no prompt como stub, pra o agente não perder o gate de vista.
-- **QA visual com gates baratos na frente.** O `unbox:honestidade` era a etapa 4, *depois* dos
+- **QA visual com gates baratos na frente.** O `unbox:honestidade` era a etapa 4, _depois_ dos
   screenshots: falhar nele obrigava a recapturar tudo. Agora `typecheck` → `honestidade` →
   `receita` → `build` rodam antes de qualquer imagem. As capturas ganharam orçamento (~20
   frames por rodada, contra 70+ do "nenhuma região sem frame"), e rodadas de correção só
@@ -2027,7 +2084,7 @@ tudo ficava abrindo arquivo.
   silêncio. Eles devolvem o conteúdo, o agente principal grava. Protocolo em
   `agents/CONSTRUCAO.md`.
 - **Bug corrigido no `src/theme.js` (achado ao escrever o mapa acima).** A regex que escreve os
-  tokens da marca não era ancorada e o `[^;]+` atravessava quebra de linha: uma *menção* ao
+  tokens da marca não era ancorada e o `[^;]+` atravessava quebra de linha: uma _menção_ ao
   token dentro de um comentário (`"o token --motion: 0 desliga tudo"`) casava antes da
   declaração real e substituía tudo até o `;` seguinte — várias linhas adiante, levando junto o
   fechamento do comentário e o `@import` do Tailwind. Resultado: CSS quebrado, detectado só no
@@ -2054,7 +2111,6 @@ O default saía com os dois maiores "tells" de site de template. Trocados:
 ⚠️ O estilo essencial deixou de "reproduzir o visual histórico da foundation" — a nota em
 `src/presets.js` foi corrigida. Lojas antigas não mudam; só o scaffold novo.
 
-
 ### v0.14.2 — logo placeholder honesto
 
 O placeholder de logo era um quadrado com marca-d'água colorida e "NOME DA LOJA" — parecia um
@@ -2066,7 +2122,6 @@ neutro com "sua marca" ao lado**: lê como campo a preencher, não como identida
 - Ícones do PWA (`app/icon.svg`, `app/apple-icon.svg`) viraram o mesmo quadrado cinza; o
   apple-icon mantém fundo opaco (iOS não aplica transparência).
 - O aviso de acabamento do build passou a procurar o marcador novo ("sua marca").
-
 
 ### v0.14.1 — descaracterização completa
 
@@ -2091,7 +2146,6 @@ código (`var(--store-primary,#15803D)`) e dentro dos assets. Varredura completa
   no template inteiro.
 - `products.json` e `combos.ts` já estavam limpos (vazio e exemplos genéricos) — o conteúdo
   nunca teve dado de cliente; o problema era só cor.
-
 
 ### v0.14.0 — paleta neutra, motion e as extrações da taste-skill
 
@@ -2120,6 +2174,7 @@ desliga, e a intensidade vem do dial (`--motion`).
 
 **Extrações da taste-skill** (analisada e NÃO vendorizada — ~5.800 linhas de terceiro que
 contradizem decisões nossas):
+
 - **3 dials no briefing**: `variancia`, `motion`, `densidade` (1-10), com default por preset,
   gravados em `marca/briefing.json` e documentados no PADROES §1c.
 - **"Design read"**: o agente 15 declara em uma linha como está lendo o projeto antes de codar.
@@ -2130,7 +2185,6 @@ contradizem decisões nossas):
   receitas atuais já são variadas (16 seções, 9 famílias, no máximo 2 seguidas iguais).
 - **PADROES §4b documenta o que recusamos** e por quê (bans de serifa/paleta, stack de motion
   com dependência, Picsum, design systems oficiais) — pra ninguém "consertar" depois.
-
 
 ### v0.13.1
 
@@ -2469,7 +2523,7 @@ Correção integral do relatório de melhorias do time de uma loja em produção
   sugestão pronta de `GIFT_TIERS`. É a fonte da verdade pra preencher a store-config; o agente
   de briefing agora tem essa etapa como prioridade 7.
 - **P1.2 — tiers de brinde reais no `getShop`**: fragmento `CalculationFreeItemByTier { tiers {
-  cartSubtotalGTE catalogProductVariant { _id title } } }` nas duas variantes da query (core e
+cartSubtotalGTE catalogProductVariant { _id title } } }` nas duas variantes da query (core e
   partners), validado ao vivo nos dois endpoints.
 - **P1.1 — env unificado**: scripts passam a carregar `.env.local` via `scripts/load-env.ts`
   (`@next/env`, o MESMO parser do app) em vez de `--env-file` do Node: acabou a divergência de
@@ -2691,7 +2745,7 @@ brindes) existe no painel de cada uma, e zerar a store-config onde não existir.
     imagem", QA embutido antes de dizer "pronto" e neutralização da prova social fabricada.
   - **Gatilho validado**: o projeto gerado traz `.claude/agents/branding-briefing.md`
     (frontmatter com `initialPrompt`) + `.claude/settings.json` com `{ "agent":
-    "branding-briefing" }` — abrir o Claude Code na pasta já inicia o briefing sozinho, sem
+"branding-briefing" }` — abrir o Claude Code na pasta já inicia o briefing sozinho, sem
     o cliente digitar comando. Ao fim do briefing o agente remove a chave `"agent"` e as
     sessões voltam ao normal. (Só `CLAUDE.md` não dispara — testado.)
   - **CLI**: 3 perguntas opcionais novas (site atual, Instagram, objetivo da loja); tudo que o
