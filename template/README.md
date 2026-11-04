@@ -39,8 +39,10 @@ UNBOX_PARTNER_API_KEY=  # api key única do PARCEIRO (da2-...)
 UNBOX_USER=             # usuário de API da loja
 UNBOX_PASS=             # senha (com # ou $? use aspas: "#senha")
 SESSION_SECRET=         # string aleatória forte
-NEXT_PUBLIC_SITE_URL=https://minhaloja.com.br
 ```
+
+`NEXT_PUBLIC_SITE_URL` fica em `http://localhost:3000` no `.env.local`: vale só para o `next dev`.
+Na hospedagem ela é reservada e gerenciada pela Unbox (veja `DEPLOY.md`).
 
 ### 3. Configurar a marca
 

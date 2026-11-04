@@ -134,7 +134,7 @@ function linhasDoPreview(dep, erro, local) {
 function linhasDaOperacao(op) {
   if (!op || op.state === "SUCCESS") return [];
   const alvo = op.type === "ROLLBACK"
-    ? `rollback para ${op.commitSha ? curto(op.commitSha) : "a página inicial"}`
+    ? `rollback para ${op.commitSha ? curto(op.commitSha) : "a página \"Em breve\""}`
     : `publicação de ${curto(op.commitSha)}`;
   if (op.state === "PENDING") return [`    Operação:  ${alvo} em andamento desde ${quando(op.requestedAt)}`];
   return [`    Operação:  ${alvo} falhou${op.errorCode ? ` (${op.errorCode})` : ""}${op.finishedAt ? ` em ${quando(op.finishedAt)}` : ""}; produção não mudou`];
@@ -162,7 +162,7 @@ function linhasDaProducao(p, erro) {
     }
   }
   if (p.state !== "NOT_PUBLISHED") {
-    if (p.canRollback) l.push(`    Rollback:  disponível (volta para ${p.rollbackCommitSha ? curto(p.rollbackCommitSha) : "a página inicial"})`);
+    if (p.canRollback) l.push(`    Rollback:  disponível (volta para ${p.rollbackCommitSha ? curto(p.rollbackCommitSha) : "a página \"Em breve\""})`);
     else if (p.state === "PUBLISHED") l.push("    Rollback:  indisponível agora");
   }
   return [...l, ...linhasDaOperacao(p.operation)];

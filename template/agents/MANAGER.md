@@ -186,5 +186,5 @@ UNBOX_WEBHOOK_SECRET=     # secret(s) do subscribeToWebhook, separados por vírg
 # App
 SESSION_SECRET=
 REVALIDATE_SECRET=
-NEXT_PUBLIC_SITE_URL=
+NEXT_PUBLIC_SITE_URL=http://localhost:3000   # só next dev; na hospedagem é reservada pela Unbox
 ```

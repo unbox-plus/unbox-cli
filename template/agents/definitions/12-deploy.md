@@ -49,7 +49,12 @@ unbox provision --json
 ```
 
 Leva alguns minutos. Cria o repositório git e a hospedagem, liga o projeto à branch `deploy`,
-gera a chave de deploy em `~/.config/unbox/keys/` e envia as variáveis. Rodar de novo é seguro.
+gera a chave de deploy em `~/.config/unbox/keys/<shopId>_ed25519` e envia as variáveis. Rodar de
+novo é seguro (ele retoma de onde parou).
+
+- Ele para sem mexer em nada com mudança não commitada, merge/rebase em andamento, HEAD destacado
+  ou uma branch `deploy`/remote `unbox` que já eram do lojista. Leia o código na tabela do
+  `DEPLOY.md` e resolva (ou peça ao lojista) antes de repetir.
 
 - Se o projeto tiver `.github/`, `.gitea/` ou `.forgejo/`, o comando para pedindo confirmação.
   Explique ao lojista que essas pastas não vão para a Unbox (continuam na branch dele) e rode com
@@ -62,7 +67,8 @@ gera a chave de deploy em `~/.config/unbox/keys/` e envia as variáveis. Rodar d
 
 O `provision` já enviou o `.env.local`. Rode `unbox env` de novo sempre que o arquivo mudar.
 Os valores nunca aparecem na saída, e não os imprima você também (nada de `cat .env.local` na
-conversa). `NEXT_PUBLIC_SITE_URL` é gerenciada pela Unbox: o comando pula essa chave, e está certo.
+conversa). `NEXT_PUBLIC_SITE_URL` é reservada e gerenciada pela Unbox: o comando pula essa chave, e
+está certo. Não tente defini-la de outro jeito.
 
 ### 4. Preview
 
@@ -75,7 +81,7 @@ quando a loja tem, o preview estável (`https://preview.<slug>.myunbox.com.br`).
 
 - Só roda na branch `deploy`. Não mexa em `.forgejo/`: é o workflow de deploy da Unbox, e o
   comando recusa mudanças ali.
-- `FAILURE` com o build local passando: quase sempre variável faltando (`unbox env --list`).
+- `DEPLOY_FAILURE` com o build local passando: quase sempre variável faltando (`unbox env --list`).
 - Se o projeto tiver `vercel.json`, ele precisa ser um objeto JSON válido com `headers`/`routes`
   em lista; a Unbox acrescenta um header nele antes de cada deploy.
 
@@ -100,13 +106,26 @@ unbox publish --yes --json
 A Unbox refaz o build com a configuração de produção (1 a 2 min) e troca o endereço
 `https://<slug>.myunbox.com.br`. Preview ok não garante produção ok: se o build de produção falhar
 (`CUSTOM_STOREFRONT_PRODUCTION_BUILD_ERROR`), a produção segue como estava; revise o que muda entre
-os ambientes (`VERCEL_ENV`, variáveis) e envie de novo.
+os ambientes (código que depende de `VERCEL_ENV`/`VERCEL_TARGET_ENV`) e envie de novo. As
+variáveis do lojista são as mesmas nos dois.
 
 ### Se der errado em produção
 
-`unbox status --json` mostra o que está no ar. `unbox rollback` volta para a publicação anterior,
-mas **não é idempotente**: cada execução é um rollback novo, a partir do que estiver no ar. Rode uma vez, confira com `unbox status` e
-só repita com o ok do lojista.
+`unbox status --json` mostra o que está no ar e para onde o rollback voltaria. Rollback muda
+produção: **peça o ok do lojista antes**, mostrando os dois. Com o ok:
+
+```bash
+unbox rollback --yes --json
+```
+
+Sem `--yes`, com `--json`, ele para com `CONFIRMACAO_NECESSARIA`. A troca é imediata (sem build).
+
+- **Não é idempotente:** cada execução volta mais uma publicação, a partir do que estiver no ar.
+  Rode uma vez e confira com `unbox status --json`.
+- `ROLLBACK_INCERTO`, `ROLLBACK_SUBSTITUIDO` ou interrupção: **nunca repita.** Rode
+  `unbox status --json`, mostre ao lojista o que está no ar e só peça outro rollback com novo ok.
+- Para um commit específico, ou quando não há rollback disponível
+  (`CUSTOM_STOREFRONT_NOTHING_TO_ROLLBACK_ERROR`): `unbox publish <commit> --yes --json`, com o ok.
 
 ---
 

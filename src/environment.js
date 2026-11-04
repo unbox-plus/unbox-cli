@@ -93,7 +93,7 @@ export function validaUnset(keys) {
 }
 
 const TEXTO = {
-  gerenciada: (k) => `${k} não foi enviada: é gerenciada pela Unbox, que grava o endereço da loja ao provisionar (produção e, quando a loja tem, o endereço fixo de preview).`,
+  gerenciada: (k) => `${k} não foi enviada: é gerenciada pela Unbox, que reserva o nome para o endereço de produção da loja. O valor do arquivo vale só para o next dev.`,
   reservada: (k) => `${k} não foi enviada: o nome é reservado pela Unbox ou pela hospedagem.`,
   reservada_nova: (k) =>
     `${k} não foi enviada: a Unbox passou a reservar este nome e esta versão da CLI ainda não sabia. Atualize a CLI ou fale com a Unbox.`,

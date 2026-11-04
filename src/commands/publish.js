@@ -78,7 +78,7 @@ function falhaDaPublicacao(errorCode, sha) {
   if (errorCode === PRODUCTION_BUILD) {
     return new CliError(
       `O build de produção do commit ${curto(sha)} falhou, mesmo com o preview ok. Produção continua com o que estava no ar. ` +
-        "Revise o que muda entre preview e produção (variáveis de ambiente, VERCEL_ENV, NEXT_PUBLIC_SITE_URL), corrija, " +
+        "Revise o que muda entre preview e produção (código que depende de VERCEL_ENV ou VERCEL_TARGET_ENV, chamadas que só a produção faz), corrija, " +
         "rode unbox deploy e publique de novo.",
       errorCode,
     );

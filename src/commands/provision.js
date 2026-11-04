@@ -32,7 +32,7 @@ export const help = `
     3. envia as variáveis do .env.local para a hospedagem (como o unbox env);
     4. deixa tudo pronto para o unbox deploy.
 
-  A chave de deploy fica em ~/.config/unbox/keys/<loja>_ed25519, só nesta máquina.
+  A chave de deploy fica em ~/.config/unbox/keys/<shopId>_ed25519, só nesta máquina.
   As pastas .github/, .gitea/ e .forgejo/ não vão para a Unbox: ficam fora da branch deploy
   (o .forgejo/ é o da Unbox) e continuam na sua branch.
 

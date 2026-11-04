@@ -166,7 +166,7 @@ test("publicada com o commit atual: sem destaque; com outro commit: destaca o un
     falsa: apiFalsa({ production: producao({ state: "PUBLISHED", commitSha: NO_AR, publishedAt: "2026-10-28T17:03:00Z", canRollback: true, rollbackCommitSha: null }) }),
   });
   assert.match(outro.stdout, /publicada: commit 9f8e7d6, em \d\d\/\d\d\/2026/);
-  assert.match(outro.stdout, /Rollback:\s+disponível \(volta para a página inicial\)/);
+  assert.match(outro.stdout, /Rollback:\s+disponível \(volta para a página "Em breve"\)/);
   assert.match(outro.stdout, new RegExp(`unbox publish \\(${head.slice(0, 7)} ≠ 9f8e7d6 no ar\\)`));
 });
 
@@ -194,7 +194,7 @@ test("rollback que falhou: código e produção inalterada", async () => {
       }),
     }),
   });
-  assert.match(r.stdout, /rollback para a página inicial falhou \(CUSTOM_STOREFRONT_HOSTING_ERROR\).*produção não mudou/);
+  assert.match(r.stdout, /rollback para a página "Em breve" falhou \(CUSTOM_STOREFRONT_HOSTING_ERROR\).*produção não mudou/);
 });
 
 test("UNKNOWN: rollback indisponível e como voltar ao controle", async () => {

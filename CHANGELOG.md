@@ -53,6 +53,13 @@ a incorporação da loja no editor via painel Admin Unbox.
 
 Variável nova: `NEXT_PUBLIC_ADMIN_ORIGIN`, apontando para o endereço do painel Admin Unbox.
 
+**Docs de deploy (template):** o `DEPLOY.md` cobre o fluxo inteiro (`provision`, `env`, `deploy`,
+`publish`, `rollback` e `status`) e a tabela de erros comuns passa a listar todos os códigos que a
+CLI emite, por comando. `PROTECTED_PATHS` (provision) e `ARQUIVO_PROTEGIDO` (deploy) deixam de ser
+confundidos, e a falha do build de preview aparece com o código real, `DEPLOY_FAILURE`. O agente de
+deploy pede o ok do lojista antes do rollback e nunca o repete depois de `ROLLBACK_INCERTO`. O
+`unbox status` chama de "Em breve" o destino de rollback sem commit, como o `unbox rollback`.
+
 O `.env.local` não vai no push, e sem as variáveis o build da loja falha no login da Partners API.
 `unbox env` grava as variáveis do arquivo no projeto de hospedagem, para os builds de preview e de
 produção, e o `unbox provision` passa a fazer isso no fim. **Nada quebrou:** `create` e `deploy`
@@ -65,9 +72,9 @@ seguem iguais.
 - **O filtro local poupa o lote.** A API recusa a chamada inteira por uma chave reservada ou fora do
   formato. A CLI pula, com aviso pelo nome, as vazias, os nomes inválidos, os valores acima de 16384
   caracteres e os reservados (`TZ`, `VERCEL_*`, `NEXT_PUBLIC_VERCEL_*`, `NOW_*`, `AWS_*`, `LAMBDA_*`).
-  `NEXT_PUBLIC_SITE_URL` tem aviso próprio: é gerenciada pela Unbox, que grava o endereço da loja
-  na hospedagem (produção e, quando a loja tem, o endereço fixo de preview). Lojas provisionadas
-  antes de a Unbox passar a gravá-la só ganham a variável numa migração futura.
+  `NEXT_PUBLIC_SITE_URL` tem aviso próprio: é reservada e gerenciada pela Unbox, que vai
+  preenchê-la com o endereço de produção da loja (ainda não é preenchida automaticamente); o valor
+  do `.env.local` vale só para o `next dev`.
 - **Vazias numa linha só.** O template traz dezenas de opcionais em branco (pixel, GA, WhatsApp);
   um aviso por chave escondia o que pede ação. As vazias saem juntas, com os nomes, e o texto final
   as conta à parte.
