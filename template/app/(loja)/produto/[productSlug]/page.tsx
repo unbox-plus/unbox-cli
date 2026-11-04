@@ -1,12 +1,35 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { getCatalog, getProductBySlug, getShopData } from "@/lib/queries";
+import { fetchKitTemplate, kitOptions } from "@unbox-plus/sdk";
+import {
+  getCatalog,
+  getKit,
+  getProductBySlug,
+  getShopData,
+} from "@/lib/queries";
 import { sanitize } from "@/lib/sanitize";
-import { resolveProductPrice, resolveVariantPrice } from "@/lib/format";
+import { umKitPorBundle } from "@/lib/catalog-map";
+import {
+  formatBRL,
+  resolveProductPrice,
+  resolveVariantPrice,
+} from "@/lib/format";
+import type { PdpKit, PdpKitOption } from "@/components/product/pdp/kit-box";
 import { RELATED_GROUPS } from "@/lib/store-config";
-import { getEnrichmentForProduct, getEnrichmentByName, parseSize, reviewStats, type ProductEnrichment } from "@/lib/enrichment";
+import {
+  getEnrichmentForProduct,
+  getEnrichmentByName,
+  parseSize,
+  reviewStats,
+  type ProductEnrichment,
+} from "@/lib/enrichment";
 import { DataLayerReady } from "@/components/analytics/data-layer-ready";
-import type { PdpVariant, PdpSizeOption, PdpRelatedOption, PdpBenefit } from "@/components/product/pdp/buy-box";
+import type {
+  PdpVariant,
+  PdpSizeOption,
+  PdpRelatedOption,
+  PdpBenefit,
+} from "@/components/product/pdp/buy-box";
 import type { CatalogItem } from "@/components/product/pdp/catalog-grid";
 // A PDP é um MOLDE: a view recebe tudo por prop (components/product/pdp/pdp-view.tsx) e é ela que
 // declara o container `produto` e as seções. Aqui só se busca e se prepara o dado.
@@ -34,17 +57,31 @@ export async function generateStaticParams() {
   // Aqui (e só aqui) a falha NÃO relança: sem a lista, as PDPs saem sob demanda via ISR em vez
   // de derrubar o build inteiro. Com credenciais, fica registrado no log do build.
   const catalog = await getCatalog({ first: 100 }).catch((e) => {
-    if (hasUnboxCredentials) console.error("[unbox] generateStaticParams(produto): catálogo indisponível, PDPs serão geradas sob demanda:", e?.message ?? e);
+    if (hasUnboxCredentials)
+      console.error(
+        "[unbox] generateStaticParams(produto): catálogo indisponível, PDPs serão geradas sob demanda:",
+        e?.message ?? e,
+      );
     return { nodes: [] as any[] };
   });
   return (catalog.nodes ?? [])
-    .map((n: any) => ({ productSlug: (n.product?.slug ?? n.slug) as string | undefined }))
+    .map((n: any) => ({
+      productSlug: (n.product?.slug ?? n.slug) as string | undefined,
+    }))
     .filter((p): p is { productSlug: string } => !!p.productSlug);
 }
 
-export async function generateMetadata({ params }: { params: Promise<{ productSlug: string }> }): Promise<Metadata> {
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ productSlug: string }>;
+}): Promise<Metadata> {
   const { productSlug } = await params;
-  const wrapper = await mockupOr(getProductBySlug(decodeURIComponent(productSlug)), null, "produto/getProductBySlug");
+  const wrapper = await mockupOr(
+    getProductBySlug(decodeURIComponent(productSlug)),
+    null,
+    "produto/getProductBySlug",
+  );
   const p = wrapper?.product;
   if (!p) return { title: "Produto não encontrado", robots: { index: false } };
   // Canonical é SEMPRE a URL desta loja. `publishedUrl` vem do painel e pode apontar pro
@@ -72,25 +109,35 @@ export async function generateMetadata({ params }: { params: Promise<{ productSl
 
 function freqNote(periodicity?: string, interval?: number): string {
   const n = interval ?? 1;
-  const unit = { DAY: "dia", WEEK: "semana", MONTH: "mês", YEAR: "ano" }[periodicity ?? "MONTH"] ?? "mês";
+  const unit =
+    { DAY: "dia", WEEK: "semana", MONTH: "mês", YEAR: "ano" }[
+      periodicity ?? "MONTH"
+    ] ?? "mês";
   if (periodicity === "WEEK") return `A cada ${n * 7} dias`;
   return `A cada ${n} ${unit}${n > 1 && unit !== "mês" ? "s" : ""}`;
 }
 
 const NUTRI_LABELS: Record<string, string> = {
-  valor_energetico_kcal: "Valor energético", carboidratos_g: "Carboidratos",
-  acucares_totais_g: "Açúcares totais", acucares_adicionados_g: "Açúcares adicionados",
-  proteinas_g: "Proteínas", gorduras_totais_g: "Gorduras totais",
-  gorduras_saturadas_g: "Gorduras saturadas", gorduras_trans_g: "Gorduras trans",
-  fibras_alimentares_g: "Fibras alimentares", sodio_mg: "Sódio",
+  valor_energetico_kcal: "Valor energético",
+  carboidratos_g: "Carboidratos",
+  acucares_totais_g: "Açúcares totais",
+  acucares_adicionados_g: "Açúcares adicionados",
+  proteinas_g: "Proteínas",
+  gorduras_totais_g: "Gorduras totais",
+  gorduras_saturadas_g: "Gorduras saturadas",
+  gorduras_trans_g: "Gorduras trans",
+  fibras_alimentares_g: "Fibras alimentares",
+  sodio_mg: "Sódio",
 };
-const fmtNum = (n: number) => new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 }).format(n);
+const fmtNum = (n: number) =>
+  new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 }).format(n);
 
 // Bandeira (emoji) do país de origem, p/ encaixar no selo "Importado". Usa o país de
 // processamento/importação quando o texto cita "Estados Unidos".
 function originFlag(origin?: string): string | undefined {
   const o = (origin ?? "").toLowerCase();
-  if (/estados unidos|united states|unites states|\beua\b|u\.?s\.?a/.test(o)) return "🇺🇸";
+  if (/estados unidos|united states|unites states|\beua\b|u\.?s\.?a/.test(o))
+    return "🇺🇸";
   if (/brasil|brazil/.test(o)) return "🇧🇷";
   if (/m[eé]xico/.test(o)) return "🇲🇽";
   if (/[ií]ndia/.test(o)) return "🇮🇳";
@@ -100,15 +147,27 @@ function originFlag(origin?: string): string | undefined {
 
 // Tabela nutricional SÓ com dado real do enriquecimento. Sem dado, devolve vazio e a aba nem
 // existe — antes renderizava "Valor energético —, Sódio —..." em loja de qualquer ramo.
-function buildNutriItems(enr: ProductEnrichment | null): { k: string; v: string }[] {
+function buildNutriItems(
+  enr: ProductEnrichment | null,
+): { k: string; v: string }[] {
   const nutr = enr?.nutrition?.nutrientes;
   if (nutr && Object.keys(nutr).length) {
-    const base = enr?.nutrition?.base ? [{ k: "Base", v: enr.nutrition.base }] : [];
+    const base = enr?.nutrition?.base
+      ? [{ k: "Base", v: enr.nutrition.base }]
+      : [];
     return [
       ...base,
       ...Object.entries(nutr).map(([key, val]) => {
-        const unit = key.endsWith("_kcal") ? "kcal" : key.endsWith("_mg") ? "mg" : key.endsWith("_g") ? "g" : "";
-        const label = NUTRI_LABELS[key] || key.replace(/_(g|mg|kcal)$/, "").replace(/_/g, " ");
+        const unit = key.endsWith("_kcal")
+          ? "kcal"
+          : key.endsWith("_mg")
+            ? "mg"
+            : key.endsWith("_g")
+              ? "g"
+              : "";
+        const label =
+          NUTRI_LABELS[key] ||
+          key.replace(/_(g|mg|kcal)$/, "").replace(/_/g, " ");
         return { k: label, v: `${fmtNum(Number(val))} ${unit}`.trim() };
       }),
     ];
@@ -116,12 +175,51 @@ function buildNutriItems(enr: ProductEnrichment | null): { k: string; v: string 
   return [];
 }
 
-export default async function ProductPage({ params }: { params: Promise<{ productSlug: string }> }) {
+export default async function ProductPage({
+  params,
+}: {
+  params: Promise<{ productSlug: string }>;
+}) {
   const { productSlug } = await params;
-  const [wrapper, shop, catalog] = await Promise.all([
-    mockupOr(getProductBySlug(decodeURIComponent(productSlug)), null, "produto/getProductBySlug"),
+  const wrapperP = mockupOr(
+    getProductBySlug(decodeURIComponent(productSlug)),
+    null,
+    "produto/getProductBySlug",
+  );
+
+  const kitP = wrapperP.then((w) =>
+    w?.product?.productType === "KIT"
+      ? Promise.all([
+          mockupOr(getKit(w.product.productId), null, "produto/getKit"),
+          fetchKitTemplate(w.publishedUrl, { timeoutMs: 2500 }),
+
+          Promise.all(
+            kitOptions(w.product)
+              .filter(
+                (o) =>
+                  o.productId !== w.product.productId &&
+                  o.slug === w.product.slug,
+              )
+              .map(
+                async (o) =>
+                  [
+                    o.productId,
+                    await mockupOr(getKit(o.productId), null, "produto/getKit"),
+                  ] as const,
+              ),
+          ),
+        ])
+      : null,
+  );
+  const [wrapper, shop, catalog, kitFetched] = await Promise.all([
+    wrapperP,
     mockupOr(getShopData(), null, "produto/getShopData"),
-    mockupOr(getCatalog({ first: 100 }), ({ nodes: [] as any[] }), "produto/getCatalog"),
+    mockupOr(
+      getCatalog({ first: 100 }),
+      { nodes: [] as any[] },
+      "produto/getCatalog",
+    ),
+    kitP,
   ]);
   const p = wrapper?.product;
   if (!p || p.isVisible === false) notFound();
@@ -130,16 +228,84 @@ export default async function ProductPage({ params }: { params: Promise<{ produc
   // nutricional quando o produto for alimento ou suplemento.
   const enr = getEnrichmentForProduct(p);
 
-  const price = resolveProductPrice(p);
+  let price = resolveProductPrice(p);
   const policy = shop?.recurringOrdersPolicy;
   const subscribable =
-    p.recurrenceAllowed && policy?.enabled && (policy.allowedFrequencies?.length ?? 0) > 0;
+    p.recurrenceAllowed &&
+    policy?.enabled &&
+    (policy.allowedFrequencies?.length ?? 0) > 0;
 
   // Descrição: prioriza a descrição SEO da planilha; senão a da Unbox.
-  const shortDescription = enr?.seo.shortDescription || enr?.description || wrapper.shortDescription;
+  const shortDescription =
+    enr?.seo.shortDescription || enr?.description || wrapper.shortDescription;
   const descHtml = sanitize(enr?.seo.longDescriptionHtml || p.description);
   const infoHtml = sanitize(p.additionalInformation);
   const rstats = reviewStats(enr);
+
+  const [kitData, kitTemplate, siblingKits] = kitFetched ?? [null, null, []];
+  const siblings = new Map(siblingKits);
+  const imgPorProduto = new Map(
+    (catalog.nodes ?? [])
+      .map((n: any) => n.product ?? n)
+      .map((x: any) => [x?.productId, x?.imageUrls?.[0]] as const),
+  );
+  const mapFlavors = (k: NonNullable<typeof kitData>) =>
+    (k.kitComponents ?? []).map((c) => ({
+      productId: c.productId,
+      variantId: c.productVariantId,
+      label: c.label ?? c.variantTitle ?? c.productTitle ?? "Item",
+      imageUrl: c.kitLabelImage ?? imgPorProduto.get(c.productId),
+    }));
+  const kitRequired = kitData?.requiredPicksPerGroup ?? 0;
+  const kit: PdpKit | null =
+    kitData && kitRequired > 0
+      ? {
+          id: kitData._id,
+          required: kitRequired,
+          options: kitOptions(p).map((o) => {
+            const pr = o.catalog?.pricing?.[0];
+            const pu = o.catalog?.pricingPerUnit?.[0];
+            const display = kitTemplate?.kitDisplay;
+            const cur = o.productId === p.productId;
+            return {
+              id: o.productId,
+              slug: o.slug,
+              label: o.label ?? o.title,
+              titleLabel: o.titleLabel,
+              highlightLabel:
+                o.highlightLabel ?? o.catalog?.relatedInfo?.highlightLabel,
+              description: o.catalog?.kitGroupDescription,
+              displayPrice:
+                display?.showPrice === false
+                  ? null
+                  : (pr?.displayPrice ?? formatBRL(pr?.minPrice)),
+              compareAt:
+                display?.showCompareAtPrice !== false &&
+                (pr?.minCompareAtPrice?.amount ?? 0) > 0
+                  ? pr?.minCompareAtPrice?.displayAmount
+                  : null,
+              perUnit: display?.showPricePerUnit ? pu?.displayPrice : null,
+              perUnitLabel: o.catalog?.unitPriceLabel,
+              isSoldOut: !!o.catalog?.isSoldOut,
+              isCurrent: cur,
+              inline: siblings.get(o.productId)?.requiredPicksPerGroup
+                ? {
+                    kitId: siblings.get(o.productId)!._id,
+                    required: siblings.get(o.productId)!.requiredPicksPerGroup!,
+                    price: pr?.price ?? null,
+                    oldPrice: pr?.minCompareAtPrice?.amount ?? null,
+                    flavors: mapFlavors(siblings.get(o.productId)!),
+                  }
+                : undefined,
+            } satisfies PdpKitOption;
+          }),
+          flavors: mapFlavors(kitData),
+        }
+      : null;
+  const relatedKitIds =
+    kit && kitTemplate?.relatedKits?.enabled !== false
+      ? (kitTemplate?.relatedKits?.relatedKitsIds ?? []).filter(Boolean)
+      : [];
 
   // ----- Variantes para a buy box -----
   const variants: PdpVariant[] = (p.variants ?? []).map((v: any) => {
@@ -154,16 +320,36 @@ export default async function ProductPage({ params }: { params: Promise<{ produc
     };
   });
 
+  if (kit) {
+    const agg = Array.isArray(p.pricing) ? p.pricing[0] : p.pricing;
+    price = {
+      price: agg?.price ?? null,
+      displayPrice: agg?.displayPrice ?? formatBRL(agg?.price),
+      compareAt: null,
+    };
+    variants.splice(0, variants.length, {
+      id: p.productId,
+      label: p.title,
+      price: price.price,
+      displayPrice: price.displayPrice,
+      oldPrice: agg?.minCompareAtPrice?.amount ?? null,
+    });
+  }
+
   // ----- Tamanhos da MESMA família (products.json) -----
   // Cada tamanho é um produto Unbox próprio; agrupamos pelo familyCode da planilha (resolvido por
   // nome, que ignora o tamanho). O peso vem do título do produto.
   const familyCode = enr?.familyCode ?? null;
   const fmtWeight = (w: { value: number; unit: string } | null): string => {
     if (!w) return NAO_INFORMADO;
-    const v = Number.isInteger(w.value) ? String(w.value) : String(w.value).replace(".", ",");
+    const v = Number.isInteger(w.value)
+      ? String(w.value)
+      : String(w.value).replace(".", ",");
     return `${v} ${w.unit}`;
   };
-  const allCatalogProducts = (catalog.nodes ?? []).map((n: any) => n.product ?? n).filter((x: any) => x?.slug);
+  const allCatalogProducts = (catalog.nodes ?? [])
+    .map((n: any) => n.product ?? n)
+    .filter((x: any) => x?.slug);
   const sizeOptions: PdpSizeOption[] = familyCode
     ? allCatalogProducts
         .map((cp: any) => {
@@ -191,9 +377,15 @@ export default async function ProductPage({ params }: { params: Promise<{ produc
   // Produtos DISTINTOS de uma mesma linha (famílias diferentes, não tamanhos), listados 1 por
   // família para navegar entre eles. Quais linhas e com que título: lib/store-config.ts
   // (RELATED_GROUPS). Default vazio — a loja decide.
-  const labelPt = (name: string) => name.split("(")[0].trim().replace(/\s+/g, " ") || name.trim();
-  const relatedGroup = enr ? RELATED_GROUPS.find((g) => enr.tags?.includes(g.tag)) : undefined;
-  const relatedByFamily = new Map<string, { option: PdpRelatedOption; name: string }>();
+  const labelPt = (name: string) =>
+    name.split("(")[0].trim().replace(/\s+/g, " ") || name.trim();
+  const relatedGroup = enr
+    ? RELATED_GROUPS.find((g) => enr.tags?.includes(g.tag))
+    : undefined;
+  const relatedByFamily = new Map<
+    string,
+    { option: PdpRelatedOption; name: string }
+  >();
   if (relatedGroup) {
     for (const cp of allCatalogProducts) {
       const e = getEnrichmentByName(cp.title);
@@ -223,20 +415,34 @@ export default async function ProductPage({ params }: { params: Promise<{ produc
   const benefits: PdpBenefit[] | undefined = enr
     ? (() => {
         const b: PdpBenefit[] = [];
-        if (enr.containsGluten === false) b.push({ icon: "no-gluten", label: "Sem glúten" });
+        if (enr.containsGluten === false)
+          b.push({ icon: "no-gluten", label: "Sem glúten" });
         if (enr.vegan === true) b.push({ icon: "vegan", label: "Vegano" });
         // "Sem MSG" é afirmação de ALIMENTO. Só entra quando o produto tem tabela nutricional (é
         // alimento/suplemento) — antes, qualquer composição sem a palavra "glutamato" ganhava o
         // selo, inclusive INCI de cosmético e lista de materiais de roupa.
-        if (enr.nutrition && enr.ingredients && !/glutamato|\bmsg\b|realçador|realcador/i.test(enr.ingredients)) b.push({ icon: "no-msg", label: "Sem MSG" });
-        if (enr.origin) b.push({ icon: "imported", label: "Importado", flag: originFlag(enr.origin) });
+        if (
+          enr.nutrition &&
+          enr.ingredients &&
+          !/glutamato|\bmsg\b|realçador|realcador/i.test(enr.ingredients)
+        )
+          b.push({ icon: "no-msg", label: "Sem MSG" });
+        if (enr.origin)
+          b.push({
+            icon: "imported",
+            label: "Importado",
+            flag: originFlag(enr.origin),
+          });
         return b.slice(0, 4);
       })()
     : undefined;
 
   const subscription = subscribable
     ? {
-        percentOff: policy.pricingPolicy?.type === "PERCENTAGE_OFF" ? policy.pricingPolicy.value : null,
+        percentOff:
+          policy.pricingPolicy?.type === "PERCENTAGE_OFF"
+            ? policy.pricingPolicy.value
+            : null,
         frequencies: (policy.allowedFrequencies ?? []).map((f: any) => ({
           id: f._id,
           title: f.title,
@@ -258,12 +464,26 @@ export default async function ProductPage({ params }: { params: Promise<{ produc
   // alimentação aparecendo como característica de roupa, cosmético ou eletrônico.
   const specItems: { k: string; v: string }[] = [];
   if (enr) {
-    if (enr.weight) specItems.push({ k: "Peso", v: `${String(enr.weight.value).replace(".", ",")} ${enr.weight.unit}` });
+    if (enr.weight)
+      specItems.push({
+        k: "Peso",
+        v: `${String(enr.weight.value).replace(".", ",")} ${enr.weight.unit}`,
+      });
     if (enr.origin) specItems.push({ k: "Origem", v: enr.origin });
-    if (enr.ingredients) specItems.push({ k: "Composição", v: enr.ingredients });
-    if (enr.containsGluten != null) specItems.push({ k: "Glúten", v: enr.containsGluten ? "Contém" : "Não contém" });
-    if (enr.vegan != null) specItems.push({ k: "Vegano", v: enr.vegan ? "Sim" : "Não" });
-    if (enr.allergens?.mayContain && !/não especificado/i.test(enr.allergens.mayContain)) specItems.push({ k: "Pode conter", v: enr.allergens.mayContain });
+    if (enr.ingredients)
+      specItems.push({ k: "Composição", v: enr.ingredients });
+    if (enr.containsGluten != null)
+      specItems.push({
+        k: "Glúten",
+        v: enr.containsGluten ? "Contém" : "Não contém",
+      });
+    if (enr.vegan != null)
+      specItems.push({ k: "Vegano", v: enr.vegan ? "Sim" : "Não" });
+    if (
+      enr.allergens?.mayContain &&
+      !/não especificado/i.test(enr.allergens.mayContain)
+    )
+      specItems.push({ k: "Pode conter", v: enr.allergens.mayContain });
     if (enr.ean) specItems.push({ k: "EAN", v: enr.ean });
   }
   const nutriItems = buildNutriItems(enr);
@@ -274,9 +494,17 @@ export default async function ProductPage({ params }: { params: Promise<{ produc
   const faq = enr?.faq ?? [];
 
   // ----- Catálogo relacionado (produtos reais) -----
-  const recItems: CatalogItem[] = (catalog.nodes ?? [])
-    .map((n: any) => n.product ?? n)
-    .filter((rp: any) => rp?.slug && rp.slug !== p.slug)
+  // um kit por bundle, e nunca as outras opções do kit desta página (elas já estão no seletor)
+  const recItems: CatalogItem[] = umKitPorBundle(
+    (catalog.nodes ?? [])
+      .map((n: any) => n.product ?? n)
+      .filter((rp: any) => rp?.slug && rp.productId !== p.productId)
+      .filter(
+        (rp: any) =>
+          !relatedKitIds.length || relatedKitIds.includes(rp.productId),
+      ),
+    kit ? p.title : null,
+  )
     .slice(0, 9)
     .map((rp: any): CatalogItem => {
       const rprice = resolveProductPrice(rp);
@@ -291,11 +519,23 @@ export default async function ProductPage({ params }: { params: Promise<{ produc
         variantId: rv0?._id ?? null,
         price: rv0?.pricing?.[0]?.price ?? null,
         badge: rp.isSoldOut
-          ? { label: "ESGOTADO", bg: "var(--store-surface-2)", fg: "var(--store-muted)" }
+          ? {
+              label: "ESGOTADO",
+              bg: "var(--store-surface-2)",
+              fg: "var(--store-muted)",
+            }
           : rprice.compareAt
-            ? { label: "OFERTA", bg: "var(--store-sale-soft)", fg: "var(--store-sale)" }
+            ? {
+                label: "OFERTA",
+                bg: "var(--store-sale-soft)",
+                fg: "var(--store-sale)",
+              }
             : rp.isLowQuantity
-              ? { label: "ÚLTIMAS", bg: "var(--store-cta-soft)", fg: "var(--store-cta-fg)" }
+              ? {
+                  label: "ÚLTIMAS",
+                  bg: "var(--store-cta-soft)",
+                  fg: "var(--store-cta-fg)",
+                }
               : null,
       };
     });
@@ -309,31 +549,46 @@ export default async function ProductPage({ params }: { params: Promise<{ produc
   const faqPublicado = faqNaTela(publicado, faq);
   // o que as seções que o lojista ADICIONAR à página de produto mostram (o molde é um só para todos os produtos)
   const secoes = await dadosSeHouverSecoes(publicado, "produto");
-  const faqJsonLd = faqPublicado.length > 0 ? {
-    "@context": "https://schema.org",
-    "@type": "FAQPage",
-    mainEntity: faqPublicado.map((f) => ({
-      "@type": "Question",
-      name: f.question,
-      acceptedAnswer: { "@type": "Answer", text: f.answer },
-    })),
-  } : null;
+  const faqJsonLd =
+    faqPublicado.length > 0
+      ? {
+          "@context": "https://schema.org",
+          "@type": "FAQPage",
+          mainEntity: faqPublicado.map((f) => ({
+            "@type": "Question",
+            name: f.question,
+            acceptedAnswer: { "@type": "Answer", text: f.answer },
+          })),
+        }
+      : null;
 
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "Product",
     name: p.title,
     image: p.imageUrls ?? [],
-    description: (p.metaDescription || wrapper.shortDescription || p.title) as string,
+    description: (p.metaDescription ||
+      wrapper.shortDescription ||
+      p.title) as string,
     sku: p.sku ?? undefined,
     // aggregateRating SÓ com avaliações reais (rstats): nota fabricada em dado ESTRUTURADO é o
     // pior lugar possível pra mentir — vai direto pro Google (rich results) em nome da loja.
-    ...(rstats ? { aggregateRating: { "@type": "AggregateRating", ratingValue: String(rstats.average), reviewCount: String(rstats.count) } } : {}),
+    ...(rstats
+      ? {
+          aggregateRating: {
+            "@type": "AggregateRating",
+            ratingValue: String(rstats.average),
+            reviewCount: String(rstats.count),
+          },
+        }
+      : {}),
     offers: {
       "@type": "Offer",
       price: price.price ?? undefined,
       priceCurrency: "BRL",
-      availability: p.isSoldOut ? "https://schema.org/OutOfStock" : "https://schema.org/InStock",
+      availability: p.isSoldOut
+        ? "https://schema.org/OutOfStock"
+        : "https://schema.org/InStock",
       url: wrapper.publishedUrl || `${siteUrl}/produto/${productSlug}`,
     },
   };
@@ -341,9 +596,26 @@ export default async function ProductPage({ params }: { params: Promise<{ produc
   return (
     <>
       {/* dataLayerReady: o gatilho de tipo de página do container central da Unbox (não renderiza nada) */}
-      <DataLayerReady pageType="product" products={[{ id: p.productId ?? p._id, name: p.title, price: price.price ?? undefined }]} />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ldJson(jsonLd) }} />
-      {faqJsonLd && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ldJson(faqJsonLd) }} />}
+      <DataLayerReady
+        pageType="product"
+        products={[
+          {
+            id: p.productId ?? p._id,
+            name: p.title,
+            price: price.price ?? undefined,
+          },
+        ]}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: ldJson(jsonLd) }}
+      />
+      {faqJsonLd && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: ldJson(faqJsonLd) }}
+        />
+      )}
       <PdpView
         produto={{
           id: p.productId,
@@ -362,12 +634,28 @@ export default async function ProductPage({ params }: { params: Promise<{ produc
           sizeOptions,
           relatedTitle,
           relatedOptions,
-          subscription,
+          subscription: kit ? null : subscription,
+          kit,
           ratingAverage: rstats ? Number(rstats.average) : undefined,
           ratingCount: rstats ? Number(rstats.count) : undefined,
         }}
-        detalhes={{ descHtml, infoHtml, specItems, nutriItems, nutriBase: enr?.nutrition?.base, usageSteps: enr?.usage }}
-        avaliacoes={rstats && enr?.reviews?.length ? { ratingCount: Number(rstats.count), average: Number(rstats.average), reviews: enr.reviews } : null}
+        detalhes={{
+          descHtml,
+          infoHtml,
+          specItems,
+          nutriItems,
+          nutriBase: enr?.nutrition?.base,
+          usageSteps: enr?.usage,
+        }}
+        avaliacoes={
+          rstats && enr?.reviews?.length
+            ? {
+                ratingCount: Number(rstats.count),
+                average: Number(rstats.average),
+                reviews: enr.reviews,
+              }
+            : null
+        }
         faq={faq}
         catalogo={catalogItems}
         secoes={secoes}

@@ -17,9 +17,12 @@ import {
   type ItemDetalhe,
 } from "@/components/account/subscription-items-section";
 import { InlineAlert } from "@/components/account/subscription-editor/inline-alert";
-import { nameKey } from "@/lib/subscription-items";
+import { comProdutoDoKit, nameKey } from "@/lib/subscription-items";
 import type { KitComponent } from "@/components/account/subscription-editor/kit-picks-builder";
-import type { CatalogProduct, KitOption } from "@/components/account/subscription-editor/catalog-product-card";
+import type {
+  CatalogProduct,
+  KitOption,
+} from "@/components/account/subscription-editor/catalog-product-card";
 import { mockupOr } from "@/lib/mockup";
 
 export const metadata: Metadata = {
@@ -62,11 +65,23 @@ export default async function AssinaturaDetalhePage({
   }
 
   // a assinatura só traz ids; nome do produto e da variação vêm do SDK. Cosmético: sem nome, cai no código.
+  const itensBrutos = (sub.items ?? []).map(comProdutoDoKit);
   const produtos = await withStoreClient((c) =>
-    c.getProductsByIds((sub.items ?? []).map((it: any) => it.productId)),
+    c.getProductsByIds(itensBrutos.map((it: any) => it.productId)),
   ).catch(() => []);
+
+  const itens = itensBrutos.map((it: any) =>
+    it.productKitId && !it.variantId
+      ? {
+          ...it,
+          variantId:
+            produtos.find((x) => x.productId === it.productId)?.variants?.[0]
+              ?._id ?? null,
+        }
+      : it,
+  );
   const detalhes: Record<string, ItemDetalhe> = {};
-  const linhas = (sub.items ?? []).map((it: any) => {
+  const linhas = itens.map((it: any) => {
     const p = produtos.find(
       (x) => x.productId === it.productId || x._id === it.productId,
     );
@@ -192,7 +207,7 @@ export default async function AssinaturaDetalhePage({
   }
   // Kits: os componentes e a cota vêm de getProductKit. Servem tanto ao card de "Adicionar" quanto ao nome dos itens
   // já escolhidos nos kits da assinatura.
-  const kitsDaAssinatura = (sub.items ?? [])
+  const kitsDaAssinatura = itens
     .filter((it: any) => it.productKitId)
     .map((it: any) => it.productKitId as string);
   const kitInfo = new Map<string, any>();
@@ -206,20 +221,33 @@ export default async function AssinaturaDetalhePage({
       if (k) kitInfo.set(id, k);
     }),
   );
-  const componentes = (k: any) => ((k?.kitComponents ?? []) as any[]).filter((c) => c.productId && c.productVariantId);
+  const componentes = (k: any) =>
+    ((k?.kitComponents ?? []) as any[]).filter(
+      (c) => c.productId && c.productVariantId,
+    );
   // `kitLabelImage` é uma imagem opcional do kit e quase sempre vem vazia: sem ela, vale a foto do próprio produto do item.
   const semImagemDoKit = new Set<string>();
-  for (const k of kitInfo.values()) for (const c of componentes(k)) if (!c.kitLabelImage) semImagemDoKit.add(c.productId);
+  for (const k of kitInfo.values())
+    for (const c of componentes(k))
+      if (!c.kitLabelImage) semImagemDoKit.add(c.productId);
   const fotoDoProduto = new Map<string, string>();
   if (semImagemDoKit.size) {
-    const itens = await mockupOr(withStoreClient((c) => c.getProductsByIds([...semImagemDoKit])), [], "assinatura/getProductsByIds(itens do kit)");
-    for (const p of itens) if (p.imageUrls?.[0]) fotoDoProduto.set(p.productId, p.imageUrls[0]);
+    const itens = await mockupOr(
+      withStoreClient((c) => c.getProductsByIds([...semImagemDoKit])),
+      [],
+      "assinatura/getProductsByIds(itens do kit)",
+    );
+    for (const p of itens)
+      if (p.imageUrls?.[0]) fotoDoProduto.set(p.productId, p.imageUrls[0]);
   }
   // os itens que se pode escolher no kit, no formato do construtor
   const itensDoKit = (k: any): KitComponent[] =>
     componentes(k).map((c) => ({
-      productId: c.productId, variantId: c.productVariantId, title: c.productTitle ?? c.label ?? "Item",
-      subtitle: c.label && c.label !== c.productTitle ? c.label : null, imageUrl: c.kitLabelImage ?? fotoDoProduto.get(c.productId),
+      productId: c.productId,
+      variantId: c.productVariantId,
+      title: c.productTitle ?? c.label ?? "Item",
+      subtitle: c.label && c.label !== c.productTitle ? c.label : null,
+      imageUrl: c.kitLabelImage ?? fotoDoProduto.get(c.productId),
     }));
   // Na loja cada tamanho de kit ("2 Box", "3 Box"...) é um produto de kit à parte. Para o cliente é UM kit com
   // opções: os produtos de kit de mesmo título viram um cartão só, com uma opção por produto.
@@ -235,9 +263,16 @@ export default async function AssinaturaDetalhePage({
     if (!k || !(k.requiredPicksPerGroup > 0) || !comps.length || !e.variantId)
       continue; // sem cota ou sem componentes não dá para montar o kit
     const opcao: KitOption = {
-      productId: e.productId, variantId: e.variantId, requiredPicks: k.requiredPicksPerGroup,
-      label: k.relatedInfo?.title || `${k.requiredPicksPerGroup} ${k.requiredPicksPerGroup === 1 ? "item" : "itens"}`,
-      price: e.price, compareAtPrice: e.compareAtPrice, highlight: k.relatedInfo?.highlightLabel || null, soldOut: e.soldOut,
+      productId: e.productId,
+      variantId: e.variantId,
+      requiredPicks: k.requiredPicksPerGroup,
+      label:
+        k.relatedInfo?.title ||
+        `${k.requiredPicksPerGroup} ${k.requiredPicksPerGroup === 1 ? "item" : "itens"}`,
+      price: e.price,
+      compareAtPrice: e.compareAtPrice,
+      highlight: k.relatedInfo?.highlightLabel || null,
+      soldOut: e.soldOut,
       components: itensDoKit(k),
     };
     const dk =
@@ -265,10 +300,11 @@ export default async function AssinaturaDetalhePage({
     g.soldOut = g.kit!.options.every((o) => o.soldOut);
   }
   catalogo.splice(0, catalogo.length, ...resultado);
-  for (const it of sub.items ?? []) {
+  for (const it of itens) {
     const d = it.productKitId && detalhes[nameKey(it)];
     const k = d ? kitInfo.get(it.productKitId) : null;
-    if (d && k?.requiredPicksPerGroup > 0) d.kit = { cap: k.requiredPicksPerGroup, options: itensDoKit(k) };
+    if (d && k?.requiredPicksPerGroup > 0)
+      d.kit = { cap: k.requiredPicksPerGroup, options: itensDoKit(k) };
   }
   const totalItens = linhas.every((l: any) => l.unit != null)
     ? linhas.reduce((t: number, l: any) => t + l.unit * l.it.quantity, 0)
@@ -350,7 +386,7 @@ export default async function AssinaturaDetalhePage({
               recurringOrderId={sub._id}
               status={status}
               actions={actions}
-              savedItems={(sub.items ?? []).map((it: any) => ({
+              savedItems={itens.map((it: any) => ({
                 productId: it.productId,
                 variantId: it.variantId,
                 quantity: it.quantity,
@@ -403,6 +439,16 @@ export default async function AssinaturaDetalhePage({
                       {l.variacao && (
                         <p className="text-[var(--store-muted)]">
                           {l.variacao}
+                        </p>
+                      )}
+                      {l.it.productKitItemsConfigurations?.length > 0 && (
+                        <p className="text-[var(--store-muted)]">
+                          {l.it.productKitItemsConfigurations
+                            .map(
+                              (c: any) =>
+                                `${c.quantity}x ${c.variantTitle ?? detalhes[nameKey({ productId: c.productId, variantId: c.productVariantId })]?.titulo ?? "Item"}`,
+                            )
+                            .join(", ")}
                         </p>
                       )}
                       <p className="text-[13px] text-[var(--store-muted)]">

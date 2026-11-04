@@ -3,7 +3,7 @@
 import "server-only";
 import { normalizeCart, type UiCart } from "./cart-normalize";
 import { getRecurFreq } from "./session";
-import { getShopData, getCatalog } from "./queries";
+import { getShopData, getCatalog, getKitLabel } from "./queries";
 
 // Brindes/bônus liberados automaticamente pela Unbox (ex.: item grátis ao atingir um valor no
 // carrinho) não vêm com `thumbnail` na linha do carrinho, mesmo o produto tendo foto real
@@ -27,10 +27,21 @@ async function fillMissingThumbnails(cart: UiCart): Promise<void> {
   }
 }
 
+// O carrinho do kit só traz o título do bundle e os sabores; o nome da opção ("3 Caixas") vem do catálogo.
+async function fillKitLabels(cart: UiCart): Promise<void> {
+  await Promise.all(cart.items.filter((i) => i.kitId).map(async (i) => {
+    try {
+      i.kitLabel = (await getKitLabel(i.kitId!)) ?? undefined;
+    } catch {
+      /* rótulo é cosmético: sem ele a linha mostra só os sabores */
+    }
+  }));
+}
+
 export async function cartResponse(rawCart: any, extraEvents: any[] = []): Promise<UiCart | null> {
   const cart = normalizeCart(rawCart, extraEvents);
   if (!cart) return null;
-  await fillMissingThumbnails(cart);
+  await Promise.all([fillMissingThumbnails(cart), fillKitLabels(cart)]);
   if (cart.hasRecurring) {
     const freqId = await getRecurFreq();
     if (freqId) {

@@ -3,7 +3,7 @@
 import { requireCustomerClient } from "@/lib/customer-session";
 import { cardSchema, addressSchema, subscriptionItemsSchema } from "@/lib/schemas";
 import { getShopData } from "@/lib/queries";
-import { checkItemsChange } from "@/lib/subscription-items";
+import { checkItemsChange, comProdutoDoKit } from "@/lib/subscription-items";
 import { ok, fail, failFrom } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +13,8 @@ export const dynamic = "force-dynamic";
 async function loadSubscription(me: Awaited<ReturnType<typeof requireCustomerClient>>, id: string) {
   const lista = await me.subscriptions({ first: 50 });
   const ref = lista.nodes.find((n: any) => n._id === id)?.referenceId;
-  return ref ? me.subscription(ref) : null;
+  const sub = ref ? await me.subscription(ref) : null;
+  return sub && { ...sub, items: (sub.items ?? []).map(comProdutoDoKit) };
 }
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -36,7 +37,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         if (!sub) return fail("Assinatura não encontrada.", 404);
         return ok({
           status: sub.status?.value,
-          items: (sub.items ?? []).map((it: any) => ({ productId: it.productId, variantId: it.variantId, quantity: it.quantity })),
+          items: (sub.items ?? []).map((it: any) => ({ productId: it.productId, variantId: it.variantId, quantity: it.quantity, productKitId: it.productKitId })),
         });
       }
       case "items": {

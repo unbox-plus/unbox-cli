@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import { CircleNotch } from "@phosphor-icons/react/dist/ssr";
 import { toast } from "sonner";
 
 import type { CatalogProduct } from "@/components/account/subscription-editor/catalog-product-card";
@@ -24,7 +25,10 @@ const LINK =
 // Uma lista ordenada de "produto:variante=quantidade", para comparar duas listas de itens.
 const signature = (l: SavedItem[]) =>
   l
-    .map((i) => `${nameKey(i)}=${i.quantity}`)
+    .map(
+      (i: any) =>
+        `${i.kit || i.productKitId ? i.productId : nameKey(i)}=${i.quantity}`,
+    )
     .sort()
     .join("|");
 
@@ -73,6 +77,7 @@ export function SubscriptionItemsSection({
   const [open, setOpen] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [saveError, setSaveError] = React.useState<string | null>(null);
+  const [refreshing, startRefresh] = React.useTransition(); // a página leva alguns segundos para trazer os itens novos
   const savingRef = React.useRef(false); // trava síncrona: o clique duplo chega antes do estado atualizar
   const basis = React.useRef(savedItems); // a lista que o cliente viu quando abriu o modal
 
@@ -136,7 +141,7 @@ export function SubscriptionItemsSection({
       await post(recurringOrderId, { action: "items", items });
       toast.success("Itens atualizados.");
       setOpen(false);
-      router.refresh(); // só depois da resposta 200: nada muda na página antes disso
+      startRefresh(() => router.refresh()); // só depois da resposta 200: nada muda na página antes disso
       focusEditButton();
     } catch (e) {
       setSaveError(e instanceof Error ? e.message : "Erro inesperado.");
@@ -161,7 +166,21 @@ export function SubscriptionItemsSection({
         <p className="text-[13px] font-bold text-[var(--store-ink-2)]">Itens</p>
         {entry}
       </div>
-      {children}
+      <div
+        aria-busy={refreshing}
+        className={refreshing ? "pointer-events-none opacity-50 transition-opacity" : "transition-opacity"}
+      >
+        {children}
+      </div>
+      {refreshing && (
+        <p
+          role="status"
+          className="mt-3 flex items-center gap-2 text-[13px] font-semibold text-[var(--store-ink-2)]"
+        >
+          <CircleNotch aria-hidden className="size-4 animate-spin" />
+          Atualizando os itens da assinatura…
+        </p>
+      )}
       <SubscriptionItemsEditor
         open={open}
         savedItems={savedItems}

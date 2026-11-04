@@ -15,6 +15,7 @@ import { EmptyState } from "@/components/empty-state";
 import { formatBRL } from "@/lib/format";
 import { goToCheckout } from "@/lib/checkout-nav";
 import { trackViewCart, trackPageType } from "@/lib/analytics";
+import { ItemVariant } from "@/components/cart/kit-lines";
 
 export default function CarrinhoPage() {
   const router = useRouter();
@@ -60,7 +61,7 @@ export default function CarrinhoPage() {
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="font-medium">{it.title}</p>
-                    {it.variantTitle && <p className="text-sm text-muted-foreground">{it.variantTitle}</p>}
+                    <ItemVariant it={it} className="text-sm text-muted-foreground" />
                     <div className="mt-1 flex flex-wrap gap-1.5">
                       {it.isRecurring && (
                         <Badge variant="outline">
