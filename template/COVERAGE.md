@@ -12,8 +12,9 @@ smoke test HTTP do BFF (carrinho→endereço→frete) **200** em todas as etapas
 | `getCatalog` (first/offset/search/tagIds/sort) | `lib/queries.ts` → home, `/produtos`, `/busca`, `/categoria/[tagSlug]` |
 | `getProductBySlug` | `app/(loja)/produto/[productSlug]/page.tsx` |
 | `getProductById` | `@unbox-plus/sdk` (fallback/deep link) |
-| `getProductsByIds` (vários ids, preço de assinatura, variantes) | `@unbox-plus/sdk` — edição de itens da assinatura (use `mockupOr`) |
+| `getProductsByIds` (vários ids, preço de assinatura, variantes, `productType`, `requiredPicksPerGroup`, `relatedInfo`) | `@unbox-plus/sdk` — edição de itens da assinatura e fotos dos itens de kit (use `mockupOr`) |
 | `getSubscribableCatalog` (`recurrenceAllowed` + categorias) | `@unbox-plus/sdk` — itens que podem entrar na assinatura (use `mockupOr`) |
+| `getProductKit` (cota `requiredPicksPerGroup`, `kitComponents`, `relatedInfo`) | `@unbox-plus/sdk` — componentes e cota dos kits, no painel de adicionar e na edição dos itens de um kit (use `mockupOr`) |
 | `getTags` | `components/site-header.tsx`, home, categoria |
 | `getShop` (shopSales, política de assinatura, settings) | `lib/queries.ts` → header, home, PDP, checkout |
 | `getPaymentMethods` | `app/(loja)/checkout/page.tsx` |
@@ -43,9 +44,10 @@ smoke test HTTP do BFF (carrinho→endereço→frete) **200** em todas as etapas
 | `me` (currentCustomerAccount) | `/conta`, `/conta/enderecos`, `/conta/preferencias` |
 | `updateAccount` | `app/api/account/preferences` |
 | `orders` / `order` | `/conta/pedidos` + `[referenceId]`, `lib/orders.ts` |
-| `subscriptions` / `subscription` / `subscriptionCycles` | `/conta/assinaturas` + `[referenceId]` |
+| `subscriptions` / `subscription` / `subscriptionCycles` (o item traz `productKitId` e `productKitItemsConfigurations`, `null` fora de kit) | `/conta/assinaturas` + `[referenceId]`, e a ação `get` da rota (releitura antes de salvar) |
 | `pause` / `skipNextCycle` / `cancel` | `app/api/subscriptions/[id]` (+ `SubscriptionActions`) |
-| `updateItems` / `updateCard` / `updateAddress` | idem |
+| `updateItems` (aceita `productKitId` + `productKitItemsConfigurations` por item) | `app/api/subscriptions/[id]` (`action: "items"`), modal `components/account/subscription-editor/*` |
+| `updateCard` / `updateAddress` | `app/api/subscriptions/[id]` (+ `SubscriptionActions`) |
 | `addressBooks` / `upsertAddress` / `deleteAddresses` | `app/api/account/addresses` (+ `AddressBook`) |
 | Rótulos `orderStatusLabel` / `paymentStatusLabel` / `subscriptionStatusLabel` | `components/order-status.tsx`, listas |
 
@@ -64,7 +66,7 @@ smoke test HTTP do BFF (carrinho→endereço→frete) **200** em todas as etapas
 - **03 Carrinho & assinatura** — create/add/update/remove/get, brindes, `recurringItemsFrequencyId`, cart templates → `app/api/cart/**`, PDP (assinar), checkout.
 - **04 Promoções** — `shopSales` (banner), `applyDiscountCodeToCart` (antes do frete), `removeDiscountCodeFromCart` (por discountId), brinde automático, `discountCodes` → header/home + `app/api/cart/coupon`.
 - **05 Checkout** — endereço → frete (N grupos) → Pix/Cartão → `placeOrder`, QR copia-e-cola, parcelas, releitura antes do pedido → `app/api/checkout/**`, `components/checkout/*`, `/checkout/pix/[ref]`.
-- **06 Área do cliente** — OTP 2 passos, conta, pedidos/rastreio, assinaturas self-service, address book + CEP, guest tracking → `/conta/**`, `/pedido/[referenceId]`.
+- **06 Área do cliente** — OTP 2 passos, conta, pedidos/rastreio, assinaturas self-service (pausar, pular, cancelar, trocar cartão e endereço, **editar produtos**, kits inclusive), address book + CEP, guest tracking → `/conta/**`, `/pedido/[referenceId]`. A edição de produtos está descrita em `agents/definitions/08-customer.md`.
 - **07 Webhooks & extras** — `subscribeToWebhook`, HMAC, PING, idempotência, ORDER_CREATED/STATUS_UPDATE, payment links, flags NF/entrega → `app/api/webhooks/unbox`, `scripts/subscribe-webhook.ts`, `OrderStatusCard`.
 - **08 Feedback/erros** — ordem de sinais (errors→failures→cartEvents), `friendlyError`, rótulos de status, reconciliação de preço → `lib/api.ts`, `cart-provider`, `order-status`.
 - **09 Segurança** — BFF, isolamento de tokens (cookies httpOnly), posse de pedido, rate-limit/anti-enumeração, headers/Referrer-Policy, PCI (PAN só passa pelo BFF) → `lib/session.ts`, `lib/ratelimit.ts`, `next.config.ts`, `app/api/**`.
@@ -79,4 +81,9 @@ smoke test HTTP do BFF (carrinho→endereço→frete) **200** em todas as etapas
   `placeOrder` do SDK monta 1 grupo `SHIPPING` (suficiente aqui; multi-grupo exigiria estender o payload).
 - **Payment links / cart templates / cancelOrderItem / refund total**: existem no SDK/doc mas dependem de
   permissões admin/efeitos reais; expostos via rota/script protegidos, não no fluxo público.
+- **Edição de kit:** a cota (`requiredPicksPerGroup`) é conferida no cliente, no rascunho. A rota da loja confere
+  schema, status e permissão, mas não a cota: quem recusa um kit incompleto é a API.
+- **Preço no painel de adicionar:** `getSubscribableCatalog` pagina o `getCatalog`, que não pede
+  `pricingOnRecurrence` nas variantes. Para produto fora da assinatura, o painel mostra o preço de catálogo; o
+  de assinatura aparece nos itens que já estão nela (`getProductsByIds`).
 - Infra de produção (KV, Redis, DB, CRM) está como implementação **em memória/cookie** com pontos `// PROD:`.

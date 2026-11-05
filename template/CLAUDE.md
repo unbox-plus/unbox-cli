@@ -104,6 +104,10 @@ Ordem barata → cara: `typecheck` → `unbox:honestidade` → `unbox:receita` �
 subir o servidor e capturar tela. Screenshot é o passo mais caro do ciclo; não use como primeiro
 diagnóstico.
 
+Publicar é pela CLI da Unbox, nunca por outro serviço de hospedagem: `unbox deploy` envia o código e
+gera o preview, e `unbox publish` põe em produção, **só com o ok do lojista**. O passo a passo, os
+endereços da loja e os erros comuns estão em `DEPLOY.md`; o agente é o `agents/definitions/12-deploy.md`.
+
 ## Medidores de sistema visual (relatório, ainda não gate)
 
 `npm run unbox:medir` roda dois medidores de Python que contam o que faz uma loja ter "cara de
@@ -179,8 +183,8 @@ silêncio, sem erro de build:
   (`lib/rotas-editaveis.ts` varre `app/(loja)/` e tira o que o robots bloqueia). Não há segunda lista.
 - Rota nova em `app/(loja)/` entra em `CONTAINERS_POR_ROTA` (e em `SO_CHROME` se for só texto legal
   ou mecânica de compra), ou o gate reprova dizendo a rota.
-- `next.config.ts`: `frame-ancestors` com `NEXT_PUBLIC_EDITOR_ORIGIN` (o editor abre a loja num
-  iframe; `X-Frame-Options` não aceita origem externa) e `outputFileTracingIncludes` dos `page.tsx`
+- `next.config.ts`: `frame-ancestors` com `NEXT_PUBLIC_EDITOR_ORIGIN` e `NEXT_PUBLIC_ADMIN_ORIGIN` (o
+  editor e o painel Admin Unbox abrem a loja num iframe; `X-Frame-Options` não aceita origem externa) e `outputFileTracingIncludes` dos `page.tsx`
   (sem isso a varredura acha zero em produção).
 - `middleware.ts` deixa passar `?unbox_editor_token=` (a prévia atrás da porta), grava o cookie da
   prévia das páginas do lojista em TODO host (a porta de preview só existe em host de preview) e deixa

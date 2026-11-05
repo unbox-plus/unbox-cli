@@ -17,7 +17,7 @@ import { fetchDeploy, git, otherShopError, repoState } from "../git.js";
 import { aheadCount, dirtyTree, publishProblem, resolveCommit, savedKeyPath } from "../push.js";
 import { waitDeployment } from "../deployment.js";
 import {
-  CAMPOS_PRODUCAO, curto, describeLive, describeOperation, isStale, outcome, quando, readProduction, storefrontUnavailable, waitOperation,
+  CAMPOS_PRODUCAO, curto, describeLive, describeOperation, isAbandonedRollback, isStale, outcome, quando, readProduction, storefrontUnavailable, waitOperation,
 } from "../production.js";
 import {
   DEPLOYMENT_INVALID, DEPLOYMENT_NOT_FOUND, DEPLOYMENT_NOT_READY, NOT_CONFIGURED, NOT_READY, PRODUCTION_BUILD, PRODUCTION_BUSY,
@@ -78,7 +78,7 @@ function falhaDaPublicacao(errorCode, sha) {
   if (errorCode === PRODUCTION_BUILD) {
     return new CliError(
       `O build de produção do commit ${curto(sha)} falhou, mesmo com o preview ok. Produção continua com o que estava no ar. ` +
-        "Revise o que muda entre preview e produção (variáveis de ambiente, VERCEL_ENV, NEXT_PUBLIC_SITE_URL), corrija, " +
+        "Revise o que muda entre preview e produção (código que depende de VERCEL_ENV ou VERCEL_TARGET_ENV, chamadas que só a produção faz), corrija, " +
         "rode unbox deploy e publique de novo.",
       errorCode,
     );
@@ -169,14 +169,17 @@ async function lerPreview(api, sha) {
   }
 }
 
-function textoConfirmacao({ view, sha, assunto, preview }) {
+function textoConfirmacao({ view, sha, assunto, preview, now }) {
   const linhas = [
     `  No ar:     ${describeLive(view)}`,
     `  Publicar:  ${curto(sha)}${assunto ? `  ${assunto}` : ""}`,
   ];
   if (preview?.url) linhas.push(`  Preview:   ${preview.url}`);
   if (view?.url) linhas.push(`  Produção:  ${view.url}`);
-  if (view?.operation?.state === "PENDING") linhas.push(`  Em andamento: ${describeOperation(view.operation)}`);
+  if (view?.operation?.state === "PENDING") {
+    const rotulo = isAbandonedRollback(view, { now }) ? "Interrompida antes" : "Em andamento";
+    linhas.push(`  ${rotulo}: ${describeOperation(view.operation)}`);
+  }
   linhas.push("  A Unbox refaz o build com a configuração de produção: preview ok não garante produção ok.");
   return linhas.join("\n");
 }
@@ -306,7 +309,7 @@ async function publica({ api, sha, eTopo, st, dir, estado, out, sleep, now, deps
 
   // 4. Confirmação.
   const assunto = st?.isRepo && !st.insideOtherRepo ? git(["log", "-1", "--format=%s", sha], { cwd: dir }).stdout.trim() : "";
-  await confirma({ view: estado.view, sha, assunto, preview }, { yes, naoInterativo, out });
+  await confirma({ view: estado.view, sha, assunto, preview, now }, { yes, naoInterativo, out });
 
   // 5. A mutation. Repetir é seguro: idempotente por commit.
   out.progress(`  Publicando ${curto(sha)}`);

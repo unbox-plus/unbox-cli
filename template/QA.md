@@ -81,7 +81,7 @@
 ## Pós-pedido
 
 - [ ] Página `/pedido/[referenceId]` carrega com número e status
-- [ ] Webhook de pedido recebido (checar logs Vercel → Functions)
+- [ ] Webhook de pedido recebido (conferir no destino configurado em `npm run unbox:webhook:subscribe`)
 - [ ] E-mail de confirmação da Unbox chegou ao comprador
 
 ## Honestidade (bloqueante)

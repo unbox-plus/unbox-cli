@@ -35,6 +35,8 @@ export {
 
   // Status / feedback
   Check,
+  Clock,
+  CalendarBlank as Calendar,
   Check as CheckIcon,
   CheckCircle as CheckCircle2,
   CheckCircle as CircleCheckIcon,

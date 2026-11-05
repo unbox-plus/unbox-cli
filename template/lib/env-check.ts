@@ -37,7 +37,7 @@ export function checkEnv() {
   // fixo não tem a variável: lá quem diz se é produção é o VERCEL_ENV. Fora dela, vale o NODE_ENV.
   const producao = process.env.VERCEL_ENV ? process.env.VERCEL_ENV === "production" : process.env.NODE_ENV === "production";
   if (producao && (!site || /localhost|127\.0\.0\.1/.test(site) || !site.startsWith("https://"))) {
-    problemas.push("NEXT_PUBLIC_SITE_URL: ausente ou localhost em PRODUÇÃO — canonical, sitemap, robots, Open Graph, JSON-LD e o link de recuperação de carrinho saem apontando para localhost");
+    problemas.push("NEXT_PUBLIC_SITE_URL: ausente ou localhost em PRODUÇÃO: canonical, sitemap, robots, Open Graph, JSON-LD e o link de recuperação de carrinho saem apontando para localhost");
   }
   // Isto é AVISO, e não é a defesa: a defesa está em lib/session.ts, que RECUSA assinar e
   // conferir a posse sem segredo, e na primeira guarda de app/api/checkout/route.ts, que recusa

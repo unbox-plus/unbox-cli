@@ -50,6 +50,13 @@ export const subscriptionItemsSchema = z
     productId: z.string().min(1),
     variantId: z.string().min(1).nullable(),
     quantity: z.number().int().min(1),
+    // item de kit: o kit e o que o cliente escolheu dentro dele
+    productKitId: z.string().min(1).nullable().optional(),
+    productKitItemsConfigurations: z.array(z.object({
+      productId: z.string().min(1),
+      productVariantId: z.string().min(1),
+      quantity: z.number().int().min(1),
+    })).optional(),
   }))
   .min(1);
 

@@ -154,7 +154,8 @@ function erroDoPush(stderr) {
   if (host) return host;
   if (/Permission denied \(publickey/.test(stderr)) {
     return new CliError(
-      "O servidor da Unbox recusou a chave de deploy deste projeto. Rode unbox provision (ele confere a chave) e depois unbox deploy.",
+      "O servidor da Unbox recusou a chave de deploy desta máquina: a loja está ligada a outra chave (outra máquina, ou a chave foi recriada). " +
+        "Peça à Unbox a troca da chave informando a chave pública desta máquina (o .pub em ~/.config/unbox/keys/) e depois rode unbox provision e unbox deploy.",
       "CHAVE_RECUSADA",
     );
   }
