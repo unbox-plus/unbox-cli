@@ -12,6 +12,8 @@ import { loadProjectEnv, requireCredentials, describeOrigins } from "../env.js";
 import { createPartnerApi } from "../partner-api.js";
 import { requireProgram } from "../proc.js";
 import { ensureKey, rotateKey, gitSshCommand } from "../deploy-key.js";
+import { fingerprintDe, registraChave } from "../deploy-keys.js";
+import { DEPLOY_KEY_IN_USE } from "../storefront.js";
 import { assertKnownGitUrl, writeKnownHosts } from "../known-hosts.js";
 import { provisionAndWait } from "../provisioning.js";
 import { linkDeploy, linkMode, needsCommit, repoProblem, repoState } from "../git.js";
@@ -33,6 +35,9 @@ export const help = `
     4. deixa tudo pronto para o unbox deploy.
 
   A chave de deploy fica em ~/.config/unbox/keys/<shopId>_ed25519, só nesta máquina.
+  A loja aceita várias chaves: rodar o provision em outra máquina (a do cliente e a da agência,
+  por exemplo), com as credenciais da mesma loja, adiciona a chave dela como mais uma, sem tirar
+  as outras. Para ver e remover chaves: unbox keys.
   As pastas .github/, .gitea/ e .forgejo/ não vão para a Unbox: ficam fora da branch deploy
   (o .forgejo/ é o da Unbox) e continuam na sua branch.
 
@@ -98,11 +103,32 @@ async function enviaVariaveis(api, loaded, out) {
   }
 }
 
+/**
+ * Registra a chave desta máquina numa loja já provisionada. Chave em uso em outro repositório:
+ * gera outra e tenta uma vez mais, como no provisionamento. Devolve `{ chave, added }`.
+ */
+async function garanteChaveNaLoja(api, chave, { rotate, out }) {
+  for (let girou = false; ; girou = true) {
+    try {
+      const { key, added } = await registraChave(api, { publicKey: chave.publicKey });
+      if (added) out.progress(`  Chave desta máquina adicionada à loja: ${key?.title ?? chave.pubPath}`);
+      return { chave, added };
+    } catch (e) {
+      if (e?.code !== DEPLOY_KEY_IN_USE || girou) throw e;
+      chave = rotate();
+      out.warn(`  A chave de deploy desta máquina está em uso em outro repositório. Gerei outra: ${chave.pubPath}`);
+    }
+  }
+}
+
 function texto(d, extra) {
   const linhas = ["", "✓ Loja provisionada e projeto ligado à Unbox", ""];
   linhas.push(`  Repositório:  ${d.repositorySshUrl}`);
   if (d.productionUrl) linhas.push(`  Endereço:     ${d.productionUrl}  (mostra "Em breve" até o primeiro unbox publish)`);
   linhas.push(`  Branch:       deploy, rastreando unbox/deploy`);
+  if (d.deployKey) {
+    linhas.push(`  Chave:        ${d.deployKey.fingerprint}${d.deployKey.added ? " (adicionada à loja agora, ao lado das que já estavam)" : ""}`);
+  }
   if (extra.originalBranch && extra.mode === "merge") {
     linhas.push(`                a sua branch ${extra.originalBranch} ficou como estava; trabalhe na deploy`);
   }
@@ -161,7 +187,7 @@ export async function runProvision(args, globals = {}, { out, interactive = proc
   const key = ensureKey(shopId);
   if (key.created) out.progress(`  Chave de deploy criada: ${key.pubPath}`);
 
-  const { storefront, key: chave } = await provisionAndWait({
+  const { storefront, key: chaveProvisionada, registrada } = await provisionAndWait({
     api,
     key,
     rotate: () => rotateKey(shopId),
@@ -170,6 +196,14 @@ export async function runProvision(args, globals = {}, { out, interactive = proc
     ...(deps.now && { now: deps.now }),
     ...(deps.limites && { limites: deps.limites }),
   });
+
+  // A loja já estava pronta, ou foi provisionada com a chave de outra máquina: a desta entra como
+  // mais uma. Projeto com uma chave só, na máquina de sempre, não muda: a chave já está na lista.
+  let chave = chaveProvisionada;
+  let added = false;
+  if (!registrada) {
+    ({ chave, added } = await garanteChaveNaLoja(api, chave, { rotate: () => rotateKey(shopId), out }));
+  }
 
   // 3. Git.
   const sshUrl = storefront.repositorySshUrl;
@@ -187,6 +221,13 @@ export async function runProvision(args, globals = {}, { out, interactive = proc
 
   const envData = await enviaVariaveis(api, loaded, out);
   const productionUrl = await enderecoDeProducao(api, out);
-  const data = { status: storefront.status, repositorySshUrl: sshUrl, shopId, productionUrl, env: envData };
+  const data = {
+    status: storefront.status,
+    repositorySshUrl: sshUrl,
+    shopId,
+    productionUrl,
+    deployKey: { fingerprint: fingerprintDe(chave.publicKey) ?? null, added },
+    env: envData,
+  };
   out.result(data, (d) => texto(d, vinculo));
 }

@@ -58,11 +58,14 @@ provisionamento continua no servidor). No fim, envia as variáveis do `.env.loca
 parou.
 
 **Onde fica a chave:** a CLI gera uma chave de deploy em `~/.config/unbox/keys/<shopId>_ed25519`
-(o id da loja na Unbox). Ela é a única credencial do envio, e só existe nesta máquina. Em outra
-máquina (ou com a chave perdida), a loja continua ligada à chave antiga: o `unbox provision` de lá
-gera uma chave nova, mas o servidor git a recusa (`Permission denied (publickey)`). Peça à Unbox a
-troca da chave informando a pública da máquina nova (`~/.config/unbox/keys/<shopId>_ed25519.pub`) e,
-depois da troca, rode `unbox provision` de novo. Não copie a chave privada.
+(o id da loja na Unbox). Ela é a credencial do envio, e só existe nesta máquina. **A loja aceita
+várias chaves**, uma por máquina, pessoa ou CI (a do lojista e a da agência, por exemplo). Em outra
+máquina (ou com a chave perdida), rode `unbox provision` lá, com as credenciais da mesma loja: ele
+adiciona a chave daquela máquina como mais uma, sem tirar as outras. Não copie a chave privada.
+
+`unbox keys` lista as chaves da loja; `unbox keys add <arquivo.pub>` adiciona a chave pública de
+alguém que não roda a CLI (um CI, por exemplo); `unbox keys remove <fingerprint>` tira uma chave que
+não deve mais enviar código (pede confirmação).
 
 **Como fica o git:**
 
@@ -362,7 +365,8 @@ resolve; mande o que ela pede (`_id`, passo, código ou commit).
 | `OUTRA_LOJA` | A pasta está ligada a outra loja (`git config unbox.shopId`) que não a das credenciais | Conferir as credenciais do `.env.local` (o `status` só avisa) |
 | `UNEXPECTED_GIT_HOST` | O repositório da Unbox veio com um endereço inesperado | Atualizar a CLI; persistindo, falar com a Unbox |
 | `HOST_KEY_MISMATCH` | A identidade do servidor git da Unbox não confere | Atualizar a CLI e falar com a Unbox antes de qualquer outra coisa. **Não apague o `known_hosts`** |
-| `GIT_FETCH_FALHOU` | O `git fetch` da `deploy` da Unbox falhou | Com `Permission denied (publickey)`: a chave desta máquina não é a da loja (outra máquina ou chave perdida); pedir à Unbox a troca informando `~/.config/unbox/keys/<shopId>_ed25519.pub` e rodar `unbox provision` de novo. Outro erro: conferir a rede e rodar de novo |
+| `GIT_FETCH_FALHOU` | O `git fetch` da `deploy` da Unbox falhou | Conferir a rede e rodar de novo |
+| `CHAVE_RECUSADA` | O servidor git recusou a chave de deploy desta máquina: ela não está entre as chaves da loja (outra máquina, chave recriada ou removida) | `unbox provision` nesta máquina, que adiciona a chave dela à loja sem tirar as outras; depois, rodar o comando de novo |
 | `GIT_FALHOU` | Um comando git falhou (init, remote, config, add) | Ler o erro do git mostrado e rodar de novo |
 | `PROGRAMA_AUSENTE` | Outro programa externo não encontrado | Instalar o programa que a mensagem cita |
 
@@ -374,10 +378,10 @@ resolve; mande o que ela pede (`_id`, passo, código ou commit).
 | `GIT_IDENTITY_MISSING` | git sem nome e e-mail, sem terminal (ou com `--json`/`--yes`), quando o vínculo cria um commit | `git config --global user.name "Seu Nome"` e `git config --global user.email "voce@exemplo.com"` |
 | `MERGE_FALHOU` | Primeira execução num projeto com commits: o merge que cria a `deploy` falhou (a sua branch foi restaurada e a `deploy` apagada). Nova execução: a sua `deploy` e a da Unbox divergiram e o merge automático foi abortado | Primeira execução: ler o erro, resolver o que ele aponta e rodar de novo (não faça merge na sua branch). Nova execução: na `deploy`, `git merge unbox/deploy`, resolver e rodar de novo |
 | `COMMIT_FALHOU` / `VINCULO_FALHOU` | O commit do vínculo falhou | Nada foi alterado (a branch original foi restaurada); ler o erro e rodar de novo |
-| `CUSTOM_STOREFRONT_ALREADY_PROVISIONED_ERROR` | Provisionamento ainda não concluído que foi começado com a chave de outra máquina | Rodar os comandos naquela máquina, ou pedir à Unbox a troca da chave informando a chave pública desta (o caminho vem na mensagem). Com a loja já pronta, o sintoma é outro: `GIT_FETCH_FALHOU` com `publickey` |
 | `CUSTOM_STOREFRONT_NOT_CONFIGURED_ERROR` | A hospedagem não está configurada neste ambiente da Unbox | Falar com a Unbox |
 | `CUSTOM_STOREFRONT_INVALID_DEPLOY_PUBLIC_KEY_ERROR` | A chave pública foi recusada | Apagar o par `~/.config/unbox/keys/<shopId>_ed25519*` e rodar de novo |
 | `CUSTOM_STOREFRONT_DEPLOY_KEY_IN_USE_ERROR` | A chave já está em uso em outro repositório. Na primeira vez a CLI gera outra sozinha e avisa; este erro é a chave nova também recusada | Falar com a Unbox informando o `_id`, o passo e o código |
+| `CUSTOM_STOREFRONT_DEPLOY_KEYS_LIMIT_ERROR` | A loja já tem o máximo de chaves de deploy (10), e esta máquina não está entre elas | `unbox keys` e `unbox keys remove <fingerprint>` de uma que não esteja mais em uso; depois, rodar de novo |
 | `CUSTOM_STOREFRONT_HOSTING_DOMAIN_IN_USE_ERROR` | O endereço da loja (`<slug>.myunbox.com.br`) está em uso ou é reservado pela Unbox | Repetir não adianta: falar com a Unbox informando o `_id` que o comando mostra |
 | `CUSTOM_STOREFRONT_INVALID_SHOP_SLUG_ERROR` | O slug da loja não serve como nome de repositório ou de domínio | Falar com a Unbox informando o `_id` |
 | `CUSTOM_STOREFRONT_DEPLOY_WORKFLOW_MISMATCH_ERROR` | O workflow de deploy do repositório foi alterado | Falar com a Unbox informando o `_id` |
@@ -409,14 +413,14 @@ resolve; mande o que ela pede (`_id`, passo, código ou commit).
 
 | Código | Causa | O que fazer |
 |---|---|---|
-| `NAO_PROVISIONADO` | O projeto não está ligado à Unbox, ou a chave de deploy dele não está nesta máquina | `unbox provision`. Se ele parar em `GIT_FETCH_FALHOU` com `publickey`, a loja está ligada à chave de outra máquina: veja a linha do `GIT_FETCH_FALHOU` |
+| `NAO_PROVISIONADO` | O projeto não está ligado à Unbox, ou a chave de deploy dele não está nesta máquina | `unbox provision` (em outra máquina, ele adiciona a chave desta à loja) |
 | `FORA_DA_DEPLOY` | `unbox deploy` fora da branch `deploy` | `git checkout deploy` (e `git merge <sua-branch>` para trazer as mudanças) |
 | `GIT_IDENTITY_MISSING` | git sem nome e e-mail, sem terminal (ou com `--json`/`--yes`) | `git config --global user.name "..."` e `git config --global user.email "..."` |
 | `ARQUIVO_PROTEGIDO` | O envio levaria mudanças em `.forgejo/`, `.github/` ou `.gitea/` | Nada foi enviado: desfazer como o comando indica (ex.: `git checkout unbox/deploy -- .forgejo`) |
 | `BUILD_FALHOU` | Com `--build`: o `npm run build` local falhou | Nada foi commitado nem enviado: corrigir o erro mostrado |
 | `COMMIT_FALHOU` | O `git commit` falhou | Nada foi enviado; as mudanças ficaram no índice. Ler o erro e rodar de novo |
 | `REBASE_CONFLITO` / `MERGE_CONFLITO` | A `deploy` da Unbox tem commits que conflitam com os seus | Nada foi enviado: `git rebase unbox/deploy` (ou `git merge`), resolver e `unbox deploy` |
-| `CHAVE_RECUSADA` | O servidor git recusou a chave de deploy desta máquina | Pedir à Unbox a troca da chave informando `~/.config/unbox/keys/<shopId>_ed25519.pub`; depois, `unbox provision` e `unbox deploy` |
+| `CHAVE_RECUSADA` | O servidor git recusou a chave de deploy desta máquina (ela não está entre as chaves da loja) | `unbox provision` nesta máquina, que adiciona a chave dela; depois, `unbox deploy` |
 | `PUSH_RECUSADO` | O servidor recusou o envio (as linhas `remote:` dizem o motivo) | Ler o motivo; persistindo, falar com a Unbox |
 | `PUSH_FALHOU` | Outra falha no envio | Ler o erro do git, conferir a rede e rodar de novo |
 | `CUSTOM_STOREFRONT_NOT_READY_ERROR` | A loja ainda não foi provisionada | `unbox provision` |
@@ -469,6 +473,19 @@ resolve; mande o que ela pede (`_id`, passo, código ou commit).
 Só lê: uma consulta que falha vira aviso (com o código) e o resto é mostrado. Termina com erro
 (com o código da consulta) só se todas falharem; aí valem as linhas de credenciais e conexão acima.
 Um provisionamento com falha aparece com o código e o que fazer, como na tabela do `provision`.
+
+### `unbox keys`
+
+| Código | Causa | O que fazer |
+|---|---|---|
+| `CHAVE_PRIVADA` | O arquivo do `add` é uma chave privada; nada foi enviado | Passar o `.pub` do par |
+| `CHAVE_INVALIDA` | O arquivo não é uma chave pública SSH de uma linha (ssh-ed25519 ou ssh-rsa) | Conferir o arquivo |
+| `CONFIRMACAO_NECESSARIA` | `remove` sem terminal (ou com `--json`) e sem `--yes` | Rodar de novo com `--yes`, depois de conferir a chave com `unbox keys` |
+| `CUSTOM_STOREFRONT_DEPLOY_KEYS_LIMIT_ERROR` | A loja já tem o máximo de chaves (10) | Remover uma que não esteja mais em uso |
+| `CUSTOM_STOREFRONT_DEPLOY_KEY_TITLE_IN_USE_ERROR` | Outra chave da loja já tem esse título | Outro `--title` |
+| `CUSTOM_STOREFRONT_DEPLOY_KEY_NOT_FOUND_ERROR` | A chave não está (mais) na loja | `unbox keys` para ver as que estão |
+| `CUSTOM_STOREFRONT_DEPLOY_KEY_IN_USE_ERROR` | A chave já é usada em outro repositório da Unbox | Usar outra chave |
+| `CUSTOM_STOREFRONT_NOT_READY_ERROR` | A loja ainda não foi provisionada | `unbox provision` |
 
 ### Build e ambiente (sem código da CLI)
 

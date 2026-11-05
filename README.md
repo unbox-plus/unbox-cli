@@ -105,6 +105,7 @@ unbox <comando> --help       # uso e exemplos de um comando
 | `unbox publish [commit]` | publica em produção um commit com preview pronto e acompanha até o fim |
 | `unbox rollback` | volta produção para a publicação anterior (ou para a página "Em breve") |
 | `unbox status` | mostra o estado da loja, do preview do commit atual e da produção, e o que falta enviar |
+| `unbox keys` | lista, adiciona e remove as chaves de deploy da loja (uma por máquina, pessoa ou CI) |
 
 Os comandos acima, menos o `create`, falam com a Partners API da Unbox, e por isso todos seguem
 as mesmas regras abaixo.
@@ -161,7 +162,7 @@ Roda na pasta do projeto: a que o `unbox create` gerou, ou um projeto seu, com o
 
 ```bash
 unbox provision            # na pasta do projeto
-unbox provision --json     # para agentes: um objeto { status, repositorySshUrl, shopId, productionUrl, env }
+unbox provision --json     # para agentes: um objeto { status, repositorySshUrl, shopId, productionUrl, deployKey, env }
 ```
 
 1. **Provisiona** o repositório e a hospedagem da loja na Unbox e espera ficarem prontos. Leva
@@ -181,11 +182,13 @@ unbox provision --json     # para agentes: um objeto { status, repositorySshUrl,
 
 Rodar de novo é seguro: mesma chave, nada duplicado. O que convém saber:
 
-- **A chave de deploy** fica em `~/.config/unbox/keys/<shopId>_ed25519`, só nesta máquina. É a única
-  credencial do push. Em outra máquina a loja continua ligada à chave da primeira: o `provision`
-  de lá para no `git fetch` com `Permission denied (publickey)` (`GIT_FETCH_FALHOU`), e o `deploy`
-  com `CHAVE_RECUSADA`. A troca é pedida à Unbox, informando a chave pública da máquina nova. Não
-  copie a chave privada entre máquinas.
+- **A chave de deploy** fica em `~/.config/unbox/keys/<shopId>_ed25519`, só nesta máquina. É a
+  credencial do push. **A loja aceita várias chaves** (até 10), uma por máquina, pessoa ou CI: o
+  cliente e a agência podem enviar código para o mesmo projeto, cada um com a sua. Rodar o
+  `provision` em outra máquina, com as credenciais da mesma loja, adiciona a chave de lá como mais
+  uma, sem tirar as outras (no `--json`, `deployKey.added: true`). Na máquina de sempre nada muda:
+  a chave já está na loja. Não copie a chave privada entre máquinas; para ver, adicionar ou tirar
+  chaves, `unbox keys` (abaixo).
 - **O push só confia nas chaves do servidor git da Unbox que vêm na CLI** (gravadas em
   `~/.config/unbox/known_hosts`). Se o servidor apresentar outra, o comando para: atualize a CLI e,
   se continuar, fale com a Unbox.
@@ -205,6 +208,26 @@ Rodar de novo é seguro: mesma chave, nada duplicado. O que convém saber:
 - **Antes de chamar a Unbox, a CLI confere a pasta** e para, sem mudar nada, se: houver mudanças
   não commitadas (num projeto com commits), um merge ou rebase em andamento, o HEAD fora de uma
   branch, uma branch `deploy` sua que não é a da Unbox, ou a pasta for parte de outro repositório.
+
+### `unbox keys`
+
+As chaves de deploy da loja. Cada uma envia código para a loja; tirar uma não mexe nas outras.
+
+```bash
+unbox keys                                    # lista (a desta máquina vem marcada)
+unbox keys add                                # adiciona a chave desta máquina (o provision já faz)
+unbox keys add ci_ed25519.pub --title ci      # adiciona a chave pública de outra pessoa ou de um CI
+unbox keys remove SHA256:...                  # remove pelo fingerprint (ou pelo id da lista)
+```
+
+- **Só a parte pública sai da máquina.** Um arquivo com chave privada é recusado antes de qualquer
+  envio (`CHAVE_PRIVADA`).
+- **Título:** padrão `usuário@máquina` e o começo do fingerprint; com `--title`, até 50
+  caracteres, único na loja. Adicionar uma chave que já está lá não muda nada (`added: false`).
+- **Remover pede confirmação**; `--yes` pula, e com `--json` ou fora de um terminal ele é
+  obrigatório. A CLI avisa quando a chave é a desta máquina ou a última da loja. Quem usava a chave
+  removida passa a ter o envio recusado (`CHAVE_RECUSADA`), até rodar `unbox provision` de novo.
+- `--json`: `{ keys }`, `{ key, added }` ou `{ removed }`.
 
 ### `unbox env`
 
