@@ -1,5 +1,27 @@
 ## Changelog
 
+### Não publicado: várias chaves de deploy por loja, e `unbox keys`
+
+Uma loja deixa de ficar presa à chave da máquina que rodou o primeiro `unbox provision`. Ela aceita
+várias chaves de deploy (até 10), uma por máquina, pessoa ou CI: o lojista e a agência enviam código
+para o mesmo projeto, cada um com a sua. **Nada quebrou:** projeto com uma chave só, na máquina de
+sempre, segue igual, sem nada a fazer; `deploy`, `publish`, `rollback` e `status` não mudaram.
+
+- **`unbox provision` em outra máquina adiciona a chave dela.** Antes ele parava em
+  `CUSTOM_STOREFRONT_ALREADY_PROVISIONED_ERROR` (loja ainda provisionando) ou no `git fetch` com
+  `Permission denied (publickey)` (loja pronta), e a saída era pedir a troca da chave à Unbox. Agora
+  ele espera a loja ficar pronta, adiciona a chave desta máquina como mais uma, sem tirar as outras, e
+  liga o projeto normalmente. Na máquina de sempre, a chave já está na lista e nada é gravado. O
+  `--json` ganha `deployKey: { fingerprint, added }`.
+- **`unbox keys`**: lista as chaves da loja (a desta máquina vem marcada), `add [arquivo.pub]`
+  adiciona a desta máquina ou a chave pública de outra pessoa ou de um CI, e `remove <fingerprint|id>`
+  tira uma chave, com confirmação. Arquivo com chave privada é recusado antes de qualquer envio.
+- **`CHAVE_RECUSADA` também no `fetch`**, e com a instrução nova: rodar `unbox provision` nesta
+  máquina. Antes o `fetch` dava um `GIT_FETCH_FALHOU` genérico, e o texto mandava pedir a troca da
+  chave à Unbox.
+- Códigos novos: `CUSTOM_STOREFRONT_DEPLOY_KEYS_LIMIT_ERROR`, `CUSTOM_STOREFRONT_DEPLOY_KEY_TITLE_IN_USE_ERROR`,
+  `CUSTOM_STOREFRONT_DEPLOY_KEY_NOT_FOUND_ERROR`, `CHAVE_PRIVADA` e `CHAVE_INVALIDA`, na tabela do `DEPLOY.md`.
+
 ### v0.29.0 — o cliente edita os produtos da assinatura; `unbox env`, `unbox publish`, `unbox rollback` e `unbox status`
 
 **O cliente edita os produtos da assinatura, kits inclusive.**

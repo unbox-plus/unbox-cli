@@ -26,6 +26,11 @@ export const NOT_CONFIGURED = nome("NOT_CONFIGURED");
 export const NOT_READY = nome("NOT_READY");
 export const INVALID_DEPLOY_PUBLIC_KEY = nome("INVALID_DEPLOY_PUBLIC_KEY");
 
+// As chaves de deploy da loja (uma por máquina, pessoa ou CI): add, lista e remove.
+export const DEPLOY_KEYS_LIMIT = nome("DEPLOY_KEYS_LIMIT");
+export const DEPLOY_KEY_TITLE_IN_USE = nome("DEPLOY_KEY_TITLE_IN_USE");
+export const DEPLOY_KEY_NOT_FOUND = nome("DEPLOY_KEY_NOT_FOUND");
+
 // Publicação em produção: os erros síncronos da mutation e os de `operation.errorCode`, que vêm com
 // o nome completo, como estes.
 export const PRODUCTION_BUSY = nome("PRODUCTION_BUSY");

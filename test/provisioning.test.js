@@ -118,11 +118,39 @@ test("teto de 30 min: para dizendo que rodar de novo é seguro", async () => {
   assert.ok(c.agora() >= 30 && c.agora() < 31);
 });
 
-test("ALREADY_PROVISIONED: não gira a chave e mostra o caminho da pública", async () => {
+test("ALREADY_PROVISIONED (outra máquina): não é erro, espera READY sem girar a chave e devolve registrada falso", async () => {
   const erro = new PartnerApiError("Unauthorized", "X", new Error(COD("ALREADY_PROVISIONED")));
-  const c = cenario({ linha: () => sf("PROVISIONING"), mutation: () => { throw erro; } });
-  await assert.rejects(c.run(), (e) => e.code === COD("ALREADY_PROVISIONED") && /\/k0\.pub/.test(e.message));
-  assert.equal(c.chaves.length, 0);
+  let t = 0;
+  let mutations = 0;
+  const api = {
+    async request(query) {
+      if (/^mutation/.test(query)) { mutations++; throw erro; }
+      return { customStorefront: t < 3 * MIN ? sf("PROVISIONING") : sf("READY") };
+    },
+  };
+  const avisos = [];
+  const chaves = [];
+  const r = await provisionAndWait({
+    api,
+    key: { keyPath: "/k0", pubPath: "/k0.pub", publicKey: "ssh-ed25519 CHAVE0" },
+    rotate: () => { chaves.push(1); return {}; },
+    out: { progress: (m) => avisos.push(m), warn: (m) => avisos.push(m) },
+    sleep: async (ms) => { t += ms; },
+    now: () => t,
+  });
+  assert.equal(r.storefront.status, "READY");
+  assert.equal(r.registrada, false);
+  assert.equal(r.key.publicKey, "ssh-ed25519 CHAVE0");
+  assert.equal(mutations, 1);
+  assert.equal(chaves.length, 0);
+  assert.equal(avisos.filter((a) => /chave de outra máquina/.test(a)).length, 1);
+});
+
+test("leitura inicial em READY: registrada falso; mutation aceita: registrada verdadeiro", async () => {
+  const pronta = cenario({ inicial: sf("READY"), linha: () => sf("READY") });
+  assert.equal((await pronta.run()).registrada, false);
+  const nova = cenario({ linha: (t) => (t < 2 ? sf("PROVISIONING") : sf("READY")) });
+  assert.equal((await nova.run()).registrada, true);
 });
 
 test("falha de rede na mutation: repete uma vez", async () => {
