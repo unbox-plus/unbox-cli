@@ -96,7 +96,7 @@ export function BuyBox({
   ratingCount,
   kit,
 }: {
-  /** só em PDP de kit: opções do bundle e sabores; o botão de compra espera a cota fechar */
+  /** só em PDP de kit: opções do bundle e itens; o botão de compra espera a cota fechar */
   kit?: PdpKit | null;
   productId: string;
   title: string;
@@ -129,7 +129,7 @@ export function BuyBox({
   const [optId, setOptId] = React.useState(kit?.options.find((o) => o.isCurrent)?.id ?? "");
   const inline = kit?.options.find((o) => o.id === optId)?.inline;
   const kitSel = kit ? { ...kit, id: inline?.kitId ?? kit.id, required: inline?.required ?? kit.required, flavors: inline?.flavors ?? kit.flavors } : null;
-  // Sabor único: a cota inteira vai nele e o contador nem aparece (KitPicker).
+  // Item único: a cota inteira vai nele e o contador nem aparece (KitPicker).
   const initialPicks = (k: PdpKit | null): KitPicks => (k && k.flavors.length === 1 ? { [k.flavors[0].variantId]: k.required } : {});
   const [picks, setPicks] = React.useState<KitPicks>(() => initialPicks(kit ?? null));
   const setPick = (variantId: string, q: number) => setPicks((p) => ({ ...p, [variantId]: Math.max(0, q) }));

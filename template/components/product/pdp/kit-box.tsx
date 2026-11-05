@@ -26,7 +26,7 @@ export interface PdpKitOption {
   inline?: { kitId: string; required: number; price: number | null; oldPrice: number | null; flavors: PdpKitFlavor[] };
 }
 
-/** Um sabor que o cliente pode escolher para completar a cota. */
+/** Um item que o cliente pode escolher para completar a cota. */
 export interface PdpKitFlavor {
   productId: string;
   variantId: string;
@@ -107,11 +107,11 @@ export function KitOptions({ options, selectedId, onSelect }: { options: PdpKitO
   );
 }
 
-/** Contador de sabores: o cliente reparte a cota entre os itens, como o BundlePickCounter. */
+/** Contador de itens: o cliente reparte a cota entre os itens, como o BundlePickCounter. */
 export function KitPicker({ kit, picks, onChange }: { kit: PdpKit; picks: KitPicks; onChange: (variantId: string, qty: number) => void }) {
   const total = kitTotal(picks);
   const full = total >= kit.required;
-  if (kit.flavors.length < 2) return null; // um sabor só: a cota inteira vai nele, sem o que escolher
+  if (kit.flavors.length < 2) return null; // um item só: a cota inteira vai nele, sem o que escolher
   return (
     <div className="mt-6" data-editor-ignore>
       <div className="mb-2.5 flex items-center justify-between gap-3">

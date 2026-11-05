@@ -55,7 +55,7 @@ export function SubscriptionEditorItem({
   variantAction?: React.ReactNode // ao lado da variante, ex.: "Trocar"
   kitEdit?: { cap: number; options: KitComponent[]; initialPicks: KitPick[]; onConfirm: (picks: KitPick[]) => void } // kit: "Editar itens"
   picksChanged?: boolean // kit: os itens escolhidos mudaram em relação ao salvo
-  children?: React.ReactNode // abaixo do cabeçalho: painel de troca de variante, "Editar sabores"
+  children?: React.ReactNode // abaixo do cabeçalho: painel de troca de variante, "Editar itens"
 }) {
   const [picksOpen, setPicksOpen] = React.useState(false)
   const [editingKit, setEditingKit] = React.useState(false)
