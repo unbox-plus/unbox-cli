@@ -27,13 +27,13 @@ async function fillMissingThumbnails(cart: UiCart): Promise<void> {
   }
 }
 
-// O carrinho do kit só traz o título do bundle e os sabores; o nome da opção ("3 Caixas") vem do catálogo.
+// O carrinho do kit só traz o título do bundle e os itens; o nome da opção ("3 Caixas") vem do catálogo.
 async function fillKitLabels(cart: UiCart): Promise<void> {
   await Promise.all(cart.items.filter((i) => i.kitId).map(async (i) => {
     try {
       i.kitLabel = (await getKitLabel(i.kitId!)) ?? undefined;
     } catch {
-      /* rótulo é cosmético: sem ele a linha mostra só os sabores */
+      /* rótulo é cosmético: sem ele a linha mostra só os itens */
     }
   }));
 }

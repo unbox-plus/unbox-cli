@@ -61,7 +61,7 @@ export const getProductBySlug = cache((slug: string) =>
   )(),
 );
 
-// Sabores e cota do kit (só PDP de kit). Mesmo cache do produto: some junto na revalidação do catálogo.
+// Itens e cota do kit (só PDP de kit). Mesmo cache do produto: some junto na revalidação do catálogo.
 export const getKit = cache((productId: string) =>
   unstable_cache(
     () => withStoreClient((c) => c.getProductKit(productId)),
