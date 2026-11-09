@@ -7,6 +7,7 @@ import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { parseArgs } from "../args.js";
 import { CliError, UsageError } from "../errors.js";
+import { templateStatus } from "../template-version.js";
 import { loadProjectEnv, requireCredentials, describeOrigins } from "../env.js";
 import { createPartnerApi } from "../partner-api.js";
 import { requireProgram } from "../proc.js";
@@ -96,6 +97,8 @@ export async function runDeploy(args, globals = {}, { out, interactive = process
 
   const naoInterativo = Boolean(globals.yes || globals.json || !interactive);
   const dir = path.resolve(globals.dir ?? process.cwd());
+  // A versão do template, consultada em paralelo com o deploy (nunca atrasa nem derruba nada).
+  const templateEmSegundoPlano = templateStatus(dir, { latest: deps.latest, cliVersion: deps.cliVersion }).catch(() => null);
 
   // 1. Locais, sem API e sem alterar nada.
   requireProgram("git");
@@ -154,4 +157,20 @@ export async function runDeploy(args, globals = {}, { out, interactive = process
   });
   const previewUrl = await previewEstavel(api, out);
   out.result({ commitSha: dep.commitSha, state: dep.state, url: dep.url, previewUrl }, texto);
+  await avisoDeTemplate(templateEmSegundoPlano, out);
+}
+
+/**
+ * Uma linha, em stderr, só quando a loja tem carimbo e está atrás da CLI PUBLICADA (a consulta ao npm, que corre em
+ * paralelo com o deploy e falha em silêncio): a loja não atualiza sozinha, e o deploy é o momento em que alguém
+ * está olhando. Sem resposta do npm (ou com UNBOX_NO_UPDATE_CHECK=1) fica mudo: comparar com a CLI em uso avisaria
+ * toda loja antiga em todo deploy de CI. Nunca muda o --json nem o código de saída.
+ */
+async function avisoDeTemplate(promessa, out) {
+  try {
+    const t = await promessa;
+    if (t?.versao && t.fonte === "npm" && t.atualizada === false) {
+      out.warn(`  Aviso: o template desta loja (${t.versao}) está atrás da CLI publicada (${t.atual}). Veja o que mudou: unbox analyze-version; para aplicar a parte mecânica: unbox upgrade-template.`);
+    }
+  } catch { /* o aviso nunca derruba um deploy que deu certo */ }
 }
