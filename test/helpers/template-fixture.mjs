@@ -42,6 +42,7 @@ export const ATUAL = {
   "lib/reescrita.ts": Array.from({ length: 40 }, (_, i) => `export const x${i} = ${i * 10};`).join("\n") + "\n",
   "lib/novo.ts": "export const novo = 1;\n",
   "lib/novo-importa-ausente.ts": 'import { z } from "@/lib/nao-existe";\nexport const n = z;\n',
+  ".claude/skills/migrar/SKILL.md": "# skill\n",
   "lib/unbox.ts": "export const unbox = 1;\n",
   "lib/editable/document.ts": "export const doc = 2;\n",
   "lib/editable/config.ts": 'export const STORE_SLUG = "__STORE_SLUG__";\nexport const V = 2;\n',
@@ -67,6 +68,7 @@ export function LOJA(versao = "0.29.0") {
   l["lib/reaplicar.ts"] = "export const r = 1;\nexport const r2 = 2;\nexport const meu = 9;\n";
   l["lib/reescrita.ts"] = Array.from({ length: 40 }, (_, i) => `export const y${i} = ${i};`).join("\n") + "\n";
   l["lib/so-loja.ts"] = "export const s = 2;\n";
+  l[".claude/skills/migrar/SKILL.md"] = "# skill\n"; // a loja já trouxe à mão, igual: intacto, não colisão
   l["lib/unbox/x.ts"] = "export const x = 1;\nexport const meu = 1;\n";
   l["lib/unbox/proprio.ts"] = "export const proprio = 1;\n";
   l["lib/importa-removido.ts"] = 'import { old2 } from "@/lib/removido-importado";\nexport const u = old2;\n';

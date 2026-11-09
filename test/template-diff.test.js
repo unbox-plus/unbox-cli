@@ -29,6 +29,7 @@ test("cada grupo recebe o arquivo do seu caso", () => {
   assert.deepEqual(nomes(g.reescrita), ["lib/reescrita.ts"]);
   assert.deepEqual(nomes(g.so_loja), ["lib/so-loja.ts"]);
   assert.ok(nomes(g.intacto).includes("lib/intacto.ts"));
+  assert.ok(nomes(g.intacto).includes(".claude/skills/migrar/SKILL.md"), "novo no template que a loja já tem igual = intacto");
   assert.ok(nomes(g.novo_na_loja).includes("lib/unbox/proprio.ts"));
   assert.deepEqual(nomes(g.novo_no_template).sort(), ["lib/novo-importa-ausente.ts", "lib/novo.ts", "lib/unbox.ts"]);
   assert.deepEqual(nomes(g.removido_no_template).sort(), ["lib/removido-importado.ts", "lib/removido.ts", "lib/unbox/x.ts", "lib/unbox/y.ts"]);
@@ -179,4 +180,15 @@ test("template igual à base: nada muda, tudo intacto ou da loja", () => {
   const { base, loja } = arvores();
   const { grupos: g } = classificar({ base, atual: base, loja });
   for (const k of ["copiar", "reaplicar", "reescrita", "personalizado", "foundation", "novo_no_template", "removido_no_template"]) assert.equal(g[k].length, 0, k);
+});
+
+test(".claude/ entra na comparação (agentes, settings e as skills de migração vêm do template); node_modules e .next não", () => {
+  const raiz = fs.mkdtempSync(path.join(os.tmpdir(), "claude-tree-"));
+  for (const rel of [".claude/skills/migrar-loja-analisar/SKILL.md", ".claude/settings.json", ".claude/agents/x.md", "node_modules/a/index.js", ".next/x.js", "lib/a.ts"]) {
+    fs.mkdirSync(path.dirname(path.join(raiz, rel)), { recursive: true });
+    fs.writeFileSync(path.join(raiz, rel), "x");
+  }
+  const nomes = [...readTree(raiz).keys()].sort();
+  assert.deepEqual(nomes, [".claude/agents/x.md", ".claude/settings.json", ".claude/skills/migrar-loja-analisar/SKILL.md", "lib/a.ts"]);
+  fs.rmSync(raiz, { recursive: true, force: true });
 });

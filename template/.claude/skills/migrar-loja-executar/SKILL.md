@@ -37,7 +37,7 @@ sozinho (`tsc --noEmit` limpo entre um e outro) e porque o seguinte depende do a
 2. **Versões intermediárias** (0.22 → 0.24, conforme a base): home em `PaginaInicial`, público, LPs, moldura.
 3. **0.29 assinaturas**: depende do SDK `^0.4.0` ou mais.
 4. **Kits** (só se forem kits da Unbox).
-5. **Infra e docs**: `next.config.ts`, `.env.example`, `env-check`, `DEPLOY.md`, agentes, `CLAUDE.md`.
+5. **Infra e docs**: `next.config.ts`, `.env.example`, `env-check`, `DEPLOY.md`, agentes, `CLAUDE.md`, e o `.claude/` (settings, agentes e as skills `migrar-loja-*` que o template passou a levar: entram como qualquer arquivo do template; `.claude/settings.json` costuma ser da loja).
 6. **Editor**: rotas, colisões, vitrine, primitivos; é o bloco mais longo e o único com decisão por seção.
 
 O que cada bloco contém por versão está em `MIGRACAO.md` do repo da CLI (a análise já imprime as fichas; o

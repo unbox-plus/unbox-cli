@@ -7,10 +7,9 @@
 // manter o da loja. A classificação abaixo é essa decisão, mecanizada onde dá e nomeada onde não dá.
 import fs from "node:fs";
 import path from "node:path";
-
-/** O que não é código da loja (segredo, dependência, saída de ferramenta, insumo) e fica fora da comparação. */
+/** O que não é código da loja (segredo, dependência, saída de ferramenta, insumo) e fica fora da comparação. `.claude/` ENTRA: o template leva agentes, settings e as skills de migração, e a loja precisa recebê-los. */
 const EXCLUIR = [
-  /^(node_modules|\.next|\.git|\.vercel|\.local|\.claude|marca|producao|shots|reviews)\//,
+  /^(node_modules|\.next|\.git|\.vercel|\.local|marca|producao|shots|reviews)\//,
   /^\.env$/, /^\.env\.local$/, /^\.env\..*\.local$/, /^\.mcp\.json$/,
   /^(bootstrap\.sh|package-lock\.json|pnpm-lock\.yaml|yarn\.lock|\.DS_Store)$/,
   /^public\/(?!brand\/)/, // public/ é da loja (fotos, vídeos); só public/brand é do template, e é personalizado
@@ -76,7 +75,8 @@ export function linhasDiferentes(a, b) {
  *   reescrita            os dois mudaram; a da loja é a maior: a do template entra na versão da loja
  *   personalizado        o create reescreveu; se o template mudou, o diff base→atual é o que se reaplica à mão
  *   foundation           lib/editable e o gate: copiar byte a byte (ou pendente, se editada à mão: `editada`)
- *   novo_no_template     copiar, salvo `colide` (a loja já tem o caminho, ou uma pasta homônima: `lib/unbox.ts` × `lib/unbox/`)
+ *   novo_no_template     copiar, salvo `colide` (a loja já tem o caminho com outro conteúdo, ou uma pasta homônima: `lib/unbox.ts` × `lib/unbox/`);
+ *                        já igual ao template na loja = intacto
  *   removido_no_template apagar, salvo `loja_alterou` ou `bloqueado` (a pasta tem arquivo da loja: nada da pasta sai)
  *   removido_pela_loja   a loja apagou; `template_mudou` diz se o template ainda conta com ele
  *   so_loja, intacto, novo_na_loja
@@ -94,6 +94,8 @@ export function classificar({ base, atual, loja }) {
       continue;
     }
     if (a && !b) {
+      // a loja já trouxe o arquivo novo à mão, igual ao template: nada a fazer (não é colisão)
+      if (l && iguais(a, l)) { g.intacto.push({ arquivo: rel }); continue; }
       const semExt = rel.replace(/\.[^./]+$/, "");
       const colide = Boolean(l) || dirsDaLoja.has(semExt);
       g.novo_no_template.push({ arquivo: rel, colide, motivo: l ? "a loja já tem um arquivo com este caminho" : colide ? `a loja tem a pasta ${semExt}/, e o import ficaria ambíguo` : undefined });
