@@ -1,0 +1,33 @@
+{
+  "_": [
+    "Como reconhecer a versão do template que gerou uma loja. Lido por tools/cli-version-lojas.sh (pela API do GitHub), por src/template-version.js (unbox analyze-version),",
+    "por .claude/skills/migrar-loja-analisar/scripts/analisar-loja.py (loja clonada) e por tools/check-migracao.mjs (gate).",
+    "Do `carimbo.desde` em diante o `unbox create` grava a versão no package.json da loja, e é ele que vale; os",
+    "`marcadores` existem para as lojas geradas antes disso e NÃO precisam de entrada nova por versão.",
+    "Checagem: [\"file\", caminho] | [\"dir\", caminho] | [\"grep\", caminho, regex] | [\"nogrep\", caminho, regex].",
+    "Versão sem marcador próprio (0.20.0, 0.20.2, 0.21.0-2, 0.21.4, 0.27, 0.28) é lida como a anterior com marcador.",
+    "`tag` diz qual tag do git serve de template-base quando a versão não tem tag própria (null = HEAD)."
+  ],
+  "carimbo": { "arquivo": "package.json", "campo": "unbox.templateVersion", "desde": "0.30.0" },
+  "aliases": { "0.20.3": "0.20.3–0.20.5", "0.26.0": "0.26.0–0.28.0" },
+  "tag": { "0.26.0": "0.25.0", "0.29.0": null, "< 0.17.1": "0.17.1" },
+  "marcadores": [
+    { "versao": "0.17.1", "npm": false, "checagens": [["file", "app/(loja)/categoria/[tagSlug]/page.tsx"]] },
+    { "versao": "0.20.1", "npm": false, "checagens": [["dir", "lib/editable"], ["file", "scripts/check-editable.mjs"]] },
+    { "versao": "0.20.3", "npm": false, "checagens": [["file", "lib/newsletter.ts"], ["file", "components/chrome/footers/captura-botao.tsx"]] },
+    { "versao": "0.21.3", "npm": true, "checagens": [["file", "lib/paginas-do-lojista.ts"], ["file", "lib/segredo-da-loja.ts"]] },
+    { "versao": "0.21.5", "npm": true, "checagens": [["grep", "lib/editable/document.ts", "TETO_DO_CSS|set_css"], ["grep", "package.json", "\"next\":\\s*\"15\\.5\\.24\""]] },
+    { "versao": "0.21.6", "npm": true, "checagens": [["grep", "lib/customer-session.ts", "\\blerDaConta\\b"]] },
+    { "versao": "0.21.7", "npm": true, "checagens": [["file", "lib/seo-das-rotas.ts"]] },
+    { "versao": "0.21.8", "npm": true, "checagens": [["file", "lib/dados-da-loja.ts"]] },
+    { "versao": "0.21.9", "npm": true, "checagens": [["grep", "lib/editable/document.ts", "CAMINHO_LITERAL_DA_LOJA"]] },
+    { "versao": "0.21.10", "npm": true, "checagens": [["grep", "lib/orders.ts", "\\btextoDeDinheiro\\b"]] },
+    { "versao": "0.22.0", "npm": true, "checagens": [["grep", "lib/config.ts", "partners\\.unbox\\.com\\.br"], ["nogrep", "lib/config.ts", "core\\.unbox\\.com\\.br/graphql|UNBOX_CAPTCHA_BYPASS"]] },
+    { "versao": "0.22.1", "npm": true, "checagens": [["grep", "lib/editable/document.ts", "TELEFONE_DO_BRASIL_SEM_55|numeroDoWhatsapp"]] },
+    { "versao": "0.23.0", "npm": true, "checagens": [["file", "lib/personalizacao.ts"], ["file", "lib/publicos-da-borda.ts"]] },
+    { "versao": "0.24.0", "npm": true, "checagens": [["file", "lib/chrome-das-paginas.ts"], ["file", "components/moldura-da-loja.tsx"]] },
+    { "versao": "0.25.0", "npm": true, "checagens": [["grep", "package.json", "\"@unbox-plus/sdk\""], ["file", "lib/unbox.ts"]] },
+    { "versao": "0.26.0", "npm": false, "checagens": [["file", "lib/subscription-items.ts"]] },
+    { "versao": "0.29.0", "npm": true, "checagens": [["dir", "components/account/subscription-editor"], ["file", "lib/subscription-draft.ts"]] }
+  ]
+}
