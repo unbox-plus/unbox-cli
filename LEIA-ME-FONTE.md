@@ -24,6 +24,9 @@ npm pack                    # gera o tarball (o prepack roda o gate de neutralid
 | `src/partner-api.js` | a conexão com a Partners API: camada fina sobre o `@unbox-plus/sdk`, traduz a recusa num `code` e numa mensagem |
 | `src/paths.js` | onde o pacote mora no disco (`TEMPLATE_DIR`) |
 | `src/commands/provision.js` | o `unbox provision`: checagens locais, provisionamento e vínculo, nessa ordem |
+| `src/commands/analyze-version.js`, `upgrade-template.js` | a migração de loja já gerada: a análise (três árvores) e a aplicação da parte mecânica |
+| `src/template-diff.js` | puro: classifica template@base × template@atual × loja, auditoria do editor, régua |
+| `src/template-fetch.js`, `src/migracao.js`, `src/template-version.js` | o template de uma versão do npm (cache em `~/.config/unbox/templates`), o parser do `MIGRACAO.md`, a versão-base (carimbo ou `src/version-markers.json`) |
 | `src/provisioning.js` | o acompanhamento do provisionamento: quando chamar de novo, quando desistir (prazos medidos no backend) |
 | `src/storefront.js` | regras puras: códigos que não se repetem e o código do backend lido da mensagem do erro |
 | `src/git.js` | o estado do repositório (só leitura) e o vínculo com a `deploy` da Unbox, sem tocar nas branches do usuário |
@@ -111,6 +114,9 @@ gate do `prepack` recusa dizendo isso, mas é mais barato não chegar lá.
 | `check-template-neutro.mjs` | gate do `prepack`: bloqueia o empacotamento se a foundation tiver vocabulário de um ramo específico ou nome de cliente, comentário incluído. Também reprova travessão no texto que o wizard imprime e dependência local (`file:`) no `package.json` |
 | `partner-api-smoke.mjs` | smoke test da conexão com a Partners API contra um ambiente real (ver `tools/LEIA-ME.md`) |
 | `notion-doc.mjs` | gera a página do Notion a partir do `CHANGELOG.md` e do `package.json` |
+| `check-migracao.mjs` | o gate da ficha de migração: a versão do `package.json` tem seção em `MIGRACAO.md` e os marcadores de `src/version-markers.json` batem no template (roda no `prepack` e no release) |
+| `cli-version-lojas.sh` | lista, pela API do GitHub, a versão do template de cada loja que um token enxerga |
+| `sync-skills.mjs` | copia as skills de migração de `.claude/skills/` para `template/.claude/skills/`; `--check` reprova drift e caminho não portável (roda no `prepack` e no `npm test`) |
 | `tokenize-neutrals.mjs`, `tokenize-radius.mjs` | varreduras usadas nas migrações de paleta e de raio |
 | `workflow-storefront.legado.js` | legado da era anterior ao CLI, mantido só como referência |
 
@@ -148,3 +154,24 @@ Vivem em `template/scripts/` e são copiados para cada loja:
 
 Todos usam a mesma convenção de saída: `0` aprovado, `1` reprovado, **`2` o gate não rodou** —
 porque gate que varre o vazio e diz "limpo" aprova sem ter olhado.
+
+## Ao fechar uma versão
+
+Cinco passos, porque `template/` é copiado para a loja e a loja não recebe atualização sozinha:
+
+1. bump em `package.json`;
+2. bloco `### vX.Y.Z` no topo do `CHANGELOG.md` (vira o release; `github-release.mjs` o lê e recusa se a versão
+   não bater com o `package.json`);
+3. ficha `## X.Y.Z` em `MIGRACAO.md`, no formato fixo do topo dele. É o que uma migração de loja consome
+   (skills `migrar-loja-analisar` e `migrar-loja-executar`, fonte em `.claude/skills/`, cópia gerada em
+   `template/.claude/skills/` por `npm run sync:skills`; `check:skills` acusa drift). A parte mecânica sai de
+   `git diff --name-status <tag-anterior> HEAD -- template`; a parte que só quem fez a versão sabe é "Loja já
+   gerada", "Mudanças de comportamento" (sempre com os dois lados, migrar × manter) e "Armadilhas";
+4. marcador em `src/version-markers.json` só se a mudança renomeou ou apagou um arquivo que já é marcador
+   (o gate acusa). Da 0.30.0 em diante a loja carrega `unbox.templateVersion` no `package.json` (carimbado pelo
+   `create`), e versão nova não precisa de marcador;
+5. `npm run check:migracao` verde. O `prepack` e o `github-release.mjs` o rodam; sem a ficha não há pacote nem
+   release;
+6. com tudo em `main` e a árvore limpa, `npm run release`: lê o bloco do CHANGELOG em `origin/main`, confere a
+   versão, cria a tag e o release no GitHub, e o workflow `npm-publish.yml` publica no npm quando o release sai.
+   `npm run release -- --previa` só mostra o que faria.
