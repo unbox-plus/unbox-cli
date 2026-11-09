@@ -21,7 +21,8 @@
   "files": [
     "bin",
     "src",
-    "template"
+    "template",
+    "MIGRACAO.md"
   ],
   "engines": {
     "node": ">=20.11"
@@ -42,6 +43,9 @@
     "test": "node --test test/*.test.js",
     "check:neutro": "node tools/check-template-neutro.mjs",
     "release": "node tools/github-release.mjs",
-    "prepack": "node tools/check-template-neutro.mjs"
+    "check:migracao": "node tools/check-migracao.mjs",
+    "prepack": "node tools/check-template-neutro.mjs && node tools/check-migracao.mjs && node tools/sync-skills.mjs --check",
+    "check:skills": "node tools/sync-skills.mjs --check",
+    "sync:skills": "node tools/sync-skills.mjs"
   }
 }
