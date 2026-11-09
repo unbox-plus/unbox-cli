@@ -18,6 +18,7 @@ import Image, { type ImageProps } from "next/image";
 import Link from "next/link";
 import { caminhoTemContainer, type EditableType, type EditableValue, type ImageValue, type LinkValue, linksExternosEmNovaAba, type PreviaDaVitrine, produtosDaVitrine, recusaDeHtml, recusaDeTextoRico, type SectionKind, SUFIXO_HTML, SUFIXO_RICO, type EstiloResolvido, joinPath, resolveStyle, resolveStyleDeSecao, resolveValue, vitrineValida, type VitrineValue } from "./document";
 import { EditableContextProvider, EditableFatia, useEditableContext } from "./provider";
+import { imagemOtimizada } from "./imagem-otimizada";
 
 /**
  * RECADO PARA QUEM CONSTRUIU A LOJA, só em desenvolvimento e uma vez por defeito. Não é recado para o
@@ -139,12 +140,17 @@ type EditableImgProps = {
  * (assets da marca servidos direto de /public, `<picture>` com duas artes,
  * logo sem width/height). Rende exatamente o `<img>` de antes; o resto das
  * props (className, width, height, loading…) passa direto.
+ *
+ * Com `sizes`, a foto passa pelo otimizador do Next (lib/editable/imagem-otimizada.ts): o
+ * elemento continua o mesmo `<img>`, agora com `srcSet` em WebP na largura da tela. É
+ * o que o banner usa: a arte que a marca ou o lojista sobe chega do tamanho que vier.
  */
-function EditableImg({ path, fallback, label, ...rest }: EditableImgProps) {
+function EditableImg({ path, fallback, label, sizes, ...rest }: EditableImgProps) {
   const { value, ref, attrs } = useRegistration(path, "image", fallback, label);
   const v = value as ImageValue;
+  const otimizada = sizes ? imagemOtimizada(v.src, sizes) : { src: v.src };
   // eslint-disable-next-line @next/next/no-img-element
-  return <img ref={ref as React.Ref<HTMLImageElement>} src={v.src} alt={v.alt ?? fallback.alt ?? ""} {...attrs} {...rest} />;
+  return <img ref={ref as React.Ref<HTMLImageElement>} {...otimizada} alt={v.alt ?? fallback.alt ?? ""} {...attrs} {...rest} />;
 }
 
 type EditableLinkProps = {

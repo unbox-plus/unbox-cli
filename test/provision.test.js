@@ -6,6 +6,7 @@ import fs from "node:fs";
 import path from "node:path";
 import prompts from "prompts";
 import { runProvision } from "../src/commands/provision.js";
+import { fingerprintDe } from "../src/deploy-keys.js";
 import { createOutput } from "../src/output.js";
 import { sandbox, remotoDaUnbox, projetoComCommits, projetoSemGit, g, escreve, SSH_URL } from "./helpers/git-sandbox.mjs";
 
@@ -28,16 +29,30 @@ function credenciais(dir) {
 function apiFalsa({
   producao = () => ({ url: "https://loja-teste.myunbox.com.br" }),
   ambiente = (input) => ({ keys: input.set.map((x) => x.key).sort() }),
+  // Loja já provisionada por outra máquina: READY desde a primeira leitura, e a mutation de
+  // provisionamento recusa outra chave.
+  outraMaquina = false,
+  chavesNaLoja = [],
+  adicionar = (input) => ({ _id: String(10 + chavesNaLoja.length), title: input.title, fingerprint: fingerprintDe(input.deployPublicKey), createdAt: null }),
 } = {}) {
   const chamadas = [];
-  let provisionada = false;
+  const adicionadas = [];
+  let provisionada = outraMaquina;
   const api = {
     endpoint: "https://partners.teste/graphql",
     async shopId() { chamadas.push("shopId"); return "loja1"; },
     async request(query, vars) {
       chamadas.push(query.match(/\{\s*(\w+)/)[1]);
       if (/setCustomStorefrontEnvironment/.test(query)) return { setCustomStorefrontEnvironment: ambiente(vars.input) };
+      if (/customStorefrontDeployKeys/.test(query)) return { customStorefrontDeployKeys: [...chavesNaLoja] };
+      if (/addCustomStorefrontDeployKey/.test(query)) {
+        const k = adicionar(vars.input);
+        adicionadas.push(vars.input);
+        chavesNaLoja.push(k);
+        return { addCustomStorefrontDeployKey: k };
+      }
       if (/provisionCustomStorefront/.test(query)) {
+        if (outraMaquina) throw new Error("CUSTOM_STOREFRONT_ALREADY_PROVISIONED_ERROR");
         provisionada = true;
         return { provisionCustomStorefront: { _id: "sf1", status: "PROVISIONING", currentStep: "GIT_REPOSITORY", repositorySshUrl: null, lastErrorCode: null } };
       }
@@ -45,7 +60,7 @@ function apiFalsa({
       return { customStorefront: provisionada ? { _id: "sf1", status: "READY", currentStep: null, repositorySshUrl: SSH_URL, lastErrorCode: null } : null };
     },
   };
-  return { api, chamadas, createApi: async ({ out }) => { out.addSecrets(SENHA); return api; } };
+  return { api, chamadas, adicionadas, createApi: async ({ out }) => { out.addSecrets(SENHA); return api; } };
 }
 
 async function roda(dir, globals, { interactive = false, falsa = apiFalsa() } = {}) {
@@ -80,6 +95,7 @@ test("--json, pasta do unbox create: um único objeto, deploy criada, nada de se
       repositorySshUrl: SSH_URL,
       shopId: "loja1",
       productionUrl: "https://loja-teste.myunbox.com.br",
+      deployKey: { fingerprint: obj.data.deployKey.fingerprint, added: false },
       env: {
         sent: ["UNBOX_PARTNER_API_KEY", "UNBOX_USER", "UNBOX_PASS"],
         skipped: [],
@@ -88,6 +104,10 @@ test("--json, pasta do unbox create: um único objeto, deploy criada, nada de se
       },
     },
   });
+  assert.match(obj.data.deployKey.fingerprint, /^SHA256:[A-Za-z0-9+/]{43}$/);
+  // A máquina que provisionou não precisa do add: a chave dela já é a do provisionamento.
+  assert.ok(!r.chamadas.includes("customStorefrontDeployKeys"));
+  assert.ok(!r.chamadas.includes("addCustomStorefrontDeployKey"));
   assert.ok(r.chamadas.includes("setCustomStorefrontEnvironment"));
   assert.equal(g(dir, "symbolic-ref", "--short", "HEAD"), "deploy");
   const privada = fs.readFileSync(path.join(sb.home, ".config/unbox/keys/loja1_ed25519"), "utf8");
@@ -271,4 +291,62 @@ test("nenhuma variável enviada: o texto avisa que o build vai falhar", { skip: 
   const r = await roda(dir, {});
   assert.equal(r.erro, undefined, r.erro?.message);
   assert.match(r.stdout, /Variáveis: {4}nenhuma enviada; sem elas o build da loja falha/);
+});
+
+test("segunda máquina (loja pronta com a chave de outra): adiciona a chave desta como mais uma e liga o projeto", { skip: semKeygen }, async () => {
+  const sb = sandbox();
+  remotoDaUnbox(sb);
+  const dir = projetoSemGit(sb);
+  credenciais(dir);
+  const outra = { _id: "1", title: "cli-loja-teste", fingerprint: "SHA256:" + "A".repeat(43), createdAt: "2026-10-01T00:00:00Z" };
+  const falsa = apiFalsa({ outraMaquina: true, chavesNaLoja: [outra] });
+  const r = await roda(dir, { json: true }, { falsa });
+  assert.equal(r.erro, undefined, r.erro?.message);
+  const obj = JSON.parse(r.stdout);
+  assert.equal(obj.data.deployKey.added, true);
+  assert.equal(falsa.adicionadas.length, 1);
+  const pub = fs.readFileSync(path.join(sb.home, ".config/unbox/keys/loja1_ed25519.pub"), "utf8").trim();
+  assert.equal(falsa.adicionadas[0].deployPublicKey, pub);
+  assert.ok(falsa.adicionadas[0].title.length <= 50);
+  assert.equal(obj.data.deployKey.fingerprint, fingerprintDe(pub));
+  assert.match(r.stderr, /adicionada à loja/);
+  assert.equal(g(dir, "symbolic-ref", "--short", "HEAD"), "deploy");
+});
+
+test("segunda máquina, de novo: a chave já está na loja, nada é adicionado", { skip: semKeygen }, async () => {
+  const sb = sandbox();
+  remotoDaUnbox(sb);
+  const dir = projetoSemGit(sb);
+  credenciais(dir);
+  const primeira = apiFalsa({ outraMaquina: true });
+  assert.equal((await roda(dir, { json: true }, { falsa: primeira })).erro, undefined);
+  // agora a lista da loja tem a chave desta máquina
+  const pub = fs.readFileSync(path.join(sb.home, ".config/unbox/keys/loja1_ed25519.pub"), "utf8").trim();
+  const jaLa = apiFalsa({ outraMaquina: true, chavesNaLoja: [{ _id: "7", title: "x", fingerprint: fingerprintDe(pub), createdAt: null }] });
+  const r = await roda(dir, { json: true }, { falsa: jaLa });
+  assert.equal(r.erro, undefined, r.erro?.message);
+  assert.equal(JSON.parse(r.stdout).data.deployKey.added, false);
+  assert.equal(jaLa.adicionadas.length, 0);
+});
+
+test("segunda máquina com a chave em uso em outro repositório: gera outra e adiciona a nova", { skip: semKeygen }, async () => {
+  const sb = sandbox();
+  remotoDaUnbox(sb);
+  const dir = projetoSemGit(sb);
+  credenciais(dir);
+  let n = 0;
+  const falsa = apiFalsa({
+    outraMaquina: true,
+    adicionar: (input) => {
+      if (++n === 1) throw new Error("CUSTOM_STOREFRONT_DEPLOY_KEY_IN_USE_ERROR");
+      return { _id: "11", title: input.title, fingerprint: fingerprintDe(input.deployPublicKey), createdAt: null };
+    },
+  });
+  const r = await roda(dir, { json: true }, { falsa });
+  assert.equal(r.erro, undefined, r.erro?.message);
+  const pub = fs.readFileSync(path.join(sb.home, ".config/unbox/keys/loja1_ed25519.pub"), "utf8").trim();
+  assert.equal(falsa.adicionadas.length, 1);
+  assert.equal(falsa.adicionadas[0].deployPublicKey, pub);
+  assert.ok(fs.existsSync(path.join(sb.home, ".config/unbox/keys/loja1_ed25519.bak")));
+  assert.match(r.stderr, /em uso em outro repositório/);
 });

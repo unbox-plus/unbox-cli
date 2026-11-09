@@ -1,5 +1,81 @@
 ## Changelog
 
+### v0.30.0 — a loja sabe a versão do template que a gerou; `unbox analyze-version`, `unbox upgrade-template` e `unbox keys`
+
+**A loja carrega a versão do template, e a CLI diz o que mudou desde então.**
+
+A loja gerada é uma cópia de `template/` na versão que a criou e não recebe atualização sozinha. Até aqui,
+saber de que versão uma loja partiu era arqueologia (o primeiro commit, ou um arquivo que só existe a partir
+de certa versão), e trazer a loja ao template atual era uma sessão inteira lendo diffs. Agora a versão vai
+escrita na loja, a CLI avisa quando ela fica para trás, e dois comandos fazem a análise e a parte mecânica
+da migração.
+
+- **`unbox create` carimba `unbox.templateVersion` no `package.json` da loja.** É a fonte da versão daqui em
+  diante. Loja gerada antes desta versão não tem o carimbo e é reconhecida por marcadores
+  (`src/version-markers.json`, um arquivo ou trecho que só existe a partir de cada versão).
+- **`unbox status` ganhou a seção Template**: a versão que gerou a loja, a da CLI em uso e a publicada no npm.
+  No `--json`, o campo `template`. A consulta ao npm leva até 2 s e falha em silêncio.
+- **`unbox deploy` avisa, em stderr, quando a loja tem carimbo e está atrás da CLI publicada**, apontando os
+  dois comandos abaixo. Só o aviso: o deploy segue.
+- **`unbox analyze-version`** (só lê; sem credenciais): a versão-base da loja, cada arquivo classificado contra
+  o template da base e o atual (copiar direto, reaplicar, reescrita, personalizado pelo `create`, foundation do
+  editor, novo, removido), a auditoria do editor (o que o gate `unbox:editavel` reprovaria), as mudanças de
+  comportamento que são decisão do dono da loja, a régua refatorar × refazer e as fichas de `MIGRACAO.md`
+  entre a base e a atual. `--base <versão>` quando o carimbo ou o marcador engana; `--base-template <pasta>`
+  para o template já extraído; `--json` para agentes. O template da base vem do npm e fica em cache em
+  `~/.config/unbox/templates/`.
+- **`unbox upgrade-template`** aplica a parte mecânica: os "copiar direto", os novos sem colisão, as remoções
+  seguras, o `package.json` por chave e o carimbo novo. O que exige decisão (reaplicar, reescrita,
+  personalizados, colisões) vai para `~/.config/unbox/upgrade/<pasta>/`, com `RELATORIO.md` e a cópia do
+  template ao lado, fora do projeto de propósito. Exige git com árvore limpa (é o ponto de retorno), pergunta
+  antes de escrever (`--yes` pula, `--dry-run` só mostra o plano) e recusa quando a régua manda refazer, salvo
+  `--force`. Não roda `npm install`, build nem commit.
+- **`MIGRACAO.md` vai no pacote npm**: uma ficha por versão (o que entrou no template, o que a loja já gerada
+  copia ou reaplica, variáveis de ambiente, mudanças de comportamento, armadilhas). O gate
+  `tools/check-migracao.mjs` roda no `prepack` e no release: sem a ficha da versão, não há pacote.
+- **As skills `migrar-loja-analisar` e `migrar-loja-executar` vão dentro da loja gerada**
+  (`.claude/skills/`): o roteiro para um agente usar os dois comandos e fazer o que eles não fazem (o merge
+  dos pendentes, o editor até 80%, as decisões de comportamento). A skill chama a CLI pelo `npx`.
+- Códigos novos: `SEM_PACKAGE_JSON`, `PACKAGE_JSON_INVALIDO`, `SEM_LOJA`, `VERSAO_DESCONHECIDA`,
+  `CLI_DESATUALIZADA`, `TEMPLATE_INDISPONIVEL`, `TAR_FALHOU`; só do upgrade: `ARVORE_SUJA`, `SEM_GIT`,
+  `GIT_EM_ANDAMENTO`, `REFAZER_RECOMENDADO`, `CANCELADO`, `UPGRADE_FALHOU`.
+
+**Template: o banner da home passa pelo otimizador de imagem do Next.**
+
+O banner é `<picture>` com `<img>` puro (pela paridade do HTML com o editor), e puro ele saía sem o
+otimizador: a arte ia ao navegador como foi salva. Medido numa loja gerada: a arte do celular era um JPEG de
+634 KB, 40% do peso da home e o LCP. Pelo otimizador, cerca de 40 KB.
+
+- `lib/editable/imagem-otimizada.ts`: `imagemOtimizada(src, sizes)` devolve `src`/`srcSet`/`sizes` do
+  `getImageProps` para `<img>` e `<source>` puros. Host fora de `images.remotePatterns`, SVG, `data:` e `blob:`
+  voltam como vieram (o `/_next/image` daria 400 e a foto sumiria).
+- `Editable.Img` com `sizes` passa pelo otimizador; sem `sizes`, nada muda. As quatro variantes do hero com
+  imagem passam `sizes`, e a arte do celular vai pelo `<source>`.
+- O seletor de pacotes da landing (`components/landing/product-picker.tsx`) perde a seta dos botões
+  "Selecione mais N pacotes" e "Ir pro pagamento" (a trava C12 da esteira comercial acusava isso em toda loja).
+
+**Várias chaves de deploy por loja, e `unbox keys`.**
+
+Uma loja deixa de ficar presa à chave da máquina que rodou o primeiro `unbox provision`. Ela aceita
+várias chaves de deploy (até 10), uma por máquina, pessoa ou CI: o lojista e a agência enviam código
+para o mesmo projeto, cada um com a sua. **Nada quebrou:** projeto com uma chave só, na máquina de
+sempre, segue igual, sem nada a fazer; `deploy`, `publish`, `rollback` e `status` não mudaram.
+
+- **`unbox provision` em outra máquina adiciona a chave dela.** Antes ele parava em
+  `CUSTOM_STOREFRONT_ALREADY_PROVISIONED_ERROR` (loja ainda provisionando) ou no `git fetch` com
+  `Permission denied (publickey)` (loja pronta), e a saída era pedir a troca da chave à Unbox. Agora
+  ele espera a loja ficar pronta, adiciona a chave desta máquina como mais uma, sem tirar as outras, e
+  liga o projeto normalmente. Na máquina de sempre, a chave já está na lista e nada é gravado. O
+  `--json` ganha `deployKey: { fingerprint, added }`.
+- **`unbox keys`**: lista as chaves da loja (a desta máquina vem marcada), `add [arquivo.pub]`
+  adiciona a desta máquina ou a chave pública de outra pessoa ou de um CI, e `remove <fingerprint|id>`
+  tira uma chave, com confirmação. Arquivo com chave privada é recusado antes de qualquer envio.
+- **`CHAVE_RECUSADA` também no `fetch`**, e com a instrução nova: rodar `unbox provision` nesta
+  máquina. Antes o `fetch` dava um `GIT_FETCH_FALHOU` genérico, e o texto mandava pedir a troca da
+  chave à Unbox.
+- Códigos novos: `CUSTOM_STOREFRONT_DEPLOY_KEYS_LIMIT_ERROR`, `CUSTOM_STOREFRONT_DEPLOY_KEY_TITLE_IN_USE_ERROR`,
+  `CUSTOM_STOREFRONT_DEPLOY_KEY_NOT_FOUND_ERROR`, `CHAVE_PRIVADA` e `CHAVE_INVALIDA`, na tabela do `DEPLOY.md`.
+
 ### v0.29.0 — o cliente edita os produtos da assinatura; `unbox env`, `unbox publish`, `unbox rollback` e `unbox status`
 
 **O cliente edita os produtos da assinatura, kits inclusive.**

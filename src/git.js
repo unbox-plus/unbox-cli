@@ -165,10 +165,23 @@ export function hostKeyError(stderr) {
   return undefined;
 }
 
+/**
+ * A chave desta máquina não está entre as da loja. A loja aceita várias: o provision desta máquina
+ * adiciona a dela sem tirar as outras.
+ */
+export function chaveRecusadaError(stderr) {
+  if (!/Permission denied \(publickey/.test(stderr)) return undefined;
+  return new CliError(
+    "O servidor da Unbox recusou a chave de deploy desta máquina: ela não está entre as chaves da loja (outra máquina, chave recriada ou removida). " +
+      "Rode unbox provision nesta máquina, que adiciona a chave dela à loja sem tirar as outras, e depois rode o comando de novo.",
+    "CHAVE_RECUSADA",
+  );
+}
+
 export function fetchDeploy(dir, sshCommand) {
   const r = git(["fetch", "-q", "unbox", "deploy"], { cwd: dir, sshCommand });
   if (r.status !== 0) {
-    throw hostKeyError(r.stderr) ?? new CliError(`Não consegui buscar a branch deploy da Unbox: ${r.stderr.trim().split("\n").slice(-2).join(" ")}`, "GIT_FETCH_FALHOU");
+    throw hostKeyError(r.stderr) ?? chaveRecusadaError(r.stderr) ?? new CliError(`Não consegui buscar a branch deploy da Unbox: ${r.stderr.trim().split("\n").slice(-2).join(" ")}`, "GIT_FETCH_FALHOU");
   }
 }
 

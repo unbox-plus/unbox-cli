@@ -20,10 +20,13 @@ import * as env from "./commands/env.js";
 import * as publish from "./commands/publish.js";
 import * as rollback from "./commands/rollback.js";
 import * as status from "./commands/status.js";
+import * as keys from "./commands/keys.js";
+import * as analyzeVersion from "./commands/analyze-version.js";
+import * as upgradeTemplate from "./commands/upgrade-template.js";
 
 /**
  * Os comandos que EXISTEM. Só entra aqui (e na ajuda) o que está implementado: cada comando novo
- * (provision, env, deploy, publish, rollback, status) acrescenta a sua linha.
+ * (provision, env, deploy, publish, rollback, status, keys) acrescenta a sua linha.
  */
 const COMMANDS = {
   create: {
@@ -69,6 +72,24 @@ const COMMANDS = {
     uso: "status",
     help: status.help,
     run: (args, globals, ctx) => status.runStatus(args, globals, ctx),
+  },
+  keys: {
+    resumo: "lista, adiciona e remove as chaves de deploy da loja (uma por máquina, pessoa ou CI)",
+    uso: "keys [add | remove]",
+    help: keys.help,
+    run: (args, globals, ctx) => keys.runKeys(args, globals, ctx),
+  },
+  "analyze-version": {
+    resumo: "a versão do template desta loja, o que mudou desde então e o que fazer",
+    uso: "analyze-version",
+    help: analyzeVersion.help,
+    run: (args, globals, ctx) => analyzeVersion.runAnalyzeVersion(args, globals, ctx),
+  },
+  "upgrade-template": {
+    resumo: "aplica a parte mecânica da migração da loja para o template atual",
+    uso: "upgrade-template [--dry-run]",
+    help: upgradeTemplate.help,
+    run: (args, globals, ctx) => upgradeTemplate.runUpgradeTemplate(args, globals, ctx),
   },
 };
 

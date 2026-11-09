@@ -64,7 +64,7 @@ async function roda(dir, globals = {}, { args = [], interactive = false, falsa =
     await runDeploy(args, { dir, ...globals }, {
       out,
       interactive,
-      deps: { createApi: falsa.createApi, sleep: async (ms) => { t += ms; }, now: () => t, ...deps },
+      deps: { createApi: falsa.createApi, sleep: async (ms) => { t += ms; }, now: () => t, latest: async () => null, ...deps },
     });
   } catch (e) {
     erro = e;
@@ -334,4 +334,18 @@ test("fetch e push passam pelo ssh com a chave do unbox.keyPath e o known_hosts 
   assert.match(args, /git-receive-pack/);
   assert.ok(fs.existsSync(path.join(sb.home, ".config/unbox/known_hosts")));
   assert.throws(() => g(dir, "config", "--get", "core.sshCommand"));
+});
+
+test("template atrás da CLI publicada: uma linha em stderr sugerindo analyze-version; sem resposta do npm, mudo; o --json não muda", async () => {
+  const { dir } = projeto();
+  escreve(dir, "package.json", JSON.stringify({ name: "loja", unbox: { templateVersion: "0.25.0" } }) + "\n");
+  escreve(dir, "app.txt", "mudou\n");
+  let r = await roda(dir, { json: true }, { deps: { latest: async () => "9.9.9" } });
+  assert.equal(r.erro, undefined, r.erro?.message);
+  assert.match(r.stderr, /Aviso: o template desta loja \(0\.25\.0\) está atrás da CLI publicada \(9\.9\.9\).*unbox analyze-version/);
+  assert.equal(JSON.parse(r.stdout).ok, true);
+  escreve(dir, "app.txt", "mudou de novo\n");
+  r = await roda(dir, {}, { deps: { latest: async () => null, cliVersion: () => "9.9.9" } });
+  assert.equal(r.erro, undefined, r.erro?.message);
+  assert.doesNotMatch(r.stderr, /Aviso: o template/);
 });

@@ -18,13 +18,24 @@
 // próprio escopo (`banner-N.arte-desktop`, `banner-N.arte-mobile`); só o banner na vez está no DOM.
 // A arte do celular mora no srcSet do <source>: é valor de imagem que NÃO vira <img>, então vai de
 // Slot (Editable.Img ali trocaria o <source> por uma segunda foto na tela). O <img> é puro, e não
-// next/image, de propósito: o next/image traria wrapper + srcset e a paridade com o HTML de antes cairia.
+// next/image, de propósito: o next/image traria wrapper e a paridade com o HTML de antes cairia.
+// Puro não quer dizer cru: as duas artes passam pelo otimizador do Next (o `sizes` no Editable.Img e
+// `fonteDoCelular` no <source>, ambos por lib/editable/imagem-otimizada.ts). Antes, a arte ia ao
+// navegador como foi salva, e um JPEG de 634 KB virou o LCP de uma loja (9,6 s simulado em 4G).
+// O `sizes` de cada variante é a largura que o banner ocupa nela.
 // Para o lojista, isto se chama BANNER (id/rótulo da receita), nunca "hero": vocabulário de código.
 import * as React from "react";
 import Link from "next/link";
 import { ArrowRight, CaretLeft, CaretRight } from "@phosphor-icons/react/dist/ssr";
-import { Editable, EditableScope } from "@/lib/editable";
+import { Editable, EditableScope, imagemOtimizada } from "@/lib/editable";
 import type { SectionComponentProps } from "./registry";
+
+// a arte do celular no <source>: otimizada, o srcSet é a lista de larguras em WebP; sem o otimizador
+// (SVG de placeholder, host fora do next.config), o arquivo como veio
+function fonteDoCelular(src: string) {
+  const o = imagemOtimizada(src, "100vw");
+  return { srcSet: o.srcSet ?? o.src, sizes: "100vw" };
+}
 
 function scrollToDestaques() {
   document.getElementById("destaques")?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -64,10 +75,10 @@ export function HeroSection({ variant = "imagem-full", sectionProps = {} }: Sect
               <picture>
                 {b.imageMobile && (
                   <Editable.Slot path="arte-mobile" type="image" fallback={{ src: b.imageMobile }} label={`Imagem do banner ${idx + 1} (celular)`}>
-                    {(v, attrs, ref) => <source ref={ref} media="(max-width: 767px)" srcSet={v.src} width="1122" height="1402" sizes="100vw" {...attrs} />}
+                    {(v, attrs, ref) => <source ref={ref} media="(max-width: 767px)" {...fonteDoCelular(v.src)} width="1122" height="1402" {...attrs} />}
                   </Editable.Slot>
                 )}
-                <Editable.Img path="arte-desktop" fallback={{ src: b.imageDesktop, alt: b.alt ?? "" }} label={`Imagem do banner ${idx + 1} (computador)`} width="1915" height="821" fetchPriority="high" className="block h-auto w-full" />
+                <Editable.Img path="arte-desktop" fallback={{ src: b.imageDesktop, alt: b.alt ?? "" }} label={`Imagem do banner ${idx + 1} (computador)`} width="1915" height="821" sizes="100vw" fetchPriority="high" className="block h-auto w-full" />
               </picture>
             </EditableScope>
           </Frame>
@@ -94,12 +105,12 @@ export function HeroSection({ variant = "imagem-full", sectionProps = {} }: Sect
       <div className="hero-imersivo relative w-full overflow-hidden">
         <picture>
           <Editable.Slot path="arte-mobile" type="image" fallback={{ src: imageMobile }} label="Imagem do banner (celular)">
-            {(v, attrs, ref) => <source ref={ref} media="(max-width: 767px)" srcSet={v.src} width="1122" height="1402" sizes="100vw" {...attrs} />}
+            {(v, attrs, ref) => <source ref={ref} media="(max-width: 767px)" {...fonteDoCelular(v.src)} width="1122" height="1402" {...attrs} />}
           </Editable.Slot>
           {/* parallax: a foto desliza DENTRO do frame. Não é reveal — nada da primeira dobra
               entra animado (isso atrasaria a percepção de carregamento e mexeria no LCP).
               alt="" continua vazio de propósito: a foto é decorativa, quem fala é a headline. */}
-          <Editable.Img path="arte-desktop" fallback={{ src: imageDesktop, alt: "" }} label="Imagem do banner (computador)" fetchPriority="high" className="parallax-slow block h-[78svh] max-h-[760px] min-h-[420px] w-full object-cover" />
+          <Editable.Img path="arte-desktop" fallback={{ src: imageDesktop, alt: "" }} label="Imagem do banner (computador)" sizes="100vw" fetchPriority="high" className="parallax-slow block h-[78svh] max-h-[760px] min-h-[420px] w-full object-cover" />
         </picture>
         {/* véu inferior: garante contraste do texto sobre qualquer foto */}
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/55 to-transparent" />
@@ -135,7 +146,7 @@ export function HeroSection({ variant = "imagem-full", sectionProps = {} }: Sect
             <Editable.Text as="p" path="subtitulo" fallback={subtitle} label="Frase de apoio" className="max-w-[420px] text-[15px] leading-[1.55] text-[var(--store-muted)]" />
             <HeroCta label={ctaLabel} href={ctaHref} className="mt-2" />
           </div>
-          <Editable.Img path="arte-desktop" fallback={{ src: imageDesktop, alt: "" }} label="Imagem do banner" fetchPriority="high" className="block h-full min-h-[260px] w-full object-cover" />
+          <Editable.Img path="arte-desktop" fallback={{ src: imageDesktop, alt: "" }} label="Imagem do banner" sizes="(min-width: 1240px) 680px, (min-width: 768px) 55vw, 100vw" fetchPriority="high" className="block h-full min-h-[260px] w-full object-cover" />
         </div>
       </div>
     );
@@ -152,9 +163,9 @@ export function HeroSection({ variant = "imagem-full", sectionProps = {} }: Sect
       >
         <picture>
           <Editable.Slot path="arte-mobile" type="image" fallback={{ src: imageMobile }} label="Imagem do banner (celular)">
-            {(v, attrs, ref) => <source ref={ref} media="(max-width: 767px)" srcSet={v.src} width="1122" height="1402" sizes="100vw" {...attrs} />}
+            {(v, attrs, ref) => <source ref={ref} media="(max-width: 767px)" {...fonteDoCelular(v.src)} width="1122" height="1402" {...attrs} />}
           </Editable.Slot>
-          <Editable.Img path="arte-desktop" fallback={{ src: imageDesktop, alt: "" }} label="Imagem do banner (computador)" width="1915" height="821" fetchPriority="high" className="block h-auto w-full" />
+          <Editable.Img path="arte-desktop" fallback={{ src: imageDesktop, alt: "" }} label="Imagem do banner (computador)" width="1915" height="821" sizes="(min-width: 1240px) 1240px, 100vw" fetchPriority="high" className="block h-auto w-full" />
         </picture>
       </button>
     </div>
