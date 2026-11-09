@@ -52,6 +52,11 @@ Leva alguns minutos. Cria o repositório git e a hospedagem, liga o projeto à b
 gera a chave de deploy em `~/.config/unbox/keys/<shopId>_ed25519` e envia as variáveis. Rodar de
 novo é seguro (ele retoma de onde parou).
 
+- A loja aceita várias chaves de deploy, uma por máquina (a do lojista e a da agência, por
+  exemplo). Numa máquina nova, `unbox provision` adiciona a chave dela sem tirar as outras: não
+  copie chave privada e não peça troca de chave à Unbox. `unbox keys` lista as chaves; remover uma
+  (`unbox keys remove`) corta o envio de quem a usa, então só com o ok do lojista.
+
 - Ele para sem mexer em nada com mudança não commitada, merge/rebase em andamento, HEAD destacado
   ou uma branch `deploy`/remote `unbox` que já eram do lojista. Leia o código na tabela do
   `DEPLOY.md` e resolva (ou peça ao lojista) antes de repetir.

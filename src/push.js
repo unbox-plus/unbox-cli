@@ -7,7 +7,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { CliError } from "./errors.js";
-import { PROTECTED_DIRS, fetchDeploy, git, hostKeyError, repoProblem } from "./git.js";
+import { PROTECTED_DIRS, chaveRecusadaError, fetchDeploy, git, hostKeyError, repoProblem } from "./git.js";
 
 const REFSPEC = "refs/heads/deploy:refs/heads/deploy";
 
@@ -152,13 +152,8 @@ const atrasado = (stderr) => /\[rejected\][^\n]*\((fetch first|non-fast-forward)
 function erroDoPush(stderr) {
   const host = hostKeyError(stderr);
   if (host) return host;
-  if (/Permission denied \(publickey/.test(stderr)) {
-    return new CliError(
-      "O servidor da Unbox recusou a chave de deploy desta máquina: a loja está ligada a outra chave (outra máquina, ou a chave foi recriada). " +
-        "Peça à Unbox a troca da chave informando a chave pública desta máquina (o .pub em ~/.config/unbox/keys/) e depois rode unbox provision e unbox deploy.",
-      "CHAVE_RECUSADA",
-    );
-  }
+  const chave = chaveRecusadaError(stderr);
+  if (chave) return chave;
   const remoto = stderr.split("\n").filter((l) => /^remote:/.test(l) && l.replace(/^remote:\s*/, "").trim()).map((l) => l.trim());
   if (/\[remote rejected\]|pre-receive hook declined|protected/i.test(stderr)) {
     return new CliError(`O servidor da Unbox recusou o push.${remoto.length ? `\n  ${remoto.slice(-4).join("\n  ")}` : ""}`, "PUSH_RECUSADO");

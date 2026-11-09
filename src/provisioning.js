@@ -50,13 +50,17 @@ const esperaPadrao = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /**
  * Provisiona e espera READY. `key` é `{ keyPath, pubPath, publicKey }`; `rotate()` troca a chave e
- * devolve a nova. Devolve `{ storefront, key }` (a chave pode ter mudado). `sleep` e `now` existem
- * para os testes.
+ * devolve a nova. Devolve `{ storefront, key, registrada }` (a chave pode ter mudado). `registrada`
+ * diz se a mutation aceitou a chave `key`: falso quando a loja já estava pronta na primeira leitura
+ * ou foi provisionada com a chave de outra máquina. Nesses casos quem chama registra a chave desta
+ * máquina como mais uma (deploy-keys.js). `sleep` e `now` existem para os testes.
  */
 export async function provisionAndWait({ api, key, rotate, out, sleep = esperaPadrao, now = Date.now, limites = LIMITES }) {
   const inicio = now();
   let atual = key;
   let girou = false;
+  let registrada = false;
+  let outraChave = false;
   let repetiuFalha = false;
   let chamouDeNovo = false;
   let ultimaChamada = inicio;
@@ -90,16 +94,18 @@ export async function provisionAndWait({ api, key, rotate, out, sleep = esperaPa
     ultimaChamada = now();
     for (let tentativa = 0; ; tentativa++) {
       try {
-        return (await api.request(PROVISIONAR, { input: { deployPublicKey: atual.publicKey } })).provisionCustomStorefront;
+        const sf = (await api.request(PROVISIONAR, { input: { deployPublicKey: atual.publicKey } })).provisionCustomStorefront;
+        registrada = true;
+        return sf;
       } catch (e) {
         const codigo = backendCode(e);
         if (codigo === ALREADY_PROVISIONED) {
-          throw new CliError(
-            "Esta loja já foi provisionada com outra chave de deploy, que está na máquina onde o `unbox provision` rodou pela primeira vez. " +
-              "Rode os comandos de deploy naquela máquina, ou peça à Unbox a troca da chave informando a chave pública desta máquina: " +
-              atual.pubPath,
-            ALREADY_PROVISIONED,
-          );
+          // Outra máquina provisionou a loja com a chave dela. Não é erro: a loja aceita várias
+          // chaves, e a desta máquina entra como mais uma quando a loja estiver pronta.
+          if (!outraChave) out?.progress("  A loja já foi provisionada com a chave de outra máquina; a desta vai ser adicionada como mais uma chave.");
+          outraChave = true;
+          registrada = false;
+          return ler();
         }
         if (codigo === NOT_CONFIGURED) {
           throw new CliError("O provisionamento não está configurado neste ambiente da Unbox. Fale com a Unbox.", NOT_CONFIGURED);
@@ -116,6 +122,7 @@ export async function provisionAndWait({ api, key, rotate, out, sleep = esperaPa
 
   function trocaChave() {
     atual = rotate();
+    registrada = false;
     girou = true;
     out?.warn(`  A chave de deploy anterior está em uso em outro repositório. Gerei outra: ${atual.pubPath}`);
   }
@@ -130,7 +137,7 @@ export async function provisionAndWait({ api, key, rotate, out, sleep = esperaPa
   }
 
   for (let i = 0; ; i++) {
-    if (sf?.status === "READY") return { storefront: sf, key: atual };
+    if (sf?.status === "READY") return { storefront: sf, key: atual, registrada };
     if (sf?.lastErrorCode && NON_RETRYABLE.has(sf.lastErrorCode)) throw nonRetryableError(sf);
 
     if (sf?.status === "FAILED") {
