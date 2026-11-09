@@ -21,6 +21,8 @@ import * as publish from "./commands/publish.js";
 import * as rollback from "./commands/rollback.js";
 import * as status from "./commands/status.js";
 import * as keys from "./commands/keys.js";
+import * as analyzeVersion from "./commands/analyze-version.js";
+import * as upgradeTemplate from "./commands/upgrade-template.js";
 
 /**
  * Os comandos que EXISTEM. Só entra aqui (e na ajuda) o que está implementado: cada comando novo
@@ -76,6 +78,18 @@ const COMMANDS = {
     uso: "keys [add | remove]",
     help: keys.help,
     run: (args, globals, ctx) => keys.runKeys(args, globals, ctx),
+  },
+  "analyze-version": {
+    resumo: "a versão do template desta loja, o que mudou desde então e o que fazer",
+    uso: "analyze-version",
+    help: analyzeVersion.help,
+    run: (args, globals, ctx) => analyzeVersion.runAnalyzeVersion(args, globals, ctx),
+  },
+  "upgrade-template": {
+    resumo: "aplica a parte mecânica da migração da loja para o template atual",
+    uso: "upgrade-template [--dry-run]",
+    help: upgradeTemplate.help,
+    run: (args, globals, ctx) => upgradeTemplate.runUpgradeTemplate(args, globals, ctx),
   },
 };
 
