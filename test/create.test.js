@@ -85,11 +85,12 @@ function normalizar(rel, buf) {
   }
   if (rel === "package.json") {
     // O carimbo `unbox.templateVersion` (a versão do template que gerou a loja) existe desde a 0.30.0: o código
-    // anterior pode não o escrever, e o atual tem de escrever a versão DESTE pacote. Conferido aqui, tirado da
-    // comparação; o resto do package.json continua byte a byte.
+    // anterior pode não o escrever, ou escrever a versão DELE (um bump ainda não commitado deixa a base atrás).
+    // Que o código atual escreve a versão DESTE pacote é conferido em `mesmaLoja`; aqui o carimbo sai da
+    // comparação, e o resto do package.json continua byte a byte.
     const pkg = JSON.parse(s);
     if (pkg.unbox?.templateVersion !== undefined) {
-      assert.equal(pkg.unbox.templateVersion, JSON.parse(fs.readFileSync(path.join(RAIZ, "package.json"), "utf8")).version, "unbox.templateVersion é a versão do pacote");
+      assert.match(pkg.unbox.templateVersion, /^\d+\.\d+\.\d+$/, "unbox.templateVersion é uma versão");
       delete pkg.unbox.templateVersion;
       if (Object.keys(pkg.unbox).length === 0) delete pkg.unbox;
     }
@@ -115,6 +116,8 @@ function mesmaLoja(esperado, obtido, rotulo) {
   assert.equal(obtido.status, esperado.status, `${rotulo}: código de saída`);
   if (esperado.status !== 0) return;
   segredoConfere(obtido.dir);
+  const carimbo = JSON.parse(fs.readFileSync(path.join(obtido.dir, "package.json"), "utf8")).unbox?.templateVersion;
+  assert.equal(carimbo, JSON.parse(fs.readFileSync(path.join(RAIZ, "package.json"), "utf8")).version, `${rotulo}: unbox.templateVersion é a versão deste pacote`);
   const a = arvore(esperado.dir);
   const b = arvore(obtido.dir);
   assert.deepEqual([...b.keys()].sort(), [...a.keys()].sort(), `${rotulo}: mesmos arquivos`);

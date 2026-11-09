@@ -66,18 +66,36 @@ De 0.22.0 em diante, refatorar, salvo três ou mais sinais da loja (os números 
 
 ## 0.30.0
 ### Template
-nada: o que entrou é da CLI (o carimbo `unbox.templateVersion` no `package.json` da loja gerada, a seção Template do
-`unbox status`, o aviso no `unbox deploy`, `unbox analyze-version`, `unbox upgrade-template`, e este arquivo dentro
-do pacote).
++ `.claude/skills/migrar-loja-analisar/SKILL.md`, `.claude/skills/migrar-loja-executar/SKILL.md`,
+  `.claude/skills/migrar-loja-executar/references/editor.md` (as skills de migração; a CLI é chamada pelo `npx`)
++ `lib/editable/imagem-otimizada.ts`
+~ `lib/editable/index.ts` (exporta `imagemOtimizada`), `lib/editable/primitives.tsx` (`Editable.Img` com `sizes`
+  passa pelo otimizador do Next), `components/home/sections/hero.tsx` (as quatro variantes com imagem passam
+  `sizes`; a arte do celular vai pelo `<source>`), `components/landing/product-picker.tsx` (sem a seta nos botões),
+  `DEPLOY.md` e `agents/definitions/12-deploy.md` (várias chaves de deploy por loja, `unbox keys`)
+O resto da versão é da CLI: o carimbo `unbox.templateVersion` no `package.json` da loja gerada, a seção Template
+do `unbox status`, o aviso no `unbox deploy`, `unbox analyze-version`, `unbox upgrade-template`, `unbox keys` e
+este arquivo dentro do pacote.
 ### Loja já gerada
-nada
+Copiar `.claude/skills/` (loja não mexe nisso) e `lib/editable/imagem-otimizada.ts`; `lib/editable/index.ts` e
+`primitives.tsx` são foundation do editor, copiar direto se a loja não os editou (se editou, reaplicar: uma
+linha no `index.ts` e o bloco de `sizes` no `Img`). `hero.tsx`: copiar se a loja ainda usa o hero do template;
+loja com hero próprio só ganha o otimizador se passar `sizes` no `Editable.Img` dela (opcional). `product-picker.tsx`:
+copiar se a loja não o tocou; se tocou, tirar a seta dos dois rótulos. `DEPLOY.md` e `12-deploy.md`: docs, copiar.
+`unbox upgrade-template` escreve o carimbo `unbox.templateVersion` no `package.json` da loja; sem ele, acrescentar
+`"unbox": { "templateVersion": "0.30.0" }` à mão depois da migração, para o `status` e o `deploy` lerem a versão.
 ### Ambiente
 nada
 ### Mudanças de comportamento
-nada
+O banner da home sai pelo otimizador de imagem do Next (WebP, `srcset` por largura): a mesma arte, mais leve. Host
+fora de `images.remotePatterns` do `next.config.ts`, SVG, `data:` e `blob:` continuam como estavam. Migrar é o
+padrão; manter só se a loja serve o banner de um CDN já otimizado e não quer o `/_next/image` no caminho.
+Os botões do seletor de pacotes perdem a seta ("Selecione mais N pacotes", "Ir pro pagamento"): migrar.
 ### Armadilhas
 Loja gerada antes desta versão não tem o carimbo: `unbox analyze-version` a reconhece por marcadores
 (`src/version-markers.json`); loja sincronizada à mão engana o marcador, e aí vale `--base <versão>`.
+Banner de host que não está em `images.remotePatterns`: o `imagemOtimizada` devolve a URL como veio e nada quebra,
+mas a loja não ganha a otimização; acrescentar o host ao `next.config.ts` para ganhar.
 
 ## 0.29.0
 ### Template
