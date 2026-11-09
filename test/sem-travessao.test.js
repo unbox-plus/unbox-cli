@@ -22,6 +22,8 @@ const SEM_NENHUM = [
   "src/commands/rollback.js",
   "src/commands/status.js",
   "src/commands/keys.js", "src/deploy-keys.js",
+  "src/commands/analyze-version.js", "src/commands/upgrade-template.js", "src/template-diff.js",
+  "src/template-fetch.js", "src/migracao.js", "src/template-version.js",
 ];
 
 test("arquivos novos da CLI sem travessão", () => {

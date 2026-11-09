@@ -73,7 +73,7 @@ function apiFalsa({ storefront = loja(), production = producao(), deployment = "
   return { chamadas, createApi: async ({ out }) => { out.addSecrets(SENHA); return api; } };
 }
 
-async function roda(dir, globals = {}, { args = [], falsa = apiFalsa() } = {}) {
+async function roda(dir, globals = {}, { args = [], falsa = apiFalsa(), latest = async () => "0.30.0", cliVersion = () => "0.30.0" } = {}) {
   const buf = { stdout: "", stderr: "" };
   const out = createOutput({
     json: Boolean(globals.json),
@@ -82,7 +82,7 @@ async function roda(dir, globals = {}, { args = [], falsa = apiFalsa() } = {}) {
   });
   let erro;
   try {
-    await runStatus(args, { dir, ...globals }, { out, deps: { createApi: falsa.createApi } });
+    await runStatus(args, { dir, ...globals }, { out, deps: { createApi: falsa.createApi, latest, cliVersion } });
   } catch (e) {
     erro = e;
     out.fail(e);
@@ -100,7 +100,7 @@ test("não provisionada: sugere unbox provision e não mostra deploy nem produç
   assert.match(texto.stdout, /Ainda não provisionada\. Próximo passo: unbox provision/);
   assert.doesNotMatch(texto.stdout, /Produção/);
   const json = await roda(dir, { json: true }, { falsa: apiFalsa({ storefront: null, production: new Error("CUSTOM_STOREFRONT_NOT_READY_ERROR") }) });
-  assert.deepEqual(json.data, { storefront: null, deployment: null, production: null, local: null, publishable: false });
+  assert.deepEqual(json.data, { storefront: null, deployment: null, production: null, local: null, template: null, publishable: false });
 });
 
 test("provisionando: passo e a falha que o servidor vai repetir", async () => {
@@ -290,4 +290,58 @@ test("projeto de outra loja: avisa e omite a parte local", async () => {
 test("argumento posicional é uso incorreto", async () => {
   const r = await roda(pastaSolta(), { json: true }, { args: ["pasta"] });
   assert.equal(r.erro?.code, "USAGE");
+});
+
+// ------------------------------------------------------------------------------ template
+
+const carimba = (dir, versao) => escreve(dir, "package.json", JSON.stringify({ name: "loja", unbox: { templateVersion: versao } }) + "\n");
+
+test("template em dia com a CLI publicada: uma linha, sem link de migração", async () => {
+  const { dir } = projeto();
+  carimba(dir, "0.30.0");
+  const r = await roda(dir, {}, { latest: async () => "0.30.0" });
+  assert.match(r.stdout, /Template\n\s+Versão:\s+0\.30\.0, em dia com a CLI publicada 0\.30\.0/);
+  assert.doesNotMatch(r.stdout, /MIGRACAO/);
+  const j = await roda(dir, { json: true }, { latest: async () => "0.30.0" });
+  assert.deepEqual(j.data.template, { versao: "0.30.0", atual: "0.30.0", fonte: "npm", atualizada: true });
+});
+
+test("template atrás da CLI publicada: sugere analyze-version e upgrade-template; a loja nunca passa por update de pacote", async () => {
+  const { dir } = projeto();
+  carimba(dir, "0.30.0");
+  const r = await roda(dir, {}, { latest: async () => "0.32.1" });
+  assert.match(r.stdout, /Versão:\s+0\.30\.0, atrás da CLI publicada 0\.32\.1/);
+  assert.match(r.stdout, /não atualiza sozinha.*unbox analyze-version.*unbox upgrade-template/);
+  assert.match(r.stdout, /MIGRACAO\.md/);
+  const j = await roda(dir, { json: true }, { latest: async () => "0.32.1" });
+  assert.equal(j.data.template.atualizada, false);
+  assert.equal(j.erro, undefined, "versão atrás não é erro: saída 0");
+});
+
+test("npm fora do ar: compara com a CLI em uso e diz que não consultou o npm", async () => {
+  const { dir } = projeto();
+  carimba(dir, "0.29.0");
+  const r = await roda(dir, {}, { latest: async () => null, cliVersion: () => "0.31.0" });
+  assert.match(r.stdout, /atrás da CLI em uso 0\.31\.0 \(não consegui consultar o npm\)/);
+  const j = await roda(dir, { json: true }, { latest: async () => null, cliVersion: () => "0.31.0" });
+  assert.deepEqual(j.data.template, { versao: "0.29.0", atual: "0.31.0", fonte: "cli", atualizada: false });
+});
+
+test("loja anterior ao carimbo: versão desconhecida, aponta o analyze-version", async () => {
+  const { dir } = projeto();
+  escreve(dir, "package.json", JSON.stringify({ name: "loja" }) + "\n");
+  const r = await roda(dir, {});
+  assert.match(r.stdout, /anterior a 0\.30\.0 \(sem carimbo no package\.json\)/);
+  assert.match(r.stdout, /unbox analyze-version/);
+  const j = await roda(dir, { json: true });
+  assert.equal(j.data.template.versao, null);
+  assert.equal(j.data.template.atualizada, null);
+});
+
+test("pasta sem package.json: a seção template é null e não aparece no texto", async () => {
+  const dir = pastaSolta();
+  const r = await roda(dir, {});
+  assert.doesNotMatch(r.stdout, /Template/);
+  const j = await roda(dir, { json: true });
+  assert.equal(j.data.template, null);
 });

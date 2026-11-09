@@ -18,6 +18,7 @@ import { dirtyTree, savedKeyPath } from "../push.js";
 import { CAMPOS_PRODUCAO, curto, quando } from "../production.js";
 import { PASSOS } from "../provisioning.js";
 import { NON_RETRYABLE, backendCode, nonRetryableError } from "../storefront.js";
+import { templateStatus, linhasDoTemplate } from "../template-version.js";
 
 export const help = `
   unbox status: o estado da loja, do preview e da produção
@@ -29,12 +30,15 @@ export const help = `
     1. o provisionamento da loja e o endereço fixo de preview;
     2. o preview do commit atual (na pasta de um projeto ligado à Unbox);
     3. o que está em produção, e a publicação ou o rollback em andamento;
-    4. os commits ainda não enviados e as mudanças não commitadas.
+    4. os commits ainda não enviados e as mudanças não commitadas;
+    5. a versão do template que gerou a loja (o carimbo unbox.templateVersion do package.json),
+       contra a última CLI publicada no npm. A loja não atualiza sozinha: atrás, veja MIGRACAO.md.
 
   Fora da pasta de um projeto ligado à Unbox, mostra só a parte da API (as credenciais vêm do
   ambiente do terminal ou do --env-file).
-  --json devolve { storefront, deployment, production, local, publishable }, e errors quando
-  alguma consulta falhar.
+  --json devolve { storefront, deployment, production, local, template, publishable }, e errors
+  quando alguma consulta falhar. A consulta ao npm leva até 2 s e falha em silêncio (template.fonte
+  diz "cli" quando a comparação foi com a CLI em uso); UNBOX_NO_UPDATE_CHECK=1 a desliga.
 `;
 
 const LOJA = "query { customStorefront { _id status currentStep repositorySshUrl previewUrl lastErrorCode } }";
@@ -191,6 +195,7 @@ function texto(d) {
   }
   if (pronta) blocos.push(linhasDaProducao(d.production, d.errors?.production));
   if (d.local) blocos.push(linhasLocais(d.local));
+  blocos.push(linhasDoTemplate(d.template));
   const linhas = [""];
   for (const b of blocos.filter((x) => x.length)) linhas.push(...b, "");
   if (d.publishable) {
@@ -203,7 +208,7 @@ function texto(d) {
 // ---------------------------------------------------------------------------------- comando
 
 /**
- * `deps` existe para os testes: `createApi`.
+ * `deps` existe para os testes: `createApi`, `latest` (a versão publicada no npm) e `cliVersion`.
  */
 export async function runStatus(args, globals = {}, { out, deps = {} } = {}) {
   if (globals.help) {
@@ -247,9 +252,11 @@ export async function runStatus(args, globals = {}, { out, deps = {} } = {}) {
     consultas.deployment = api.request(DEPLOY, { commitSha: local.commitSha }).then((r) => r.customStorefrontDeployment ?? null);
   }
   const nomes = Object.keys(consultas);
+  // A versão do template entra no mesmo lote: uma leitura de arquivo e uma chamada ao npm que nunca falha.
+  const template = templateStatus(dir, { latest: deps.latest, cliVersion: deps.cliVersion });
   const resultados = await Promise.allSettled(Object.values(consultas));
 
-  const data = { storefront: null, deployment: null, production: null, local };
+  const data = { storefront: null, deployment: null, production: null, local, template: await template };
   const errors = {};
   resultados.forEach((r, i) => {
     if (r.status === "fulfilled") data[nomes[i]] = r.value;

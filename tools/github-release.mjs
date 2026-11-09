@@ -144,6 +144,13 @@ if (!bloco.corpo) abortar(`o bloco \`${bloco.titulo}\` está sem corpo, e o rele
 // A versão do bloco tem de ser a do package.json DO MESMO COMMIT. Se divergirem, uma das
 // duas ficou para trás, e publicar seria carimbar a divergência numa tag.
 const versaoPkg = JSON.parse(arquivoDaRef("package.json")).version;
+// A ficha de migração da versão (MIGRACAO.md) e os marcadores: o gate é o mesmo do prepack. Sem ela, uma loja
+// já no ar não sabe o que fazer com esta versão, e publicar o release é o que a torna "oficial". O gate lê a
+// cópia de trabalho (não a ref), como o prepack; com a árvore limpa em `main`, é o mesmo conteúdo.
+{
+  const gate = rodar("node", [path.join(RAIZ, "tools", "check-migracao.mjs"), "--versao", versaoPkg]);
+  if (!gate.ok) abortar(`a versão ${versaoPkg} não passa no check-migracao.`, ...(gate.erro || gate.saida).split("\n"));
+}
 if (versaoPkg !== TAG) {
   abortar(
     `o changelog diz ${TAG} e o package.json de \`${ref}\` diz ${versaoPkg}.`,

@@ -106,6 +106,8 @@ unbox <comando> --help       # uso e exemplos de um comando
 | `unbox rollback` | volta produção para a publicação anterior (ou para a página "Em breve") |
 | `unbox status` | mostra o estado da loja, do preview do commit atual e da produção, e o que falta enviar |
 | `unbox keys` | lista, adiciona e remove as chaves de deploy da loja (uma por máquina, pessoa ou CI) |
+| `unbox analyze-version` | a versão do template que gerou a loja, o que mudou desde então, o que a loja mudou por cima, e se compensa refatorar ou refazer |
+| `unbox upgrade-template` | aplica a parte mecânica da migração para o template atual e deixa o resto num relatório, com a cópia do template ao lado |
 
 Os comandos acima, menos o `create`, falam com a Partners API da Unbox, e por isso todos seguem
 as mesmas regras abaixo.
@@ -391,7 +393,7 @@ Só lê: não altera a loja, a produção nem o repositório.
 
 ```bash
 unbox status            # na pasta do projeto
-unbox status --json     # para agentes: { storefront, deployment, production, local, publishable }
+unbox status --json     # para agentes: { storefront, deployment, production, local, template, publishable }
 ```
 
 - **Loja:** o provisionamento. Não provisionada: sugere `unbox provision`. Em andamento: o passo
@@ -410,12 +412,78 @@ unbox status --json     # para agentes: { storefront, deployment, production, lo
   sem a chave ou sem rede, compara com a última cópia local e avisa) e mostra os commits não
   enviados, as mudanças não commitadas e se você está fora da `deploy`. No `--json`,
   `local: { ahead, dirty, branch, commitSha }`, ou `null` fora de um projeto ligado.
+- **Template:** a versão do template que gerou a loja (o carimbo `unbox.templateVersion` que o
+  `unbox create` grava no `package.json` desde a 0.30.0), contra a última CLI publicada no npm. A loja
+  é uma cópia do template e não atualiza sozinha: "atrás" quer dizer que há uma migração descrita em
+  `MIGRACAO.md`, não um `npm update`. Loja anterior ao carimbo aparece como "anterior a 0.30.0" (a
+  skill `migrar-loja-analisar` descobre a versão). A consulta ao npm leva até 2 s e falha em
+  silêncio: sem rede, compara com a CLI em uso e diz isso (`template.fonte: "cli"`);
+  `UNBOX_NO_UPDATE_CHECK=1` a desliga. No `--json`, `template: { versao, atual, fonte, atualizada }`,
+  ou `null` numa pasta sem `package.json`.
 - **"Há preview pronto para unbox publish"** (`publishable: true`): o commit atual já foi enviado, o
   preview dele está pronto e não é o que está no ar.
 - **As três consultas vão em paralelo**, e a falha de uma não esconde as outras: a seção fica `null`
   e o `--json` traz `errors.<seção>` com `{ code, message }`. Só se todas falharem a saída é `1`.
 - Fora da pasta do projeto, mostra só a parte da API, com as credenciais do terminal ou do
   `--env-file`.
+
+### `unbox analyze-version`
+
+A loja é uma cópia do `template/` na versão que a gerou e não recebe atualização sozinha. Este comando diz
+de onde ela partiu e o que a separa do template atual. Só lê; sem credenciais.
+
+```bash
+unbox analyze-version                       # na pasta da loja
+unbox analyze-version --json                # para agentes
+unbox analyze-version --base 0.24.0         # quando o carimbo ou o marcador engana (loja sincronizada à mão)
+unbox analyze-version --base-template ./t   # o template da base já extraído (sem rede, ou versão não publicada)
+```
+
+- **Versão-base:** o carimbo `unbox.templateVersion` do `package.json` (gravado pelo `unbox create` desde a
+  0.30.0); antes dele, por marcadores (arquivos que só existem a partir de cada versão). O template da base vem
+  do npm (`npm pack`, em cache em `~/.config/unbox/templates/`); versão anterior à primeira publicada (0.21.3) não
+  tem template, e a régua manda refazer de qualquer jeito.
+- **Arquivos:** cada um classificado contra o template da base e o atual: copiar direto (o template mudou, a
+  loja não tocou), reaplicar (os dois mudaram; a da loja é pequena), reescrita (a da loja é a maior),
+  personalizado pelo `create` (tokens, receitas, slug: nunca se copia por cima), foundation do editor, novo,
+  removido. O nome da loja é aplicado ao template antes de comparar, para "Minha Loja" trocado pelo `create`
+  não aparecer como conflito.
+- **Editor:** o que o gate `unbox:editavel` reprovaria, na ordem em que para; componentes sem primitivo.
+- **Mudanças de comportamento:** catálogo duplicado em JSON no repositório, páginas institucionais e blog em
+  código. São decisões do dono da loja (migrar e perder o hard-coded, ou manter), e o comando só as aponta.
+- **Régua:** abaixo de 0.22.0, refazer; de 0.22.0 em diante, refatorar, salvo três ou mais sinais de
+  customização pesada. A justificativa está em `MIGRACAO.md`, que também traz a ficha de cada versão (o que
+  entrou, o que a loja já gerada faz, variáveis de ambiente, armadilhas); o comando imprime as fichas entre a
+  base e a atual.
+- Loja mais nova que a CLI em uso: `CLI_DESATUALIZADA` (rode com `@latest`). `--no-network` não consulta o npm.
+
+### `unbox upgrade-template`
+
+Aplica a parte mecânica da migração. Parte da mesma análise.
+
+```bash
+unbox upgrade-template --dry-run   # o plano, sem escrever nada
+unbox upgrade-template             # mostra o plano e pergunta; --yes pula
+```
+
+- **Aplica:** copiar direto, novos sem colisão, a foundation do editor intacta, as remoções seguras (nada que
+  outro arquivo da loja ainda importe, nada de uma pasta onde a loja tem lógica própria), o `package.json` por
+  chave (chave nova entra; chave igual à da base sobe; o que a loja mudou fica; `name` e scripts próprios são da
+  loja) e o carimbo da versão nova.
+- **Não toca:** reaplicar, reescrita, personalizados, colisões (`lib/unbox.ts` com `lib/unbox/` ainda na loja),
+  foundation editada à mão, copiado cujo import não resolve. Vão para `~/.config/unbox/upgrade/<pasta>/`:
+  `RELATORIO.md` (o que fazer com cada um, as fichas, as variáveis de ambiente, os próximos passos),
+  `atual/<arquivo>` (o template atual) e, para os personalizados, `base/<arquivo>`. Fora do projeto de
+  propósito: dentro, entraria no `tsc`, no build e no próximo deploy.
+- **Exige** `package.json`, os sinais de loja da CLI, git com árvore limpa (inclusive sem arquivo novo) e um
+  commit: o git é o ponto de retorno (`git reset --hard && git clean -fd` desfaz tudo; `.env.local` e o que o
+  `.gitignore` ignora não são tocados). Régua recomendando refazer: recusa, salvo `--force`.
+- Não roda `npm install`, build nem commit: termina dizendo os próximos passos. Rodar de novo depois do commit
+  responde "nada a fazer".
+- `--json` sem `--yes`: `CONFIRMACAO_NECESSARIA`. Códigos dos dois comandos: `SEM_PACKAGE_JSON`,
+  `PACKAGE_JSON_INVALIDO`, `SEM_LOJA`, `VERSAO_DESCONHECIDA`, `CLI_DESATUALIZADA`, `TEMPLATE_INDISPONIVEL`,
+  `NETWORK`, `NPM_MISSING`, `TAR_FALHOU`; só do upgrade: `ARVORE_SUJA`, `SEM_GIT`, `GIT_EM_ANDAMENTO`,
+  `REFAZER_RECOMENDADO`, `CANCELADO`, `UPGRADE_FALHOU`. Uso incorreto (`USAGE`) sai com 2.
 
 ### Dois cuidados com o `npx`
 
