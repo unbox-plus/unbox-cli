@@ -11,7 +11,7 @@ import prompts from "prompts";
 import { normalizeHex, deriveBrandTokens } from "../colors.js";
 import { applyPreset, applyStoreName } from "../theme.js";
 import { PRESETS, PRESET_NAMES, suggestPreset } from "../presets.js";
-import { TEMPLATE_DIR } from "../paths.js";
+import { TEMPLATE_DIR, packageVersion } from "../paths.js";
 import { envValue } from "../env.js";
 import { UsageError, CliError } from "../errors.js";
 import crypto from "node:crypto";
@@ -76,6 +76,10 @@ function setProjectName(targetDir, name) {
   const pkgPath = path.join(targetDir, "package.json");
   const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
   pkg.name = name;
+  // O CARIMBO: a versão do template que gerou esta loja. É por ele que `unbox status` e a migração
+  // (MIGRACAO.md) sabem de onde a loja partiu; antes dele, a versão era adivinhada por marcadores
+  // (src/version-markers.json), que uma loja sincronizada à mão engana.
+  pkg.unbox = { ...(pkg.unbox ?? {}), templateVersion: packageVersion() };
   fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + "\n");
 }
 

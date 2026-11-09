@@ -83,6 +83,18 @@ function normalizar(rel, buf) {
     assert.match(s, /export const SEGREDO_DA_LOJA = "[0-9a-f]{64}";/);
     return s.replace(/SEGREDO_DA_LOJA = "[0-9a-f]{64}"/, 'SEGREDO_DA_LOJA = "<sorteado>"');
   }
+  if (rel === "package.json") {
+    // O carimbo `unbox.templateVersion` (a versão do template que gerou a loja) existe desde a 0.30.0: o código
+    // anterior pode não o escrever, e o atual tem de escrever a versão DESTE pacote. Conferido aqui, tirado da
+    // comparação; o resto do package.json continua byte a byte.
+    const pkg = JSON.parse(s);
+    if (pkg.unbox?.templateVersion !== undefined) {
+      assert.equal(pkg.unbox.templateVersion, JSON.parse(fs.readFileSync(path.join(RAIZ, "package.json"), "utf8")).version, "unbox.templateVersion é a versão do pacote");
+      delete pkg.unbox.templateVersion;
+      if (Object.keys(pkg.unbox).length === 0) delete pkg.unbox;
+    }
+    return JSON.stringify(pkg, null, 2) + "\n";
+  }
   if (rel === path.join("marca", "briefing.json")) {
     const b = JSON.parse(s);
     assert.ok(!Number.isNaN(Date.parse(b.criadoEm)), "criadoEm é data");
