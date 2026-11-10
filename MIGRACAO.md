@@ -87,8 +87,11 @@ De 0.22.0 em diante, refatorar, salvo três ou mais sinais da loja (os números 
   o layout é restrição; só muda de aparência o que o cliente escolheu migrar). A análise fecha com a lista
   numerada das decisões do usuário (opções, o que se perde em cada uma, recomendação e efeito no plano), que a
   execução usa como pauta; as duas skills dividem o trabalho independente entre quantos subagentes forem úteis.
+~ `lib/env-check.ts`: o `#` sozinho deixou de ser sinal de comentário colado como valor (senha com `#`, como a
+  do próprio `.env.example`, gerava o aviso com a credencial funcionando); espaço, acento e parêntese continuam.
 ### Loja já gerada
-Copiar `.claude/skills/` inteira (a loja não mexe nisso).
+Copiar `.claude/skills/` inteira (a loja não mexe nisso). `lib/env-check.ts`: copiar se a loja não o tocou (é
+uma função só, `pareceProsa`, e a linha do aviso).
 ### Ambiente
 nada
 ### Mudanças de comportamento
@@ -238,6 +241,12 @@ continua indo para `error.tsx`.
 - `hasUnboxCredentials` continua exportado de `lib/config.ts`, agora pela régua do pacote.
 - Teste: `tsc --noEmit` limpo, build com as mesmas rotas; `import "server-only"` quebra o build se um componente
   de cliente importar `@/lib/unbox`, e é o desejado.
+- Método que a loja acrescentou ao `UnboxClient` local e que o SDK não tem: o caso conhecido é
+  `setCartFrequency` (mutation `updateCart` com `recurringItemsFrequencyId`, para o checkout ler a frequência
+  escolhida no carrinho), ausente do SDK 0.4.1. O `gql()` do pacote é público: recriar como função da loja que
+  recebe o client (`setCartFrequency(c, cartId, cartToken, freqId)` chamando `c.gql(...)`) e trocar a chamada
+  `c.setCartFrequency(...)` por ela. Listar os métodos do `client.ts` da loja que não existem em
+  `dist/client.d.ts` antes de apagar a pasta.
 
 ## 0.24.0
 ### Template
