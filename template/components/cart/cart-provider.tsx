@@ -19,6 +19,8 @@ export interface AddItemArgs {
   variantId: string;
   price: number;
   quantity?: number;
+  /** Só a linha OTIMISTA (o drawer antes da resposta). A foto gravada no carrinho é a do
+   *  catálogo, resolvida no servidor; passar outra imagem aqui não muda o que fica gravado. */
   thumbnail?: string;
   isRecurring?: boolean;
   recurringItemsFrequencyId?: string;
@@ -298,7 +300,9 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
                     }),
                 price: item.price,
                 quantity: qty,
-                thumbnail: item.thumbnail,
+                // `thumbnail` NÃO vai no corpo: quem grava a foto da linha é o servidor, do
+                // catálogo (lib/cart-thumbnail.ts). O `item.thumbnail` daqui vive só na linha
+                // otimista acima, até a resposta do BFF chegar.
                 isRecurring: item.isRecurring,
               },
             ],

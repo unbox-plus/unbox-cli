@@ -70,6 +70,21 @@ export const getKit = cache((productId: string) =>
   )(),
 );
 
+// A foto OFICIAL do produto no catálogo (`imageUrls[0]`) — a única que pode ir como `thumbnail`
+// da linha do carrinho (quem aplica é `lib/cart-thumbnail.ts`). Uma chamada por produto, cacheada
+// por id e revalidada junto com o catálogo: o carrinho típico tem 1 ou 2 ids e quase sempre bate
+// no cache do catálogo que a tela de origem já aqueceu.
+export const getProductImage = cache((productId: string) =>
+  unstable_cache(
+    async () => {
+      const [p] = await withStoreClient((c) => c.getProductsByIds([productId]));
+      return p?.imageUrls?.[0] ?? null;
+    },
+    ["unbox-product-image", productId],
+    { revalidate: TTL, tags: ["catalog", `product-image:${productId}`] },
+  )(),
+);
+
 // Nome da opção do kit ("3 Caixas"), para o card do carrinho: o carrinho só devolve o título do bundle.
 export const getKitLabel = cache((productId: string) =>
   unstable_cache(

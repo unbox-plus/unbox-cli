@@ -1,5 +1,22 @@
 ## Changelog
 
+### Não lançado — a foto do item do carrinho vem sempre do catálogo da Unbox
+
+`thumbnail` é campo de ENTRADA do item do carrinho: o `createCart`/`addCartItems` grava o que receber, e o que
+fica gravado segue para o pedido e para a área do cliente. Até aqui, quem decidia essa foto era cada tela que
+chama `add()` (PDP, catálogo, combos, landing), todas passando a imagem do catálogo por convenção, sem nada no
+build cobrando. Agora a decisão é uma só, no servidor.
+
+- **`lib/cart-thumbnail.ts`**: antes de montar o payload, a foto de cada item é resolvida a partir do catálogo
+  (`imageUrls[0]`, pelo `productId` ou pelo `productKitId` da linha de kit) e o `thumbnail` que veio da tela é
+  descartado. Passa pelos dois pontos que criam linha de carrinho: `POST /api/cart` e o link `?produtos=`.
+- **`getProductImage`** em `lib/queries.ts`: a foto por id, cacheada (5 min, tag `catalog`) como o resto do
+  catálogo.
+- Produto sem foto no catálogo, ou catálogo fora do ar, vai sem `thumbnail`: a linha mostra o placeholder e o
+  `cartResponse` ainda tenta completar na leitura. Foto nunca derruba o "adicionar ao carrinho".
+- O `thumbnail` de `AddItemArgs` continua, só que agora serve a uma coisa só: a linha otimista do drawer, até a
+  resposta do BFF chegar. O `cart-provider` não o manda mais no corpo.
+
 ### v0.30.0 — a loja sabe a versão do template que a gerou; `unbox analyze-version`, `unbox upgrade-template` e `unbox keys`
 
 **A loja carrega a versão do template, e a CLI diz o que mudou desde então.**
