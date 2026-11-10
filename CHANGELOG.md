@@ -1,6 +1,8 @@
 ## Changelog
 
-### Não lançado — a foto do item do carrinho vem sempre do catálogo da Unbox
+### Não lançado — a foto do item do carrinho vem sempre do catálogo da Unbox; `unbox download`
+
+**A foto do item do carrinho vem sempre do catálogo da Unbox.**
 
 `thumbnail` é campo de ENTRADA do item do carrinho: o `createCart`/`addCartItems` grava o que receber, e o que
 fica gravado segue para o pedido e para a área do cliente. Até aqui, quem decidia essa foto era cada tela que
@@ -16,6 +18,47 @@ build cobrando. Agora a decisão é uma só, no servidor.
   `cartResponse` ainda tenta completar na leitura. Foto nunca derruba o "adicionar ao carrinho".
 - O `thumbnail` de `AddItemArgs` continua, só que agora serve a uma coisa só: a linha otimista do drawer, até a
   resposta do BFF chegar. O `cart-provider` não o manda mais no corpo.
+
+**`unbox download`: a loja que já está na Unbox vem para a máquina pronta para editar.**
+
+Trabalhar numa loja que já existe na Unbox a partir de outro computador era um roteiro à mão: achar a URL SSH do
+repositório com quem tivesse acesso, criar e registrar uma chave de deploy, clonar na branch certa, gravar
+`unbox.shopId` e `unbox.keyPath` na config do git e montar o `.env.local`. Cada passo esquecido só aparecia
+depois, como um `unbox deploy` recusado. Agora é um comando, e ele deixa a pasta igual à que o `unbox provision`
+deixaria.
+
+- **`unbox download [pasta]`** pergunta `UNBOX_PARTNER_API_KEY`, `UNBOX_USER` e `UNBOX_PASS` (o que já estiver
+  exportado no terminal vem preenchido, é só dar Enter) e a pasta, e então: acha o repositório da loja na
+  Partners API, adiciona a chave de deploy desta máquina à loja (como o `unbox keys add`, sem tirar as que já
+  estavam), clona na branch `deploy` com o remote `unbox`, grava `unbox.shopId` e `unbox.keyPath`, cria um
+  `.env.local` mínimo com as três credenciais e mostra o estado do deploy do commit baixado e da produção. Roda
+  em qualquer pasta: é o único comando da API que não precisa de um projeto por perto.
+- **A pasta é o destino do clone.** Se ela já existir com arquivos dentro, é a pasta-mãe, e a loja vai para
+  `<pasta>/<nome-do-repositório>` (quem digita `~/lojas` quer a loja dentro dela). Sem pasta, o nome do
+  repositório na pasta atual. Destino ocupado para o comando antes de criar chave ou clonar (`PASTA_OCUPADA`).
+- **O `.env.local` tem só as credenciais** (modo `0600`, fora do git), escritas no mesmo formato do `create`:
+  senha com `$`, `#` ou aspas volta inteira no parser do Next. Um `.env.local` que já exista na pasta não é
+  alterado, só avisado. O `UNBOX_PARTNER_GRAPHQL_URL` vai junto quando o ambiente aponta outro servidor, senão a
+  loja baixada falaria com a produção da Unbox.
+- **Loja que não está provisionada para o comando** (`NAO_PROVISIONADO`), dizendo se o provisionamento está em
+  andamento, se falhou ou se nunca existiu; nada é criado no disco. Repositório em outro host
+  (`UNEXPECTED_GIT_HOST`), chave do servidor diferente (`HOST_KEY_MISMATCH`) e chave recusada (`CHAVE_RECUSADA`)
+  param do mesmo jeito.
+- **Com `--yes`, `--json` ou fora de um terminal não há perguntas**: as três credenciais vêm do ambiente do
+  terminal (ou de um arquivo apontado por `--env-file`) e a pasta, do argumento. O `--json` devolve
+  `{ dir, shopId, repositorySshUrl, branch, commitSha, deployKey, envFile, storefront, deployment, production }`.
+  A consulta do deploy e a da produção acontecem com o clone já no disco: falha nelas vira `errors` e aviso,
+  nunca erro do comando.
+- Códigos novos: `SEM_BRANCH_DEPLOY`, `GIT_CLONE_FALHOU` e `SEM_REPOSITORIO`. O comando também emite
+  `PASTA_OCUPADA`, `NAO_PROVISIONADO`, `CREDENCIAIS_AUSENTES` e `CANCELADO`.
+- Por dentro, o vínculo com a Unbox passa a ser escrito de um lugar só: `registraChaveDaMaquina` (a chave desta
+  máquina na loja, com a rotação de `CUSTOM_STOREFRONT_DEPLOY_KEY_IN_USE_ERROR`) saiu do `provision` para
+  `src/deploy-keys.js`, e `gravaVinculo` (`unbox.shopId` e `unbox.keyPath`) para `src/git.js`.
+- **O `download` não mexe no `template/`**: a loja gerada é a mesma, e uma loja já no ar não tem nada a copiar
+  por causa dele. As skills `migrar-loja-analisar` e `migrar-loja-executar` passam a dizer isso com todas as
+  letras: comando novo, flag, código de erro e refatoração interna da CLI não entram no relatório de migração,
+  porque a loja não copia nada deles. Só o que chega na loja (arquivo do template, variável de ambiente,
+  dependência, o que o lojista ou o cliente vê) é migração.
 
 ### v0.30.0 — a loja sabe a versão do template que a gerou; `unbox analyze-version`, `unbox upgrade-template` e `unbox keys`
 
