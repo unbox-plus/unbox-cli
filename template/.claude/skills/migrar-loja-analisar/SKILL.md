@@ -9,7 +9,15 @@ A loja gerada é uma CÓPIA do `template/` do CLI na versão que a criou, mais o
 por cima. Não há `git merge` possível: a loja não tem o histórico do template. Então "migrar" é, arquivo a arquivo,
 decidir entre copiar o do template atual, reaplicar a mudança da loja sobre ele, ou manter o da loja. Esta skill
 faz o levantamento que torna essa decisão mecânica, e no fim diz se o trabalho cabe numa refatoração ou se é mais
-barato gerar a loja de novo com `unbox create` e portar a marca.
+barato gerar a loja de novo com `unbox create` e portar a marca, e lista as decisões que só o usuário pode tomar.
+
+**Use quantos subagentes forem necessários para agilizar.** Depois do Passo 1 (o comando roda uma vez, no fio
+principal, porque os números dele são a base de tudo), as frentes são independentes e rodam em paralelo, cada
+uma num `Agent` com um briefing próprio (caminho da loja, do template da base e do atual, a seção desta skill que
+ela cobre e o formato da resposta): a captura da referência visual; o motivo de cada `reescrita`/`reaplicar`
+(`git diff --no-index` + o log da loja); a caça às mudanças de comportamento do Passo 5; e, em loja grande, o
+levantamento do editor do Passo 4. Os agentes só leem: nenhum instala, builda ou altera a loja. O relatório é
+escrito por você, com o que eles devolveram conferido contra os números do comando.
 
 ## Passo 1: rodar o comando (sempre; nunca estime à mão)
 
@@ -204,8 +212,19 @@ de arquivo importam porque o relatório é a entrada da `migrar-loja-executar` e
 ## Plano por bloco  (SDK / versões intermediárias / 0.29 assinaturas / kits se houver / infra e docs / editor; refazendo: create / marca / redirects / seções e PDP próprias / editor)
 ## Editor: o que o gate reprova hoje, na ordem em que para; depois os componentes sem primitivo com o que vira e o que não vira
 ## Mudanças de comportamento  (uma por item: o que a loja faz hoje · Migrar: o que muda e o que se perde · Manter: o que não se ganha)
-## O que precisa de decisão do usuário  (cada mudança de comportamento acima, mais: kits? publicação pela CLI?)
+## O que precisa de decisão do usuário  (lista numerada; ver abaixo)
 ```
+
+**As decisões do usuário são parte obrigatória da entrega**, e fecham o relatório. Lista numerada, uma
+decisão por item, cada uma com: a pergunta em uma linha; as opções (no mínimo migrar × manter) com o que se
+ganha e o que se perde em cada uma, em termos de página; a sua recomendação quando houver base técnica para
+ela (e "sem recomendação: é negócio" quando não houver, como no catálogo em JSON); e o que a resposta muda no
+plano (arquivos ou blocos afetados). Entram: cada mudança de comportamento do bloco acima; refatorar × refazer
+quando a régua deu no limite; se os combos são kits da Unbox; se a publicação vai pela CLI
+(`unbox provision/env/deploy/publish`); se pode rodar `npm install` na loja; e qualquer ponto em que a análise
+encontrou duas leituras possíveis e escolheu uma. Nada que tenha resposta técnica entra aqui como pergunta: o
+que é mecânico (copiar, reaplicar) é plano, não decisão. A `migrar-loja-executar` lê esta lista no Passo 0 e só
+toca nos arquivos de cada item depois da resposta.
 
 O bloco "Mudanças de comportamento" é o que o dono da loja lê; escreva-o sem jargão de arquivo (o nome do JSON
 pode aparecer, o nome da função não) e com o que se perde em termos de página: "a tabela nutricional de cada

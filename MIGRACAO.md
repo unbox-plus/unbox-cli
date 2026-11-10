@@ -84,7 +84,9 @@ De 0.22.0 em diante, refatorar, salvo três ou mais sinais da loja (os números 
   (capturas em 1440 e 390, `npm run unbox:qa`) é tirada na análise, antes de qualquer mudança; a execução cobre
   refatorar e refazer, começa por um plano de execução revisado por um agente adversarial e aprovado pelo
   usuário antes do primeiro arquivo, e tem fidelidade ao layout atual como restrição (o gate do editor é meta,
-  o layout é restrição; só muda de aparência o que o cliente escolheu migrar).
+  o layout é restrição; só muda de aparência o que o cliente escolheu migrar). A análise fecha com a lista
+  numerada das decisões do usuário (opções, o que se perde em cada uma, recomendação e efeito no plano), que a
+  execução usa como pauta; as duas skills dividem o trabalho independente entre quantos subagentes forem úteis.
 ### Loja já gerada
 Copiar `.claude/skills/` inteira (a loja não mexe nisso).
 ### Ambiente

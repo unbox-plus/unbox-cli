@@ -11,13 +11,24 @@ REFATORAR, os blocos são os merges da seção "A ordem dos blocos"; com REFAZER
 dois, o Passo 1 (o plano, revisado antes de qualquer arquivo) e a regra de fidelidade valem igual, e
 `references/editor.md` vale igual.
 
+**Use quantos subagentes forem necessários para agilizar.** O que é paralelizável vai para `Agent`s
+simultâneos, cada um com briefing próprio (a loja, o relatório da análise, as decisões do usuário, o bloco ou os
+arquivos dele e o critério de pronto): a revisão adversarial do plano (sempre um agente que não escreveu o
+plano); dentro de um bloco, os merges de arquivos que não dependem um do outro (as `reescrita`, os componentes do
+editor que ganham primitivos, as rotas próprias); e a comparação visual contra a referência. O que não se
+paraleliza: a ordem dos blocos (cada um compila antes do seguinte), dois agentes no mesmo arquivo, e as
+verificações de fim de bloco (`tsc --noEmit`, build, gate), que rodam no fio principal sobre o resultado
+somado. Agente que escreve na loja trabalha só nos arquivos que você lhe deu; você confere o diff de cada um
+antes de seguir.
+
 ## Passo 0: antes de tocar em qualquer arquivo
 
 - **Árvore limpa.** `git status --porcelain` na loja tem de vir vazio. Os lotes de `cp` abaixo (dezenas de
   arquivos, incluindo `CLAUDE.md`, `lib/config.ts`, `agents/`) são irreversíveis sem um ponto de retorno; com
   trabalho não commitado, pare e peça ao usuário para commitar ou guardar (`git stash`). Loja sem git: peça um
   `git init && git add -A && git commit` antes, ou uma cópia da pasta.
-- **As decisões do relatório.** O bloco "Mudanças de comportamento" da análise lista escolhas (catálogo em
+- **As decisões do relatório.** A lista numerada "O que precisa de decisão do usuário", que fecha a análise, é a
+  pauta: cada item respondido antes de tocar nos arquivos dele. O bloco "Mudanças de comportamento" da análise lista escolhas (catálogo em
   JSON: migrar para a API ou manter; páginas institucionais e blog: virar páginas do lojista ou ficar em
   código; combos, preview fake, rótulos por índice). Cada uma tem de estar respondida pelo usuário antes de
   você tocar no arquivo correspondente; "manter" é uma resposta válida e muda o que o bloco Editor faz
