@@ -99,6 +99,7 @@ unbox <comando> --help       # uso e exemplos de um comando
 | Comando | O que faz |
 |---|---|
 | `unbox create [pasta]` | gera a loja (o wizard descrito acima) |
+| `unbox download [pasta]` | baixa para esta máquina uma loja que já existe na Unbox, pronta para editar |
 | `unbox provision` | provisiona o repositório e a hospedagem da loja na Unbox e liga o projeto à branch `deploy` |
 | `unbox env` | envia as variáveis do `.env.local` para a hospedagem da loja (`--list` mostra, `--unset` remove) |
 | `unbox deploy` | commita as mudanças, envia a branch `deploy` para a Unbox e mostra a URL do preview |
@@ -130,7 +131,9 @@ não existe, valor faltando). O `create` usa `1` também para uso incorreto, com
 e, opcional, `UNBOX_PARTNER_GRAPHQL_URL`. O arquivo é lido pelo mesmo parser do Next, então uma
 senha que funciona na loja funciona na CLI. Uma variável exportada no terminal vence a do arquivo,
 como no Next; por isso a CLI diz de onde veio cada credencial, para uma variável esquecida de outra
-loja não passar despercebida. Faltando alguma das três, o comando para e diz qual.
+loja não passar despercebida. Faltando alguma das três, o comando para e diz qual. A exceção é o
+`unbox download`, que roda antes de existir projeto: ele pergunta as três (já preenchidas com o que
+estiver no ambiente) e as grava no `.env.local` da loja que baixou.
 
 ### Do `unbox create` à produção
 
@@ -146,6 +149,9 @@ unbox status                               # o que está no ar e o que falta env
 unbox rollback                             # volta a publicação anterior (não é idempotente)
 ```
 
+A loja que **já está na Unbox** não repete esse começo: `unbox download` traz o repositório para a
+máquina com a chave, o vínculo e o `.env.local` prontos, e o fluxo continua no `unbox deploy`.
+
 - **Produção** fica em `https://<slug>.myunbox.com.br`, com a página "Em breve" até o primeiro
   `unbox publish`. No futuro, um domínio próprio da loja substitui esse endereço.
 - **Preview estável** em `https://preview.<slug>.myunbox.com.br`: o envio mais recente que terminou
@@ -157,6 +163,49 @@ unbox rollback                             # volta a publicação anterior (não
 
 O projeto gerado traz o mesmo caminho para o lojista e para os agentes, com os endereços, o preview
 estável e a tabela de erros comuns, no `DEPLOY.md`.
+
+### `unbox download`
+
+O caminho inverso do `create` + `provision`: a loja já existe na Unbox e você quer trabalhar nela
+nesta máquina (outro computador, outra pessoa da equipe, uma máquina nova). Roda em qualquer pasta,
+sem projeto nenhum por perto.
+
+```bash
+unbox download                          # pergunta as credenciais e a pasta
+unbox download ~/lojas/minha-loja       # a pasta já vem no comando
+unbox download ~/lojas/x --json --yes   # para agentes e scripts: credenciais do ambiente, sem perguntas
+```
+
+Ele pergunta `UNBOX_PARTNER_API_KEY`, `UNBOX_USER` e `UNBOX_PASS` (o que já estiver exportado no
+terminal vem preenchido, é só dar Enter) e a pasta, e então:
+
+1. **acha o repositório da loja** na Partners API (`customStorefront.repositorySshUrl`);
+2. **adiciona a chave de deploy desta máquina à loja**, como o `unbox keys add`. A loja aceita
+   várias chaves, uma por máquina, pessoa ou CI: as que já estão lá continuam. Se a chave desta
+   máquina já estiver na loja, nada muda (`deployKey.added: false`);
+3. **clona o repositório** na pasta, na branch `deploy`, com o remote chamado `unbox`;
+4. **grava a loja e a chave** na config do repositório (`unbox.shopId` e `unbox.keyPath`), como o
+   `unbox provision` faz. É por eles que o `deploy`, o `publish` e o `status` reconhecem o projeto;
+5. **cria um `.env.local` mínimo** com as três credenciais (modo `0600`, fora do git). Um
+   `.env.local` que já exista na pasta não é alterado, e a CLI avisa;
+6. **mostra o estado**: o deploy do commit baixado e o que está em produção.
+
+- **A pasta é o destino do clone.** Se ela já existir com arquivos dentro, a loja vai para
+  `<pasta>/<nome-do-repositório>` (quem digita `~/lojas` quer a loja dentro dela). Sem pasta, o
+  clone usa o nome do repositório, na pasta atual. Pasta de destino ocupada para o comando antes de
+  qualquer coisa (`PASTA_OCUPADA`).
+- **A loja precisa estar provisionada.** Sem storefront na Unbox, ou com o provisionamento em
+  andamento ou falho, o download para e diz o que fazer (`NAO_PROVISIONADO`); nada é criado no
+  disco.
+- **Só as credenciais vão para o `.env.local`.** As outras variáveis da loja estão no `.env.example`
+  do projeto e na hospedagem (`unbox env --list` mostra as que estão lá). Quando o ambiente aponta
+  outro servidor da Unbox, o `UNBOX_PARTNER_GRAPHQL_URL` vai junto, senão a loja baixada falaria com
+  a produção.
+- **O download não roda `npm install`, build, deploy nem publicação.** Depois dele: `npm install`,
+  `npm run dev` para ver a loja, e `unbox deploy` para enviar o que você editar.
+- `--json`: `{ dir, shopId, repositorySshUrl, branch, commitSha, deployKey, envFile, storefront, deployment, production }`,
+  e `errors` quando a consulta do deploy ou da produção falhar (o clone já está no disco: elas viram
+  aviso, não erro).
 
 ### `unbox provision`
 

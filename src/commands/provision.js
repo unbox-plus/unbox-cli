@@ -12,8 +12,7 @@ import { loadProjectEnv, requireCredentials, describeOrigins } from "../env.js";
 import { createPartnerApi } from "../partner-api.js";
 import { requireProgram } from "../proc.js";
 import { ensureKey, rotateKey, gitSshCommand } from "../deploy-key.js";
-import { fingerprintDe, registraChave } from "../deploy-keys.js";
-import { DEPLOY_KEY_IN_USE } from "../storefront.js";
+import { fingerprintDe, registraChaveDaMaquina } from "../deploy-keys.js";
 import { assertKnownGitUrl, writeKnownHosts } from "../known-hosts.js";
 import { provisionAndWait } from "../provisioning.js";
 import { linkDeploy, linkMode, needsCommit, repoProblem, repoState } from "../git.js";
@@ -103,24 +102,6 @@ async function enviaVariaveis(api, loaded, out) {
   }
 }
 
-/**
- * Registra a chave desta máquina numa loja já provisionada. Chave em uso em outro repositório:
- * gera outra e tenta uma vez mais, como no provisionamento. Devolve `{ chave, added }`.
- */
-async function garanteChaveNaLoja(api, chave, { rotate, out }) {
-  for (let girou = false; ; girou = true) {
-    try {
-      const { key, added } = await registraChave(api, { publicKey: chave.publicKey });
-      if (added) out.progress(`  Chave desta máquina adicionada à loja: ${key?.title ?? chave.pubPath}`);
-      return { chave, added };
-    } catch (e) {
-      if (e?.code !== DEPLOY_KEY_IN_USE || girou) throw e;
-      chave = rotate();
-      out.warn(`  A chave de deploy desta máquina está em uso em outro repositório. Gerei outra: ${chave.pubPath}`);
-    }
-  }
-}
-
 function texto(d, extra) {
   const linhas = ["", "✓ Loja provisionada e projeto ligado à Unbox", ""];
   linhas.push(`  Repositório:  ${d.repositorySshUrl}`);
@@ -202,7 +183,7 @@ export async function runProvision(args, globals = {}, { out, interactive = proc
   let chave = chaveProvisionada;
   let added = false;
   if (!registrada) {
-    ({ chave, added } = await garanteChaveNaLoja(api, chave, { rotate: () => rotateKey(shopId), out }));
+    ({ chave, added } = await registraChaveDaMaquina(api, chave, { rotate: () => rotateKey(shopId), out }));
   }
 
   // 3. Git.
