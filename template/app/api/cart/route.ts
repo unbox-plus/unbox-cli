@@ -3,6 +3,7 @@ import { withStoreClient } from "@/lib/unbox";
 import { UnboxError, type CartItemInput } from "@unbox-plus/sdk";
 import { getCartRef, setCartRef, clearCartRef, setRecurFreq } from "@/lib/session";
 import { cartResponse } from "@/lib/cart-response";
+import { comImagemDoCatalogo } from "@/lib/cart-thumbnail";
 import { getShopData } from "@/lib/queries";
 import { ok, fail, failFrom } from "@/lib/api";
 
@@ -58,10 +59,8 @@ export async function POST(req: Request) {
     const body = await req.json();
     let items: CartItemInput[] = body.items ?? [];
     if (!items.length) return fail("Nenhum item informado.");
-    // A Unbox valida `thumbnail` como URI absoluta — path relativo ("/produto.png") derruba o
-    // addCartItems inteiro com `"[0].thumbnail" must be a valid uri`. Melhor sem thumbnail
-    // (o carrinho renderiza placeholder) do que carrinho quebrado.
-    items = items.map(({ thumbnail, ...it }) => /^https?:\/\//.test(thumbnail ?? "") ? { ...it, thumbnail } : it);
+    // A foto da linha é sempre a do catálogo, decidida aqui; o `thumbnail` do corpo é ignorado.
+    items = await comImagemDoCatalogo(items);
     // A frequência NÃO entra no carrinho (input não aceita); guardamos em cookie p/ o placeOrder.
     const recurringItemsFrequencyId: string | undefined = body.recurringItemsFrequencyId;
 

@@ -64,6 +64,38 @@ De 0.22.0 em diante, refatorar, salvo três ou mais sinais da loja (os números 
 
 ---
 
+## Não lançado
+### Template
++ `lib/cart-thumbnail.ts` (a foto da linha do carrinho, resolvida do catálogo no servidor)
+~ `lib/queries.ts` (`getProductImage`), `app/api/cart/route.ts` (chama o resolvedor no lugar da validação de URI
+  que estava inline), `app/api/cart/link/route.ts` (idem, antes do `createCart`), `components/cart/cart-provider.tsx`
+  (para de mandar `thumbnail` no corpo do POST; o campo de `AddItemArgs` fica só para a linha otimista),
+  `CLAUDE.md` (a regra ao lado da do preço)
+### Loja já gerada
+Copiar `lib/cart-thumbnail.ts`. `lib/queries.ts`: acrescentar o `getProductImage` (a loja costuma ter TTL e
+fetchers próprios aí, então é acrescentar, não copiar o arquivo). `app/api/cart/route.ts` e
+`app/api/cart/link/route.ts`: copiar direto se a loja não os tocou; se tocou, reaplicar as duas linhas (o import
+e a chamada `comImagemDoCatalogo` antes do `createCart`/`addCartItems`, no lugar do `items.map` que só validava a
+URI absoluta). `cart-provider.tsx` é arquivo grande e muito customizado: reaplicar à mão, tirando só
+`thumbnail: item.thumbnail` do corpo do POST, e NÃO da linha otimista. Loja que adiciona ao carrinho por um
+caminho próprio (landing, quiz, seção feita sob medida) não precisa de nada: a foto passa a ser decidida no
+servidor, qualquer que seja a tela. Exige SDK `^0.4.1` (usa `getProductsByIds`), que a 0.29.0 já pedia.
+### Ambiente
+nada
+### Mudanças de comportamento
+A foto do item no carrinho, no checkout e no pedido passa a ser a do catálogo da Unbox, mesmo onde a tela mandava
+outra. Na prática nada muda em loja de template puro (todas as telas já mandavam a do catálogo); muda para a loja
+que escolheu uma imagem diferente em algum ponto de "adicionar ao carrinho", caso típico do card de combo com
+arte própria. Migrar é o padrão: a foto gravada na linha é a que o cliente vê como "o que estou comprando" e ela
+segue para o pedido. Manter a arte própria é decisão do dono da loja; para isso, não copie
+`lib/cart-thumbnail.ts` e deixe as rotas como estão. Caminho do meio, quando o que se quer é a arte do combo:
+cadastrar a imagem no produto do catálogo, que arruma PDP, vitrine, carrinho e pedido de uma vez.
+### Armadilhas
+Foto que não aparece no carrinho depois da migração é produto sem `imageUrls` no catálogo, não a migração:
+confira com `npm run unbox:dump` antes de mexer no código. Item de kit resolve a foto pelo `productKitId`, então
+o kit precisa ter imagem própria cadastrada; sem ela, a linha fica com o placeholder, mesmo com os itens
+escolhidos tendo foto.
+
 ## 0.30.0
 ### Template
 + `.claude/skills/migrar-loja-analisar/SKILL.md`, `.claude/skills/migrar-loja-executar/SKILL.md`,
