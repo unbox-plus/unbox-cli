@@ -12,6 +12,7 @@ import { getCatalog } from "@/lib/queries";
 import { getCartRef, setCartRef, setRecurFreq } from "@/lib/session";
 import { parseProdutosParam, resolveSkusToItems } from "@/lib/cart-link";
 import { cartResponse } from "@/lib/cart-response";
+import { comImagemDoCatalogo } from "@/lib/cart-thumbnail";
 import { ok, fail, failFrom } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
@@ -48,7 +49,8 @@ export async function POST(req: Request) {
       const skuQtys = parseProdutosParam(produtos);
       const catalog = await getCatalog({ first: 200 }).catch(() => ({ nodes: [] as any[] }));
       const nodes = (catalog.nodes ?? []).map((n: any) => n.product ?? n);
-      const items = resolveSkusToItems(skuQtys, nodes);
+      // Mesma porta do POST /api/cart: a foto da linha sai do catálogo, nunca do link.
+      const items = await comImagemDoCatalogo(resolveSkusToItems(skuQtys, nodes));
       if (items.length) {
         const cart = await withStoreClient((c) => c.createCart(items));
         await setCartRef({ cartId: cart.cartId, cartToken: cart.cartToken });

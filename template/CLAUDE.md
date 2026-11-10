@@ -442,6 +442,14 @@ voltar, inclusive em comentário, porque comentário ensina o agente a escrever 
   Kit "com desconto" calculado no front (`combos.ts`) é promessa que o carrinho desmente: desconto
   real de kit é regra de preço/cupom no painel Unbox. O mesmo vale pra desconto de assinatura: só
   com `pricingPolicy` do backend (sem ele, `percentOff` é `null` e nenhum "-N%" aparece).
+- **A foto da linha do carrinho também vem sempre do catálogo**, e aí a diferença é que o servidor
+  NÃO recalcula: `thumbnail` é campo de entrada do item, a Unbox grava o que receber e o que fica
+  gravado segue para o pedido e para a área do cliente. Por isso quem resolve a foto é
+  `lib/cart-thumbnail.ts`, no caminho de `POST /api/cart` e do link `?produtos=`, a partir de
+  `imageUrls[0]`; o `thumbnail` que vier da tela é descartado. O `thumbnail` de `AddItemArgs`
+  (`cart-provider.tsx`) serve só à linha otimista do drawer, até a resposta do BFF chegar. Foto
+  diferente da do produto é a mesma promessa que o pedido desmente: foto errada no carrinho se
+  conserta no catálogo da Unbox, que arruma PDP, vitrine, carrinho e pedido de uma vez.
 - **Foto de seção usa `<Foto>` (`components/ui/foto.tsx`), com `sizes` do tamanho real na tela.**
   `next/image` direto quebra a página inteira quando o `src` da receita aponta para um host que o
   `next.config.ts` não autoriza; o `<Foto>` cai em `<img>` nesse caso, sem otimizar mas sem

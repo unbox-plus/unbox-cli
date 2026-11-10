@@ -14,6 +14,7 @@ import { createOutput } from "./output.js";
 import { UsageError } from "./errors.js";
 import { PACKAGE_ROOT } from "./paths.js";
 import * as create from "./commands/create.js";
+import * as download from "./commands/download.js";
 import * as provision from "./commands/provision.js";
 import * as deploy from "./commands/deploy.js";
 import * as env from "./commands/env.js";
@@ -36,6 +37,12 @@ const COMMANDS = {
     run: (args, globals, ctx) => create.runCreate(args, globals, ctx),
     // O create é anterior ao contrato de saída 2 e mantém o 1 que sempre teve.
     usageExit: 1,
+  },
+  download: {
+    resumo: "baixa para esta máquina uma loja que já existe na Unbox, pronta para editar",
+    uso: "download [pasta]",
+    help: download.help,
+    run: (args, globals, ctx) => download.runDownload(args, globals, ctx),
   },
   provision: {
     resumo: "provisiona a loja na Unbox e liga o projeto à branch deploy",

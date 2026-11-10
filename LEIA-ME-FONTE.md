@@ -24,6 +24,7 @@ npm pack                    # gera o tarball (o prepack roda o gate de neutralid
 | `src/partner-api.js` | a conexão com a Partners API: camada fina sobre o `@unbox-plus/sdk`, traduz a recusa num `code` e numa mensagem |
 | `src/paths.js` | onde o pacote mora no disco (`TEMPLATE_DIR`) |
 | `src/commands/provision.js` | o `unbox provision`: checagens locais, provisionamento e vínculo, nessa ordem |
+| `src/commands/download.js` | o `unbox download`: perguntas, chave desta máquina, clone da `deploy` e `.env.local` de uma loja que já existe |
 | `src/commands/analyze-version.js`, `upgrade-template.js` | a migração de loja já gerada: a análise (três árvores) e a aplicação da parte mecânica |
 | `src/template-diff.js` | puro: classifica template@base × template@atual × loja, auditoria do editor, régua |
 | `src/template-fetch.js`, `src/migracao.js`, `src/template-version.js` | o template de uma versão do npm (cache em `~/.config/unbox/templates`), o parser do `MIGRACAO.md`, a versão-base (carimbo ou `src/version-markers.json`) |
@@ -67,7 +68,7 @@ de versão do `package.json` dela. Da v0.26.0 em diante a própria CLI também d
   compara a árvore byte a byte. O wizard é respondido por `test/helpers/inject.mjs`
   (`prompts.inject`), então credenciais, `.mcp.json` e checkout hospedado também são comparados.
   Sem git ou sem `develop` (um checkout raso de CI, por exemplo), ele é pulado dizendo o motivo.
-- `git-link.test.js` e `provision.test.js` usam git e `ssh-keygen` de verdade numa HOME
+- `git-link.test.js`, `provision.test.js` e `download.test.js` usam git e `ssh-keygen` de verdade numa HOME
   temporária (`test/helpers/git-sandbox.mjs`): config global própria e um repositório bare no
   papel do servidor da Unbox, com a URL SSH trocada por ele via `url.<bare>.insteadOf`. Nada do
   `~/.gitconfig` ou do `~/.config/unbox` de quem roda é lido ou alterado. Sem `ssh-keygen`, os
