@@ -197,6 +197,38 @@ test("ida e volta com o template REAL: uma loja recém-gerada (preset + nome) co
   assert.equal(d.plano.pendentes.length, 0);
 });
 
+test("nome trocado à mão em parte dos arquivos: o template é alinhado linha a linha com o literal da loja", async () => {
+  const raiz = fs.mkdtempSync(path.join(os.tmpdir(), "unbox-nomes-"));
+  const dir = path.join(raiz, "loja");
+  const base = path.join(raiz, "base");
+  // a base tem uma linha a mais no fim de dois arquivos (o template a tirou depois); a loja nasceu da base
+  fs.cpSync(TEMPLATE_DIR, base, { recursive: true });
+  for (const rel of ["app/llms.txt/route.ts", "app/api/acesso/route.ts"]) {
+    const p = path.join(base, rel);
+    fs.writeFileSync(p, fs.readFileSync(p, "utf8") + "// linha que só a base tinha\n");
+  }
+  fs.cpSync(base, dir, { recursive: true });
+  fs.renameSync(path.join(dir, "gitignore"), path.join(dir, ".gitignore"));
+  for (const f of ["bootstrap.sh", "package-lock.json"]) fs.rmSync(path.join(dir, f), { force: true });
+  // o create aplicou "thryn-nutrition"; depois o time trocou o nome visível em dois arquivos e o slug da porta
+  applyStoreName(dir, "thryn-nutrition");
+  const troca = (rel, de, para) => { const p = path.join(dir, rel); fs.writeFileSync(p, fs.readFileSync(p, "utf8").replaceAll(de, para)); };
+  troca("app/llms.txt/route.ts", '|| "thryn-nutrition"', '|| "THRYN Nutrition"');
+  troca("app/api/acesso/route.ts", 'const LOJA = "thrynnutrition"', 'const LOJA = "thryn-nutrition"');
+  const pkg = JSON.parse(fs.readFileSync(path.join(dir, "package.json"), "utf8"));
+  pkg.unbox = { templateVersion: "0.29.0" };
+  fs.writeFileSync(path.join(dir, "package.json"), JSON.stringify(pkg, null, 2) + "\n");
+  const buf = { stdout: "" };
+  const out = createOutput({ json: true, stdout: { write: (s) => { buf.stdout += s; } }, stderr: { write: () => {} } });
+  await runAnalyzeVersion(["--base-template", base, "--no-network"], { dir, json: true }, { out, deps: { cliVersion: () => "0.30.0" } });
+  const d = JSON.parse(buf.stdout).data;
+  const copiar = d.grupos.copiar.map((x) => x.arquivo);
+  // sem o alinhamento, os dois caíam em REAPLICAR por causa do nome, e a cópia levava o literal errado
+  assert.ok(copiar.includes("app/llms.txt/route.ts"), "llms.txt devia ser cópia direta");
+  assert.ok(copiar.includes("app/api/acesso/route.ts"), "acesso devia ser cópia direta");
+  assert.ok(!d.grupos.reaplicar.some((x) => ["app/llms.txt/route.ts", "app/api/acesso/route.ts"].includes(x.arquivo)));
+});
+
 test("nomeDaLoja: o literal do código vence o briefing; sem nada, null", () => {
   const raiz = fs.mkdtempSync(path.join(os.tmpdir(), "unbox-nome-"));
   escreve(raiz, "marca/briefing.json", JSON.stringify({ nome: "Do Briefing" }));
