@@ -47,7 +47,8 @@ Como ler cada bloco da saída (`--json` tem os mesmos dados, com estes nomes):
 3. **Editor** (`editor`): cada linha é um item do Passo 4.
 4. **Mudanças de comportamento** (`editor.catalogo_duplicado_no_repo`, `editor.rotas_proprias`): Passo 5.
 5. **Régua** (`regua`, `numeros`): Passo 3.
-6. **Fichas** (`fichas`, `ambiente`): o que mudou no template entre a base e a atual, por versão.
+6. **Fichas** (`fichas`, `ambiente`): o que mudou no TEMPLATE entre a base e a atual, por versão. Versão que
+   só mexeu na CLI não tem o que a loja copie, e a ficha dela diz isso em uma linha.
 
 O que o comando não vê, e você lê: por que a loja reescreveu (`git diff --no-index` entre o template da base e a
 loja), se há um modo "fake/preview/mock" próprio (`previewEnabled`, `mockupOr`, `UNBOX_PREVIEW`), e se os
@@ -61,6 +62,15 @@ template, o que a loja já gerada tem de fazer e as armadilhas que não estão n
 `REESCRITA` em decisão informada. Para confirmar um detalhe, o `CHANGELOG.md` do CLI é a fonte;
 `git diff --stat <tag> HEAD -- template` mostra o tamanho por arquivo, e
 `git log --format='%h %ad %s' --date=short <tag>..HEAD -- template/<arquivo>` diz em que versão cada mudança entrou.
+
+**Só entra no relatório o que chega na loja**: arquivo do template, variável de ambiente, dependência e o que o
+lojista ou o cliente passa a ver. O `CHANGELOG.md` mistura isso com o que é só da CLI (comando novo, flag nova,
+código de erro, saída `--json`, refatoração interna), e essa parte não é migração: uma loja no ar não copia nada
+dela e ela vale igual antes e depois. Se uma versão entre a base e a atual for só de CLI, não abra um item para
+ela no relatório, nem a cite como pendência; `MIGRACAO.md` é o filtro pronto (a ficha de uma versão assim diz
+"nada" em "Loja já gerada"), e `git diff --name-only <tag> HEAD -- template` confirma em caso de dúvida. A
+exceção é o comando que muda COMO a migração é feita (`unbox analyze-version`, `unbox upgrade-template`): ele
+aparece no passo em que se usa, nunca como coisa a migrar.
 
 ## Passo 3: refatorar ou refazer (a régua de corte)
 
@@ -169,7 +179,7 @@ de arquivo importam porque o relatório é a entrada da `migrar-loja-executar` e
 ```
 # <loja>: migração para <versão atual da CLI>
 ## Versão-base: <versão> (scaffold em <data do primeiro commit>; lacunas: <...>; --base usado? por quê)
-## O que mudou no template desde então  (tabela por versão: o que entrou, arquivos, importa para esta loja?)
+## O que mudou no template desde então  (tabela por versão: o que entrou, arquivos, importa para esta loja?; versão só de CLI fica de fora)
 ## O que a loja mudou  (REAPLICAR com os diffs; REESCRITA com o motivo de cada reescrita; lógica própria em arquivo removido)
 ## Recomendação: REFATORAR | REFAZER  (corte duro; os sinais somados com os números; custo estimado dos dois caminhos)
 ## Plano por bloco  (SDK / versões intermediárias / 0.29 assinaturas / kits se houver / infra e docs / editor)

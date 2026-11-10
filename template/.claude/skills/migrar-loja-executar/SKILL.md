@@ -42,7 +42,9 @@ sozinho (`tsc --noEmit` limpo entre um e outro) e porque o seguinte depende do a
 
 O que cada bloco contém por versão está em `MIGRACAO.md` do repo da CLI (a análise já imprime as fichas; o
 arquivo inteiro está em https://github.com/unbox-plus/unbox-cli/blob/main/MIGRACAO.md), nas seções a partir
-da versão-base, inclusive "Armadilhas"; não repita aquela lista de memória, ela é a fonte.
+da versão-base, inclusive "Armadilhas"; não repita aquela lista de memória, ela é a fonte. Versão que só mexeu
+na CLI (comando novo, flag, código de erro) não entra em bloco nenhum e não vai para o relatório final: a loja
+não copia nada dela. O que muda a loja é o que esta skill executa.
 
 ## O primeiro passo é o comando
 
