@@ -163,6 +163,9 @@ Loja gerada antes desta versão não tem o carimbo: `unbox analyze-version` a re
 (`src/version-markers.json`); loja sincronizada à mão engana o marcador, e aí vale `--base <versão>`.
 Banner de host que não está em `images.remotePatterns`: o `imagemOtimizada` devolve a URL como veio e nada quebra,
 mas a loja não ganha a otimização; acrescentar o host ao `next.config.ts` para ganhar.
+`unbox upgrade-template` aplica ao `atual/` o slug sem hífen (`cereousv2` numa loja `cereous-v2`) em
+`app/api/acesso/route.ts`, e o nome técnico (`cereous-v2`) onde o template usa `NEXT_PUBLIC_SITE_NAME`: conferir o
+`LOJA` do acesso contra o `middleware.ts` e o `lib/editable/config.ts` da loja antes de copiar.
 
 ## 0.29.0
 ### Template
@@ -269,6 +272,9 @@ esconder cabeçalho e rodapé.
 ### Armadilhas
 Loja que reescreveu `catalog-client.tsx` perde o espelho da categoria no editor; o template só mudou uma linha
 ali depois, então a reescrita fica, mas sem o `layout="espelho"` a categoria não acompanha `/produtos`.
+Loja que redireciona `/oferta`: `OCULTA_CHROME_EM` (lib/chrome-das-paginas.ts) fica vazia e o `app/layout.tsx` deixa
+de passar `ocultaChromeEm` ao provider; com a lista vazia e a prop passada, o gate reprova ("a loja declara
+ocultaChromeEm sem a lista das páginas").
 
 ## 0.23.0
 ### Template
@@ -287,6 +293,10 @@ A home muda por público (link do anúncio, utm, quiz, conta, referer, região),
 Loja que reescreveu a home ANTES desta versão tem a home em `app/(loja)/page.tsx`; mover para `PaginaInicial` é
 condição para o público e para a vitrine por público. Loja que reescreveu `pagina-inicial.tsx` depois: conferir
 se manteve `catalogoDasVitrines(items, vitrines)` (o script acusa `vitrine_ignorada`).
+Loja que redireciona `/oferta` (`next.config.ts`) não pode declarar o container `oferta` em `lib/personalizacao.ts`
+(`DECLARACAO_DA_PERSONALIZACAO`): o gate `unbox:editavel` reprova com "a loja declara personalização por público sem a
+página do público de «oferta»". Tirar `"oferta"` dali, tirar `/oferta` de `CONTAINERS_POR_ROTA` e pô-la em
+`ROTAS_INTERNAS` (lib/rotas-editaveis.ts), senão o gate mede `/combos` (ou o destino) no lugar dela.
 
 ## 0.22.1
 ### Template
