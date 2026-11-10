@@ -12,7 +12,9 @@ isso que fechar uma versão tem cinco passos, e não um:
 2. o bloco `### vX.Y.Z` no topo do `CHANGELOG.md` (é o texto do release no GitHub; `tools/github-release.mjs` o lê);
 3. **a ficha `## X.Y.Z` em `MIGRACAO.md`**, no formato fixo do topo do arquivo: o que entrou/saiu do template, o
    que uma loja já gerada tem de copiar, reaplicar ou recriar, variáveis de ambiente, mudanças de comportamento e
-   armadilhas. Quem fecha a versão é quem sabe o que mudou; reconstruir isso depois custa uma sessão por loja;
+   armadilhas. Quem fecha a versão é quem sabe o que mudou; reconstruir isso depois custa uma sessão por loja.
+   Mudança que entra em `develop` sem bump escreve a ficha dela desde já numa seção `## próxima` no topo; fechar a
+   versão é renomear essa seção para `## X.Y.Z` (o gate do passo 5 recusa enquanto ela existir);
 4. se a mudança renomeia ou apaga um arquivo usado como marcador em `src/version-markers.json`, trocar o
    marcador (o gate acusa). Marcador novo só para versão anterior a `carimbo.desde`; da 0.30.0 em diante o
    `unbox create` carimba `unbox.templateVersion` no `package.json` da loja e é ele que diz a versão;

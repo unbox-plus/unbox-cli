@@ -167,7 +167,9 @@ Cinco passos, porque `template/` é copiado para a loja e a loja não recebe atu
    (skills `migrar-loja-analisar` e `migrar-loja-executar`, fonte em `.claude/skills/`, cópia gerada em
    `template/.claude/skills/` por `npm run sync:skills`; `check:skills` acusa drift). A parte mecânica sai de
    `git diff --name-status <tag-anterior> HEAD -- template`; a parte que só quem fez a versão sabe é "Loja já
-   gerada", "Mudanças de comportamento" (sempre com os dois lados, migrar × manter) e "Armadilhas";
+   gerada", "Mudanças de comportamento" (sempre com os dois lados, migrar × manter) e "Armadilhas". Mudança
+   que entrou em `develop` sem bump já tem a ficha numa seção `## próxima` no topo: fechar a versão é renomeá-la
+   para `## X.Y.Z` (o gate do passo 5 recusa enquanto ela existir);
 4. marcador em `src/version-markers.json` só se a mudança renomeou ou apagou um arquivo que já é marcador
    (o gate acusa). Da 0.30.0 em diante a loja carrega `unbox.templateVersion` no `package.json` (carimbado pelo
    `create`), e versão nova não precisa de marcador;

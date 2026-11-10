@@ -36,15 +36,28 @@ o que o lojista ou o cliente passa a ver diferente, e a escolha migrar × manter
 o que custou numa migração real (ou "nenhuma conhecida"); a próxima migração acrescenta aqui
 ```
 
+Mudança que entra em `develop` antes de a versão existir vai numa seção `## próxima`, no topo, com os mesmos
+cinco títulos; quem fecha a versão a renomeia para `## X.Y.Z` (é o passo 3 do release em `CLAUDE.md`). A CLI
+ignora essa seção (o parser só lê título com número), e o gate `check-migracao` recusa pacote e release enquanto
+ela existir, para a ficha nunca apontar para uma versão que ainda não saiu nem ficar sem número depois de sair.
+
 Onde está "(inferido)" nas seções antigas, o CHANGELOG não tinha o parágrafo e a lista veio do `git diff`.
 
 ## Refatorar ou refazer: a régua de corte
 
 Abaixo de **0.22.0, refazer** (`unbox create` novo e portar `public/brand/`, fontes, tokens de cor, `marca/`,
-redirects e as seções próprias, reescritas com primitivos): a 0.22.0 trocou a API inteira, entre 0.21.0 e 0.22.0
-há dez consertos encadeados nos mesmos arquivos, e abaixo de 0.21.0 o próprio CHANGELOG diz "mais barato
-regerar". Distância medida (fração do template atual que mudou desde um template puro daquela versão):
+redirects e as seções, páginas e PDP próprias, tal qual, embrulhadas em primitivos): a 0.22.0 trocou a API inteira,
+entre 0.21.0 e 0.22.0 há dez consertos encadeados nos mesmos arquivos, e abaixo de 0.21.0 o próprio CHANGELOG diz
+"mais barato regerar". Distância medida (fração do template atual que mudou desde um template puro daquela versão):
 0.22.0 = 0,44; 0.21.3 = 0,50; 0.20.1 = 0,64; 0.17.1 = 0,74.
+
+Nos dois caminhos a meta de layout é a mesma: a loja sai igual à que entrou (mesmas seções, copy, imagens e
+comportamento em 1440 e 390), comparada contra as capturas que a análise tira antes de qualquer mudança. Só muda
+de aparência o que o dono da loja escolheu migrar nas "Mudanças de comportamento". Quando primitivo e layout
+conflitam, o layout ganha e o componente fica registrado como "sem primitivo, por fidelidade"; os 80% do gate são
+meta, não restrição. A execução, refatorando ou refazendo, começa por um plano por bloco (origem de cada arquivo,
+critério de pronto por comando, lógica própria que muda de lugar), revisado por um agente adversarial e aprovado
+pelo usuário antes do primeiro arquivo.
 
 De 0.22.0 em diante, refatorar, salvo três ou mais sinais da loja (os números são do script da skill):
 `reescrita ≥ 10`, `fracao_em_conflito ≥ 0,4`, `foundation_editada_a_mao > 0`,
@@ -63,6 +76,23 @@ De 0.22.0 em diante, refatorar, salvo três ou mais sinais da loja (os números 
 | Refazer (qualquer base) | 1 a 2 dias de scaffold + marca + redirects, mais o editor | as seções próprias nascem com primitivos |
 
 ---
+
+## próxima
+### Template
+~ `.claude/skills/migrar-loja-analisar/SKILL.md`, `.claude/skills/migrar-loja-executar/SKILL.md`: só entra no
+  relatório de migração o que chega na loja (versão só de CLI fica de fora); a referência visual da loja antiga
+  (capturas em 1440 e 390, `npm run unbox:qa`) é tirada na análise, antes de qualquer mudança; a execução cobre
+  refatorar e refazer, começa por um plano de execução revisado por um agente adversarial e aprovado pelo
+  usuário antes do primeiro arquivo, e tem fidelidade ao layout atual como restrição (o gate do editor é meta,
+  o layout é restrição; só muda de aparência o que o cliente escolheu migrar).
+### Loja já gerada
+Copiar `.claude/skills/` inteira (a loja não mexe nisso).
+### Ambiente
+nada
+### Mudanças de comportamento
+nada
+### Armadilhas
+nenhuma conhecida
 
 ## 0.31.0
 ### Template
