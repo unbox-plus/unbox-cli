@@ -147,6 +147,25 @@ export async function registraChave(api, { publicKey, title }) {
   }
 }
 
+/**
+ * Garante a chave DESTA máquina entre as chaves de uma loja já provisionada. Chave em uso em outro
+ * repositório: `rotate()` gera outra e tenta mais uma vez, como no provisionamento. Devolve
+ * `{ chave, added }`, com a chave que ficou valendo.
+ */
+export async function registraChaveDaMaquina(api, chave, { rotate, out }) {
+  for (let girou = false; ; girou = true) {
+    try {
+      const { key, added } = await registraChave(api, { publicKey: chave.publicKey });
+      if (added) out?.progress(`  Chave desta máquina adicionada à loja: ${key?.title ?? chave.pubPath}`);
+      return { chave, added };
+    } catch (e) {
+      if (e?.code !== DEPLOY_KEY_IN_USE || girou) throw e;
+      chave = rotate();
+      out?.warn(`  A chave de deploy desta máquina está em uso em outro repositório. Gerei outra: ${chave.pubPath}`);
+    }
+  }
+}
+
 /** Remove pela `_id` ou pelo fingerprint. Devolve a chave removida. */
 export async function removeChave(api, alvo) {
   try {

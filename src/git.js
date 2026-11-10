@@ -185,6 +185,43 @@ export function fetchDeploy(dir, sshCommand) {
   }
 }
 
+/**
+ * Clona o repositório da loja em `dest`, já na branch `deploy` e com o remote chamado `unbox`: é o
+ * mesmo vínculo que o `linkDeploy` monta num projeto que já existe, e é o que os outros comandos
+ * procuram (remote `unbox`, branch `deploy` rastreando `unbox/deploy`).
+ */
+export function cloneDeploy({ sshUrl, dest, sshCommand }) {
+  // O git cria a pasta do clone, mas a mãe dela tem de existir quando o caminho é novo.
+  fs.mkdirSync(path.dirname(dest), { recursive: true });
+  const r = git(["clone", "-q", "--origin", "unbox", "--branch", "deploy", sshUrl, dest], { sshCommand });
+  if (r.status === 0) return;
+  const detalhe = (r.stderr || r.stdout).trim().split("\n").slice(-2).join(" ");
+  if (/Remote branch deploy not found/i.test(r.stderr)) {
+    throw new CliError(
+      `O repositório da loja (${sshUrl}) ainda não tem a branch deploy: o provisionamento não terminou. Veja o estado com unbox status e tente de novo depois.`,
+      "SEM_BRANCH_DEPLOY",
+    );
+  }
+  // A chave acabou de ser registrada na loja: recusa aqui é outra coisa (chave em outro
+  // repositório, remoção no meio do caminho), e mandar rodar o provision seria a instrução errada.
+  if (/Permission denied \(publickey/.test(r.stderr)) {
+    throw new CliError(
+      `O servidor da Unbox recusou a chave de deploy desta máquina ao clonar ${sshUrl}. Rode o comando de novo; se continuar, confira as chaves da loja com unbox keys.`,
+      "CHAVE_RECUSADA",
+    );
+  }
+  throw hostKeyError(r.stderr) ?? new CliError(`Não consegui clonar o repositório da loja: ${detalhe}`, "GIT_CLONE_FALHOU");
+}
+
+/**
+ * Grava na config do repositório a loja e a chave de deploy dela. É por estes dois valores que os
+ * outros comandos reconhecem o vínculo e sabem com que chave falar com a Unbox.
+ */
+export function gravaVinculo(dir, { shopId, keyPath }) {
+  gitOk(["config", "unbox.shopId", shopId], { cwd: dir });
+  gitOk(["config", "unbox.keyPath", keyPath], { cwd: dir });
+}
+
 function escreveExclude(gitDir) {
   const arq = path.join(gitDir, "info", "exclude");
   fs.mkdirSync(path.dirname(arq), { recursive: true });
@@ -212,8 +249,7 @@ export function linkDeploy({ dir, sshUrl, sshCommand, shopId, keyPath, st }) {
   }
   // Logo junto do remote: se algo falhar daqui em diante (rede, host key), a próxima execução
   // reconhece o remote como da CLI e segue, em vez de pará-lo como alheio.
-  gitOk(["config", "unbox.shopId", shopId], { cwd: dir });
-  gitOk(["config", "unbox.keyPath", keyPath], { cwd: dir });
+  gravaVinculo(dir, { shopId, keyPath });
   fetchDeploy(dir, sshCommand);
   escreveExclude(gitDir);
 
