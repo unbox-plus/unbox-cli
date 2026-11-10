@@ -1,6 +1,6 @@
 ## Changelog
 
-### Não lançado — a foto do item do carrinho vem sempre do catálogo da Unbox; `unbox download`
+### v0.31.0 — a foto do item do carrinho vem sempre do catálogo da Unbox; `unbox download`
 
 **A foto do item do carrinho vem sempre do catálogo da Unbox.**
 

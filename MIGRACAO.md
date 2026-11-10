@@ -64,7 +64,7 @@ De 0.22.0 em diante, refatorar, salvo três ou mais sinais da loja (os números 
 
 ---
 
-## Não lançado
+## 0.31.0
 ### Template
 + `lib/cart-thumbnail.ts` (a foto da linha do carrinho, resolvida do catálogo no servidor)
 ~ `lib/queries.ts` (`getProductImage`), `app/api/cart/route.ts` (chama o resolvedor no lugar da validação de URI
