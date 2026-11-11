@@ -1,5 +1,29 @@
 ## Changelog
 
+### v0.31.1 — senha com `#` sem aviso falso; a análise de migração respeita o nome de cada arquivo da loja
+
+**Senha com `#` deixou de gerar aviso no arranque da loja.**
+
+- **`lib/env-check.ts`**: o `#` sozinho não é mais lido como comentário colado como valor. A senha sugerida no
+  próprio `.env.example` (`UNBOX_PASS="#minhaSenha$123"`) fazia a loja avisar com a credencial funcionando. O
+  comentário colado de verdade (`CHAVE=  # texto`) chega com espaço, e o espaço continua pegando; acento e
+  parêntese também. O aviso segue sem imprimir o valor.
+
+**`unbox analyze-version` alinha o nome da loja linha a linha.**
+
+- Quando o time trocou o nome da loja à mão em parte dos arquivos (o nome visível no SEO, o slug da porta de
+  prévia), aplicar um nome só no template fazia esses arquivos caírem em "reaplicar", e a cópia sugerida trazia
+  de volta o literal errado. Agora, onde o `create` trocou um marcador e a loja tem a mesma linha com outro valor,
+  vale o valor da loja.
+
+**Migração de loja: skills `migrar-loja-analisar` e `migrar-loja-executar`.**
+
+- Só entra no relatório o que chega na loja; a referência visual da loja antiga (1440 e 390) é capturada na
+  análise, antes de qualquer mudança; a execução cobre refatorar e refazer, começa por um plano revisado e
+  aprovado antes do primeiro arquivo e tem a fidelidade ao layout atual como restrição. A análise fecha com a
+  lista numerada das decisões do dono da loja, que a execução usa como pauta.
+- `tools/check-migracao.mjs` recusa fechar a versão enquanto `MIGRACAO.md` tiver a seção `## próxima`.
+
 ### v0.31.0 — a foto do item do carrinho vem sempre do catálogo da Unbox; `unbox download`
 
 **A foto do item do carrinho vem sempre do catálogo da Unbox.**

@@ -77,7 +77,7 @@ De 0.22.0 em diante, refatorar, salvo três ou mais sinais da loja (os números 
 
 ---
 
-## próxima
+## 0.31.1
 ### Template
 ~ `.claude/skills/migrar-loja-analisar/SKILL.md`, `.claude/skills/migrar-loja-executar/SKILL.md`: só entra no
   relatório de migração o que chega na loja (versão só de CLI fica de fora); a referência visual da loja antiga
