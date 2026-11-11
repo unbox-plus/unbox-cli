@@ -36,15 +36,28 @@ o que o lojista ou o cliente passa a ver diferente, e a escolha migrar × manter
 o que custou numa migração real (ou "nenhuma conhecida"); a próxima migração acrescenta aqui
 ```
 
+Mudança que entra em `develop` antes de a versão existir vai numa seção `## próxima`, no topo, com os mesmos
+cinco títulos; quem fecha a versão a renomeia para `## X.Y.Z` (é o passo 3 do release em `CLAUDE.md`). A CLI
+ignora essa seção (o parser só lê título com número), e o gate `check-migracao` recusa pacote e release enquanto
+ela existir, para a ficha nunca apontar para uma versão que ainda não saiu nem ficar sem número depois de sair.
+
 Onde está "(inferido)" nas seções antigas, o CHANGELOG não tinha o parágrafo e a lista veio do `git diff`.
 
 ## Refatorar ou refazer: a régua de corte
 
 Abaixo de **0.22.0, refazer** (`unbox create` novo e portar `public/brand/`, fontes, tokens de cor, `marca/`,
-redirects e as seções próprias, reescritas com primitivos): a 0.22.0 trocou a API inteira, entre 0.21.0 e 0.22.0
-há dez consertos encadeados nos mesmos arquivos, e abaixo de 0.21.0 o próprio CHANGELOG diz "mais barato
-regerar". Distância medida (fração do template atual que mudou desde um template puro daquela versão):
+redirects e as seções, páginas e PDP próprias, tal qual, embrulhadas em primitivos): a 0.22.0 trocou a API inteira,
+entre 0.21.0 e 0.22.0 há dez consertos encadeados nos mesmos arquivos, e abaixo de 0.21.0 o próprio CHANGELOG diz
+"mais barato regerar". Distância medida (fração do template atual que mudou desde um template puro daquela versão):
 0.22.0 = 0,44; 0.21.3 = 0,50; 0.20.1 = 0,64; 0.17.1 = 0,74.
+
+Nos dois caminhos a meta de layout é a mesma: a loja sai igual à que entrou (mesmas seções, copy, imagens e
+comportamento em 1440 e 390), comparada contra as capturas que a análise tira antes de qualquer mudança. Só muda
+de aparência o que o dono da loja escolheu migrar nas "Mudanças de comportamento". Quando primitivo e layout
+conflitam, o layout ganha e o componente fica registrado como "sem primitivo, por fidelidade"; os 80% do gate são
+meta, não restrição. A execução, refatorando ou refazendo, começa por um plano por bloco (origem de cada arquivo,
+critério de pronto por comando, lógica própria que muda de lugar), revisado por um agente adversarial e aprovado
+pelo usuário antes do primeiro arquivo.
 
 De 0.22.0 em diante, refatorar, salvo três ou mais sinais da loja (os números são do script da skill):
 `reescrita ≥ 10`, `fracao_em_conflito ≥ 0,4`, `foundation_editada_a_mao > 0`,
@@ -63,6 +76,28 @@ De 0.22.0 em diante, refatorar, salvo três ou mais sinais da loja (os números 
 | Refazer (qualquer base) | 1 a 2 dias de scaffold + marca + redirects, mais o editor | as seções próprias nascem com primitivos |
 
 ---
+
+## próxima
+### Template
+~ `.claude/skills/migrar-loja-analisar/SKILL.md`, `.claude/skills/migrar-loja-executar/SKILL.md`: só entra no
+  relatório de migração o que chega na loja (versão só de CLI fica de fora); a referência visual da loja antiga
+  (capturas em 1440 e 390, `npm run unbox:qa`) é tirada na análise, antes de qualquer mudança; a execução cobre
+  refatorar e refazer, começa por um plano de execução revisado por um agente adversarial e aprovado pelo
+  usuário antes do primeiro arquivo, e tem fidelidade ao layout atual como restrição (o gate do editor é meta,
+  o layout é restrição; só muda de aparência o que o cliente escolheu migrar). A análise fecha com a lista
+  numerada das decisões do usuário (opções, o que se perde em cada uma, recomendação e efeito no plano), que a
+  execução usa como pauta; as duas skills dividem o trabalho independente entre quantos subagentes forem úteis.
+~ `lib/env-check.ts`: o `#` sozinho deixou de ser sinal de comentário colado como valor (senha com `#`, como a
+  do próprio `.env.example`, gerava o aviso com a credencial funcionando); espaço, acento e parêntese continuam.
+### Loja já gerada
+Copiar `.claude/skills/` inteira (a loja não mexe nisso). `lib/env-check.ts`: copiar se a loja não o tocou (é
+uma função só, `pareceProsa`, e a linha do aviso).
+### Ambiente
+nada
+### Mudanças de comportamento
+nada
+### Armadilhas
+nenhuma conhecida
 
 ## 0.31.0
 ### Template
@@ -128,6 +163,9 @@ Loja gerada antes desta versão não tem o carimbo: `unbox analyze-version` a re
 (`src/version-markers.json`); loja sincronizada à mão engana o marcador, e aí vale `--base <versão>`.
 Banner de host que não está em `images.remotePatterns`: o `imagemOtimizada` devolve a URL como veio e nada quebra,
 mas a loja não ganha a otimização; acrescentar o host ao `next.config.ts` para ganhar.
+`unbox upgrade-template` aplica ao `atual/` o slug sem hífen (`cereousv2` numa loja `cereous-v2`) em
+`app/api/acesso/route.ts`, e o nome técnico (`cereous-v2`) onde o template usa `NEXT_PUBLIC_SITE_NAME`: conferir o
+`LOJA` do acesso contra o `middleware.ts` e o `lib/editable/config.ts` da loja antes de copiar.
 
 ## 0.29.0
 ### Template
@@ -206,6 +244,12 @@ continua indo para `error.tsx`.
 - `hasUnboxCredentials` continua exportado de `lib/config.ts`, agora pela régua do pacote.
 - Teste: `tsc --noEmit` limpo, build com as mesmas rotas; `import "server-only"` quebra o build se um componente
   de cliente importar `@/lib/unbox`, e é o desejado.
+- Método que a loja acrescentou ao `UnboxClient` local e que o SDK não tem: o caso conhecido é
+  `setCartFrequency` (mutation `updateCart` com `recurringItemsFrequencyId`, para o checkout ler a frequência
+  escolhida no carrinho), ausente do SDK 0.4.1. O `gql()` do pacote é público: recriar como função da loja que
+  recebe o client (`setCartFrequency(c, cartId, cartToken, freqId)` chamando `c.gql(...)`) e trocar a chamada
+  `c.setCartFrequency(...)` por ela. Listar os métodos do `client.ts` da loja que não existem em
+  `dist/client.d.ts` antes de apagar a pasta.
 
 ## 0.24.0
 ### Template
@@ -228,6 +272,9 @@ esconder cabeçalho e rodapé.
 ### Armadilhas
 Loja que reescreveu `catalog-client.tsx` perde o espelho da categoria no editor; o template só mudou uma linha
 ali depois, então a reescrita fica, mas sem o `layout="espelho"` a categoria não acompanha `/produtos`.
+Loja que redireciona `/oferta`: `OCULTA_CHROME_EM` (lib/chrome-das-paginas.ts) fica vazia e o `app/layout.tsx` deixa
+de passar `ocultaChromeEm` ao provider; com a lista vazia e a prop passada, o gate reprova ("a loja declara
+ocultaChromeEm sem a lista das páginas").
 
 ## 0.23.0
 ### Template
@@ -246,6 +293,10 @@ A home muda por público (link do anúncio, utm, quiz, conta, referer, região),
 Loja que reescreveu a home ANTES desta versão tem a home em `app/(loja)/page.tsx`; mover para `PaginaInicial` é
 condição para o público e para a vitrine por público. Loja que reescreveu `pagina-inicial.tsx` depois: conferir
 se manteve `catalogoDasVitrines(items, vitrines)` (o script acusa `vitrine_ignorada`).
+Loja que redireciona `/oferta` (`next.config.ts`) não pode declarar o container `oferta` em `lib/personalizacao.ts`
+(`DECLARACAO_DA_PERSONALIZACAO`): o gate `unbox:editavel` reprova com "a loja declara personalização por público sem a
+página do público de «oferta»". Tirar `"oferta"` dali, tirar `/oferta` de `CONTAINERS_POR_ROTA` e pô-la em
+`ROTAS_INTERNAS` (lib/rotas-editaveis.ts), senão o gate mede `/combos` (ou o destino) no lugar dela.
 
 ## 0.22.1
 ### Template

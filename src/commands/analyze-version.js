@@ -73,12 +73,71 @@ export function nomeDaLoja(dir) {
  * Uma cópia do template com a MESMA personalização de nome que o create fez na loja, numa pasta temporária.
  * Vale para a base e para o atual: sem isso, cada "Minha Loja" trocado pelo create apareceria como conflito.
  */
-function comNomeDaLoja(origem, nome) {
+function comNomeDaLoja(origem, nome, lojaDir) {
   if (!fs.existsSync(path.join(origem, "package.json"))) throw new CliError(`${origem} não tem um template da CLI (falta package.json).`, "TEMPLATE_INDISPONIVEL");
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "unbox-tpl-"));
   fs.cpSync(origem, tmp, { recursive: true });
   if (nome) applyStoreName(tmp, nome);
+  if (lojaDir) alinharComALoja(origem, tmp, lojaDir);
   return tmp;
+}
+
+// Os marcadores que o create troca (`applyStoreName`): o nome de exibição, o slug da porta de prévia e o do editor.
+const MARCADORES = [
+  { texto: "Minha Loja", grupo: "(.+?)" },
+  { texto: '"minhaloja"', grupo: '"([^"\\n]*)"' },
+  { texto: "__STORE_SLUG__", grupo: "([A-Za-z0-9_-]+)" },
+];
+const escapaRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/**
+ * Um nome só não descreve a loja: o create aplicou o nome do wizard, e o time depois trocou o literal à mão em
+ * alguns arquivos e não em outros (a thryn-nutrition tem "thryn-nutrition" na rota do editor e "THRYN Nutrition" no
+ * SEO e na PDP; o slug da porta, "thryn-nutrition", nem é o que a derivação de `applyStoreName` daria). Aplicar um
+ * valor em todos fazia o template "atual" trazer de volta o literal errado nos arquivos que a análise manda copiar.
+ * Então, linha a linha, onde `applyStoreName` trocou um marcador e a loja tem a MESMA linha com outro valor no
+ * lugar dele, vale o valor da loja. Linha que a loja não tem (o template mudou ali) fica com o nome aplicado.
+ */
+function alinharComALoja(origem, tmp, lojaDir) {
+  const texto = /\.(?:[cm]?[jt]sx?|json|md|css|txt)$/;
+  const anda = (rel) => {
+    for (const e of fs.readdirSync(path.join(tmp, rel), { withFileTypes: true })) {
+      if (e.name === "node_modules" || e.name === ".next") continue;
+      const r = rel ? `${rel}/${e.name}` : e.name;
+      if (e.isDirectory()) anda(r);
+      else if (texto.test(e.name)) alinhaArquivo(r);
+    }
+  };
+  const alinhaArquivo = (rel) => {
+    let cru, aplicado, daLoja;
+    try { cru = fs.readFileSync(path.join(origem, rel), "utf8"); aplicado = fs.readFileSync(path.join(tmp, rel), "utf8"); } catch { return; }
+    if (cru === aplicado) return;
+    try { daLoja = fs.readFileSync(path.join(lojaDir, rel === "gitignore" ? ".gitignore" : rel), "utf8"); } catch { return; }
+    const linhasCru = cru.split("\n"), linhasApl = aplicado.split("\n");
+    if (linhasCru.length !== linhasApl.length) return;
+    const linhasLoja = daLoja.split("\n");
+    let mudou = false;
+    for (let i = 0; i < linhasCru.length; i++) {
+      if (linhasCru[i] === linhasApl[i]) continue;
+      const presentes = MARCADORES.filter((m) => linhasCru[i].includes(m.texto));
+      if (!presentes.length) continue;
+      // a linha crua vira um padrão: o resto literal, cada marcador como captura (na ordem em que aparecem)
+      const alvo = new RegExp(presentes.map((m) => escapaRegex(m.texto)).join("|"), "g");
+      const pedacos = linhasCru[i].split(alvo);
+      const achados = linhasCru[i].match(alvo).map((t) => presentes.find((m) => m.texto === t));
+      const re = new RegExp(`^${pedacos.map(escapaRegex).reduce((acc, p, j) => acc + achados[j - 1].grupo + p)}$`);
+      const casada = linhasLoja.map((l) => l.match(re)).find(Boolean);
+      if (!casada) continue;
+      let k = 0;
+      linhasApl[i] = linhasCru[i].replace(alvo, (t) => {
+        const valor = casada[++k];
+        return t.startsWith('"') ? `"${valor}"` : valor;
+      });
+      mudou = true;
+    }
+    if (mudou) fs.writeFileSync(path.join(tmp, rel), linhasApl.join("\n"));
+  };
+  anda("");
 }
 
 /**
@@ -100,7 +159,7 @@ export async function analisar(dir, flags, { out, deps = {}, manterTemplate = fa
 
   const temporarias = [];
   try {
-    const atualDir = comNomeDaLoja(deps.templateDir ?? TEMPLATE_DIR, nome);
+    const atualDir = comNomeDaLoja(deps.templateDir ?? TEMPLATE_DIR, nome, dir);
     temporarias.push(atualDir);
     const tplAtual = readTree(atualDir, { template: true, semCheckoutProprio });
     const loja = readTree(dir, { semCheckoutProprio });
@@ -109,7 +168,7 @@ export async function analisar(dir, flags, { out, deps = {}, manterTemplate = fa
       ({ grupos, pacote } = classificar({ base: tplAtual, atual: tplAtual, loja }));
     } else if (flags["base-template"] || base.publicada || deps.fetchTemplate) {
       const origem = flags["base-template"] ? path.resolve(flags["base-template"]) : (deps.fetchTemplate ?? fetchTemplate)(base.versao, { publicada: base.publicada, semRede, out, deps });
-      baseDir = comNomeDaLoja(origem, nome);
+      baseDir = comNomeDaLoja(origem, nome, dir);
       temporarias.push(baseDir);
       const tplBase = readTree(baseDir, { template: true, semCheckoutProprio });
       ({ grupos, pacote } = classificar({ base: tplBase, atual: tplAtual, loja }));
