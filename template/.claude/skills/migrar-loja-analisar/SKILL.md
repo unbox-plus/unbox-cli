@@ -9,7 +9,15 @@ A loja gerada é uma CÓPIA do `template/` do CLI na versão que a criou, mais o
 por cima. Não há `git merge` possível: a loja não tem o histórico do template. Então "migrar" é, arquivo a arquivo,
 decidir entre copiar o do template atual, reaplicar a mudança da loja sobre ele, ou manter o da loja. Esta skill
 faz o levantamento que torna essa decisão mecânica, e no fim diz se o trabalho cabe numa refatoração ou se é mais
-barato gerar a loja de novo com `unbox create` e portar a marca.
+barato gerar a loja de novo com `unbox create` e portar a marca, e lista as decisões que só o usuário pode tomar.
+
+**Use quantos subagentes forem necessários para agilizar.** Depois do Passo 1 (o comando roda uma vez, no fio
+principal, porque os números dele são a base de tudo), as frentes são independentes e rodam em paralelo, cada
+uma num `Agent` com um briefing próprio (caminho da loja, do template da base e do atual, a seção desta skill que
+ela cobre e o formato da resposta): a captura da referência visual; o motivo de cada `reescrita`/`reaplicar`
+(`git diff --no-index` + o log da loja); a caça às mudanças de comportamento do Passo 5; e, em loja grande, o
+levantamento do editor do Passo 4. Os agentes só leem: nenhum instala, builda ou altera a loja. O relatório é
+escrito por você, com o que eles devolveram conferido contra os números do comando.
 
 ## Passo 1: rodar o comando (sempre; nunca estime à mão)
 
@@ -53,6 +61,16 @@ Como ler cada bloco da saída (`--json` tem os mesmos dados, com estes nomes):
 O que o comando não vê, e você lê: por que a loja reescreveu (`git diff --no-index` entre o template da base e a
 loja), se há um modo "fake/preview/mock" próprio (`previewEnabled`, `mockupOr`, `UNBOX_PREVIEW`), e se os
 combos da loja são kits da Unbox (pergunte ao usuário; muda o bloco de kits).
+
+**A referência visual.** A meta da migração, nos dois caminhos, é a loja sair igual à que entrou: mesmas
+seções na mesma ordem, mesma copy, mesmas imagens, mesmo comportamento nos dois breakpoints. Isso só é
+checável se a loja de antes estiver registrada, e o registro tem de ser feito AGORA, antes de qualquer
+mudança. Rode a loja antiga como ela está (sem `npm install` novo; se precisar de credenciais e não houver, a
+loja no ar serve de base) e capture as rotas principais em 1440 e 390: a loja tem `npm run unbox:qa`
+(`scripts/qa-screenshots.mjs`, com `QA_PDP=/produto/<slug>` para a PDP) e você acrescenta ao plano dele as
+rotas próprias (`rotas_proprias` do comando). Guarde as capturas fora da loja (`~/.config/unbox/upgrade/<pasta>/antes/`)
+e liste no relatório o que foi capturado e o que não deu para capturar. Sem essa referência, a `executar` não
+tem como provar fidelidade, e o revisor dela não tem contra o que comparar.
 
 ## Passo 2: o que mudou entre a versão-base e o template atual
 
@@ -106,6 +124,14 @@ são os de `numeros`, e todos medem a LOJA, não a versão; `regua.sinais` já t
 Dois sinais ou menos: refatorar. Quando der 3 por pouco (um sinal no limite), diga isso ao usuário com os
 números em vez de decidir sozinho. Ponha o custo estimado dos dois caminhos ao lado da recomendação
 (`MIGRACAO.md` do repo da CLI, "Custo por salto").
+
+**Os dois caminhos têm a mesma meta de layout.** "Refazer" não é licença para a loja ficar com a cara do
+template: a marca, as seções próprias, a PDP própria e o funil próprio são portados como estão, e o resultado
+tem de bater com a referência visual do Passo 1. O que muda de aparência de propósito é só o que o cliente
+escolheu migrar no Passo 5 (a conta nova da 0.29, o banner pelo otimizador, o botão sem seta). Diga isso na
+recomendação, com a lista do que será portado tal qual (nomes das pastas: `components/<marca>/`,
+`components/product/pdp/<marca>/`, `lib/<marca>/`), para o custo de "refazer" incluir o porte e não só o
+scaffold.
 
 ## Passo 4: editor (meta de 80% do `unbox:editavel`)
 
@@ -182,11 +208,23 @@ de arquivo importam porque o relatório é a entrada da `migrar-loja-executar` e
 ## O que mudou no template desde então  (tabela por versão: o que entrou, arquivos, importa para esta loja?; versão só de CLI fica de fora)
 ## O que a loja mudou  (REAPLICAR com os diffs; REESCRITA com o motivo de cada reescrita; lógica própria em arquivo removido)
 ## Recomendação: REFATORAR | REFAZER  (corte duro; os sinais somados com os números; custo estimado dos dois caminhos)
-## Plano por bloco  (SDK / versões intermediárias / 0.29 assinaturas / kits se houver / infra e docs / editor)
+## Referência visual  (rotas capturadas em 1440 e 390 e onde estão; o que não deu para capturar e por quê; o que será portado tal qual)
+## Plano por bloco  (SDK / versões intermediárias / 0.29 assinaturas / kits se houver / infra e docs / editor; refazendo: create / marca / redirects / seções e PDP próprias / editor)
 ## Editor: o que o gate reprova hoje, na ordem em que para; depois os componentes sem primitivo com o que vira e o que não vira
 ## Mudanças de comportamento  (uma por item: o que a loja faz hoje · Migrar: o que muda e o que se perde · Manter: o que não se ganha)
-## O que precisa de decisão do usuário  (cada mudança de comportamento acima, mais: kits? publicação pela CLI?)
+## O que precisa de decisão do usuário  (lista numerada; ver abaixo)
 ```
+
+**As decisões do usuário são parte obrigatória da entrega**, e fecham o relatório. Lista numerada, uma
+decisão por item, cada uma com: a pergunta em uma linha; as opções (no mínimo migrar × manter) com o que se
+ganha e o que se perde em cada uma, em termos de página; a sua recomendação quando houver base técnica para
+ela (e "sem recomendação: é negócio" quando não houver, como no catálogo em JSON); e o que a resposta muda no
+plano (arquivos ou blocos afetados). Entram: cada mudança de comportamento do bloco acima; refatorar × refazer
+quando a régua deu no limite; se os combos são kits da Unbox; se a publicação vai pela CLI
+(`unbox provision/env/deploy/publish`); se pode rodar `npm install` na loja; e qualquer ponto em que a análise
+encontrou duas leituras possíveis e escolheu uma. Nada que tenha resposta técnica entra aqui como pergunta: o
+que é mecânico (copiar, reaplicar) é plano, não decisão. A `migrar-loja-executar` lê esta lista no Passo 0 e só
+toca nos arquivos de cada item depois da resposta.
 
 O bloco "Mudanças de comportamento" é o que o dono da loja lê; escreva-o sem jargão de arquivo (o nome do JSON
 pode aparecer, o nome da função não) e com o que se perde em termos de página: "a tabela nutricional de cada

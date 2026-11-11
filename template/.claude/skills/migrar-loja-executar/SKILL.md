@@ -1,13 +1,25 @@
 ---
 name: migrar-loja-executar
-description: Executa a migração de uma loja ANTIGA (gerada por uma versão anterior do @unbox-plus/cli) para o template atual, a partir do relatório da skill migrar-loja-analisar; traz o SDK (@unbox-plus/sdk), as versões intermediárias, a edição de assinatura da 0.29 e deixa a loja antiga pronta para o editor (gate unbox:editavel em 80%). Use quando o usuário disser "migra a loja", "atualiza a loja para a CLI nova", "traz o SDK para a loja X", "faz a migração que você analisou", ou pedir qualquer bloco disso numa loja antiga (só o SDK, só o editor, só a 0.29). Não é para loja recém-gerada que só precisa subir a cobertura do editor, nem para mexer no template do CLI. Se ainda não houver análise, rode a migrar-loja-analisar antes: esta skill parte dos números dela.
+description: Executa a migração de uma loja ANTIGA (gerada por uma versão anterior do @unbox-plus/cli) para o template atual, a partir do relatório da skill migrar-loja-analisar, nos dois caminhos (refatorar a loja ou refazer com unbox create e portar), sempre com um plano de execução revisado e aprovado antes do primeiro arquivo e com fidelidade ao layout atual como restrição; traz o SDK (@unbox-plus/sdk), as versões intermediárias, a edição de assinatura da 0.29 e deixa a loja antiga pronta para o editor (gate unbox:editavel em 80%). Use quando o usuário disser "migra a loja", "atualiza a loja para a CLI nova", "traz o SDK para a loja X", "faz a migração que você analisou", ou pedir qualquer bloco disso numa loja antiga (só o SDK, só o editor, só a 0.29). Não é para loja recém-gerada que só precisa subir a cobertura do editor, nem para mexer no template do CLI. Se ainda não houver análise, rode a migrar-loja-analisar antes: esta skill parte dos números dela.
 ---
 
 # Executar a migração de uma loja antiga
 
 Pré-requisito: o relatório da `migrar-loja-analisar` (versão-base, classificação dos arquivos, auditoria do
-editor, recomendação). Se não existir, rode-a primeiro; se a recomendação for REFAZER, esta skill não se aplica
-(o caminho é `unbox create` + portar a marca, e `references/editor.md` vale lá também).
+editor, referência visual, recomendação). Se não existir, rode-a primeiro. A skill cobre os dois caminhos: com
+REFATORAR, os blocos são os merges da seção "A ordem dos blocos"; com REFAZER, são os de "Refazendo". Nos
+dois, o Passo 1 (o plano, revisado antes de qualquer arquivo) e a regra de fidelidade valem igual, e
+`references/editor.md` vale igual.
+
+**Use quantos subagentes forem necessários para agilizar.** O que é paralelizável vai para `Agent`s
+simultâneos, cada um com briefing próprio (a loja, o relatório da análise, as decisões do usuário, o bloco ou os
+arquivos dele e o critério de pronto): a revisão adversarial do plano (sempre um agente que não escreveu o
+plano); dentro de um bloco, os merges de arquivos que não dependem um do outro (as `reescrita`, os componentes do
+editor que ganham primitivos, as rotas próprias); e a comparação visual contra a referência. O que não se
+paraleliza: a ordem dos blocos (cada um compila antes do seguinte), dois agentes no mesmo arquivo, e as
+verificações de fim de bloco (`tsc --noEmit`, build, gate), que rodam no fio principal sobre o resultado
+somado. Agente que escreve na loja trabalha só nos arquivos que você lhe deu; você confere o diff de cada um
+antes de seguir.
 
 ## Passo 0: antes de tocar em qualquer arquivo
 
@@ -15,7 +27,8 @@ editor, recomendação). Se não existir, rode-a primeiro; se a recomendação f
   arquivos, incluindo `CLAUDE.md`, `lib/config.ts`, `agents/`) são irreversíveis sem um ponto de retorno; com
   trabalho não commitado, pare e peça ao usuário para commitar ou guardar (`git stash`). Loja sem git: peça um
   `git init && git add -A && git commit` antes, ou uma cópia da pasta.
-- **As decisões do relatório.** O bloco "Mudanças de comportamento" da análise lista escolhas (catálogo em
+- **As decisões do relatório.** A lista numerada "O que precisa de decisão do usuário", que fecha a análise, é a
+  pauta: cada item respondido antes de tocar nos arquivos dele. O bloco "Mudanças de comportamento" da análise lista escolhas (catálogo em
   JSON: migrar para a API ou manter; páginas institucionais e blog: virar páginas do lojista ou ficar em
   código; combos, preview fake, rótulos por índice). Cada uma tem de estar respondida pelo usuário antes de
   você tocar no arquivo correspondente; "manter" é uma resposta válida e muda o que o bloco Editor faz
@@ -27,6 +40,93 @@ editor, recomendação). Se não existir, rode-a primeiro; se a recomendação f
 - Esta skill não commita nem cria branch por conta própria: entrega no fim a lista de commits sugeridos
   (mensagem com até 50 caracteres e os arquivos de cada um), e o usuário decide. `package-lock.json` muda no
   bloco do SDK e vai no commit dele.
+
+## A meta que vale para todo bloco: a loja sai igual à que entrou
+
+A migração troca a fiação, não a loja. Ao fim de cada bloco de interface, a página tem de bater com a
+referência visual da análise (`~/.config/unbox/upgrade/<pasta>/antes/`): mesmas seções na mesma ordem, mesma
+copy, mesmas imagens, mesmo comportamento em 1440 e 390. "Igual" é comparado captura contra captura (`npm run
+unbox:qa` com `QA_OUT` apontando para `depois/`), não lido no código.
+
+- **O layout é restrição; o gate do editor é meta.** Quando embrulhar em primitivo exigiria mudar a estrutura
+  de um componente (quebrar um grid, tirar uma animação, trocar uma lista dinâmica por contagem fixa que muda
+  a tela), o layout ganha: o componente fica como está e entra no relatório como "sem primitivo, por
+  fidelidade". Os 80% se buscam nos componentes que aceitam primitivo sem mudar de forma.
+- **Nunca "melhore" ao portar.** Refazendo, as seções próprias, a PDP própria e o funil próprio vão para a
+  pasta nova como estão, com os mesmos nomes; a adaptação é só de imports e de primitivos. Simplificar um
+  componente de 1.500 linhas porque "o template faz parecido" é uma mudança de comportamento que o cliente não
+  escolheu.
+- **A única aparência que muda é a que o cliente escolheu.** O bloco "Mudanças de comportamento" da análise,
+  respondido com "migrar", é a lista fechada do que pode ficar diferente (a conta nova da 0.29, o banner pelo
+  otimizador, o botão sem seta, uma página que virou página do lojista). Fora dessa lista, diferença entre
+  `antes/` e `depois/` é defeito, e o bloco não está pronto.
+- **Sem referência, sem prova.** Se a análise não conseguiu capturar uma rota, diga no plano como ela será
+  conferida (a loja no ar, o dono da loja olhando) em vez de assumir que ficou igual.
+
+## Passo 1: o plano de execução (e a revisão dele), antes de tocar em qualquer arquivo
+
+O relatório da análise diz o que há; o plano diz o que será feito com cada coisa, e é ele que o usuário
+aprova. Escreva-o neste formato e **pare**: nenhum arquivo da loja muda até o usuário dizer que o plano
+está bom. Se ele já pediu para "não iniciar ainda", o plano é a entrega da sessão.
+
+```
+# <loja>: plano de execução (<REFATORAR | REFAZER>, base <versão> → <versão atual>)
+## Decisões do cliente  (cada uma com o bloco que a cumpre; a que não tem resposta bloqueia o bloco dela)
+## Blocos, na ordem  (por bloco: o que entra e de onde vem [template | loja tal qual | loja adaptada | recriado];
+   o grupo da análise que justifica [copiar, reaplicar, reescrita, removido_no_template, novo_na_loja];
+   o critério de pronto [tsc, build com N rotas, gate X%, antes/ = depois/ nas rotas tais];
+   o que o bloco NÃO toca)
+## Lógica própria que muda de lugar  (cada arquivo de removido_no_template com loja_alterou, e onde renasce)
+## Fidelidade  (rotas com referência; rotas sem referência e como serão conferidas; o que pode ficar diferente, por decisão)
+## Ambiente  (variáveis que entram e saem, quem as grava)
+## Riscos e o que pede o usuário  (npm install, credenciais, ordem página do lojista × rota de código)
+```
+
+Regras do plano: referencie os grupos da análise pelo nome em vez de relistar arquivos (o plano expande só o
+que é decisão ou lógica recriada); todo bloco tem um critério de pronto verificável por comando; a ordem
+respeita as dependências da seção seguinte (SDK antes da 0.29; página do lojista publicada antes de a rota de
+código sair; marca antes das seções, refazendo).
+
+**A revisão adversarial.** Antes de entregar o plano ao usuário, passe-o por um subagente que não escreveu
+nada dele (um `Agent` novo, com o relatório da análise, as decisões do cliente, o plano e o caminho das
+capturas; nada da sua conversa). O papel dele é achar o que vai dar errado, não opinar sobre estilo, e ele
+responde a estas perguntas, cada resposta com arquivo e linha ou com "não achei":
+
+1. Há decisão do cliente sem bloco que a cumpra, ou bloco que contradiz uma decisão?
+2. Há arquivo da loja com lógica própria (`removido_no_template` com `loja_alterou`, `novo_na_loja` em
+   `lib/unbox/`) que o plano apaga, sobrescreve ou deixa de citar sem dizer onde a lógica renasce?
+3. Há bloco sem critério de pronto, ou com critério que não é checável por comando?
+4. Há ordem errada (0.29 antes do SDK, rota saindo antes da página do lojista existir, `lib/unbox/` ainda na
+   pasta quando `lib/unbox.ts` entra)?
+5. Há rota da referência visual que nenhum bloco promete comparar, ou mudança de aparência prevista que não
+   está na lista de decisões do cliente?
+6. Há "melhoria" disfarçada: componente próprio que o plano manda simplificar, substituir pelo do template ou
+   reescrever sem decisão do cliente?
+
+Uma rodada só: incorpore o que procede, registre no plano o que não procede e por quê (uma linha por
+objeção), e entregue. O revisor não aprova nem reprova; quem aprova é o usuário.
+
+## Refazendo: os blocos
+
+Quando a recomendação (e a escolha do cliente) é REFAZER, a ordem é outra, e cada bloco também termina em
+`tsc --noEmit` limpo:
+
+1. **Scaffold**: `unbox create` numa pasta nova (pergunte onde), com o mesmo nome e slug da loja; credenciais
+   pelo `unbox provision`, ou as que o usuário passar. Nada da loja antiga entra ainda.
+2. **Marca**: `public/brand/`, as fontes de `app/layout.tsx`, os tokens de cor de `app/globals.css` (só os
+   tokens, não o CSS inteiro), `marca/` e o briefing, `lib/editable/tokens.ts`.
+3. **Redirects e infra própria**: os `redirects()` e `rewrites()` do `next.config.ts` antigo, `app/robots.ts`,
+   as variáveis próprias do `.env.example` (as da família antiga da Unbox saem).
+4. **Seções, páginas, PDP e lógica própria, tal qual**: as pastas da marca (`components/<marca>/`,
+   `components/product/pdp/<marca>/`, `lib/<marca>/`, as seções próprias dentro de `components/home/sections`),
+   as rotas próprias em `app/(loja)/`, com os imports reapontados para `@unbox-plus/sdk` e `@/lib/unbox` e
+   registradas no `registry.ts` e em `CONTAINERS_POR_ROTA`. Lógica que morava em `lib/unbox/` renasce em
+   `lib/unbox.ts`. Analytics próprio vai para o `dataLayer` e os IDs para a foundation (`<Rastreio/>`).
+5. **Editor**: igual ao bloco 6 do refatorar, com a regra de fidelidade.
+6. **Comparação final**: `antes/` contra `depois/` em todas as rotas da referência.
+
+O que é do template novo (conta, assinaturas, checkout, carrinho, chrome) fica como o `create` gerou, a menos
+que a análise tenha marcado uma `reescrita` ali que o cliente decidiu manter.
 
 ## A ordem dos blocos, e por quê
 
@@ -121,6 +221,7 @@ e vira o `fallback`.
 # <loja>: migrada de <base> para <versão atual>
 ## Feito, por bloco  (arquivos copiados, reaplicados, reescritas e a decisão de cada uma, lógica recriada)
 ## Verificação  (typecheck, build com N rotas, gates, unbox:editavel por página com a cobertura)
+## Fidelidade  (rotas comparadas antes/ × depois/ e o resultado; diferenças, cada uma ligada à decisão do cliente que a autoriza; componentes deixados sem primitivo por fidelidade)
 ## Ambiente  (variáveis que faltam no .env.local e na hospedagem)
 ## O que ficou de fora e por quê  (kits, publicação pela CLI, o que depende do usuário)
 ## Commits sugeridos  (mensagem ≤ 50 caracteres + arquivos; nenhum feito)

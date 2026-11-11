@@ -11,9 +11,14 @@ const CHAVES = [
   "NEXT_PUBLIC_META_PIXEL_ID", "PREVIEW_PASSWORD", "PIPEDRIVE_API_TOKEN", "PREVIEW_WEBHOOK_URL",
 ];
 
-/** Parece comentário/prosa: tem `#`, ou tem espaço, ou é uma frase com acento/parênteses. */
+/**
+ * Parece comentário/prosa: tem espaço, ou é uma frase com acento/parênteses. O `#` sozinho NÃO conta:
+ * senha pode ter `#` (o próprio .env.example sugere UNBOX_PASS="#minhaSenha$123", e uma loja no ar
+ * recebia este aviso com a credencial funcionando). O comentário colado como valor (`CHAVE=  # texto`)
+ * chega com espaço, e o espaço já o pega.
+ */
 function pareceProsa(v: string) {
-  return /#/.test(v) || /\s/.test(v.trim()) || /[()áéíóúãõçÁÉÍÓÚÃÕÇ]/.test(v);
+  return /\s/.test(v.trim()) || /[()áéíóúãõçÁÉÍÓÚÃÕÇ]/.test(v);
 }
 
 let avisado = false;
@@ -24,9 +29,9 @@ export function checkEnv() {
   for (const k of CHAVES) {
     const v = process.env[k];
     // NUNCA imprime o valor: a lista inclui senha e tokens, e o próprio .env.example sugere
-    // UNBOX_PASS="#minhaSenha$123" — com o `#` ela cairia aqui e iria inteira pro log da Vercel.
+    // UNBOX_PASS="#minhaSenha$123": um aviso que imprimisse o valor a mandaria inteira pro log da Vercel.
     // Só o nome da variável e o motivo.
-    if (v && pareceProsa(v)) problemas.push(`${k}: contém ${/#/.test(v) ? "'#'" : /\s/.test(v.trim()) ? "espaço" : "acento/parêntese"} (parece comentário copiado como valor)`);
+    if (v && pareceProsa(v)) problemas.push(`${k}: contém ${/\s/.test(v.trim()) ? "espaço" : "acento/parêntese"} (parece comentário copiado como valor)`);
   }
   const pixel = process.env.META_PIXEL_ID;
   if (pixel && !/^\d{5,}$/.test(pixel)) problemas.push("META_PIXEL_ID: não é numérico");

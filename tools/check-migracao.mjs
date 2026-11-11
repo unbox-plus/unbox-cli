@@ -4,7 +4,8 @@
 // Recusa fechar uma versão sem a ficha dela em MIGRACAO.md. Roda no `prepack` (antes do `npm pack`/`publish`)
 // e no `tools/github-release.mjs` (antes de criar a tag). Confere:
 //
-//   1. MIGRACAO.md tem a seção `## <versão do package.json>` com os cinco títulos do formato
+//   1. MIGRACAO.md tem a seção `## <versão do package.json>` com os cinco títulos do formato, e não sobrou
+//      nenhuma `## próxima` (a ficha escrita antes do bump, que o release renomeia)
 //      (Template, Loja já gerada, Ambiente, Mudanças de comportamento, Armadilhas), nenhum vazio.
 //   2. src/version-markers.json é válido e cada marcador BATE no template/ atual: um arquivo de marcador
 //      renomeado ou apagado faria toda loja daquela versão em diante ser lida como anterior, em silêncio.
@@ -30,6 +31,9 @@ const falhas = [];
 const md = fs.readFileSync(path.join(RAIZ, "MIGRACAO.md"), "utf8");
 const secoes = md.split(/^## (?=\S)/m).slice(1);
 const secao = secoes.find((s) => s.split("\n")[0].trim().startsWith(versao));
+if (secoes.some((s) => /^pr[oó]xima\b/i.test(s.split("\n")[0].trim()))) {
+  falhas.push(`MIGRACAO.md ainda tem a seção \`## próxima\`. Renomeie-a para \`## ${versao}\` (ou funda-a na ficha da ${versao}) antes de fechar a versão.`);
+}
 if (!secao) {
   falhas.push(`MIGRACAO.md não tem a seção \`## ${versao}\`. Escreva a ficha da versão (o formato está no topo do arquivo).`);
 } else {
