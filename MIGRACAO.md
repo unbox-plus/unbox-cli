@@ -285,9 +285,15 @@ esconder cabeçalho e rodapé.
 ### Armadilhas
 Loja que reescreveu `catalog-client.tsx` perde o espelho da categoria no editor; o template só mudou uma linha
 ali depois, então a reescrita fica, mas sem o `layout="espelho"` a categoria não acompanha `/produtos`.
-Loja que redireciona `/oferta`: `OCULTA_CHROME_EM` (lib/chrome-das-paginas.ts) fica vazia e o `app/layout.tsx` deixa
-de passar `ocultaChromeEm` ao provider; com a lista vazia e a prop passada, o gate reprova ("a loja declara
-ocultaChromeEm sem a lista das páginas").
+Loja sem a landing `/oferta` (redirecionada no `next.config.ts` ou com `app/(loja)/oferta` removida): o build passa
+e o gate `unbox:editavel` reprova enquanto "oferta" estiver declarada ("a loja declara «oferta» e nenhuma rota o
+renderiza", "ocultaChromeEm sem a marca"). Tirar `"oferta"` de `DECLARACAO_DA_PERSONALIZACAO` (lib/personalizacao.ts)
+e `/oferta` de `CONTAINERS_POR_ROTA` (lib/rotas-editaveis.ts); no redirect, pôr `/oferta` em `ROTAS_INTERNAS`, senão
+o gate mede o destino no lugar dela. Esvaziar `OCULTA_CHROME_EM` (lib/chrome-das-paginas.ts) e tirar a prop
+`ocultaChromeEm` do `app/layout.tsx` (lista vazia com a prop passada reprova: "a loja declara ocultaChromeEm sem a
+lista das páginas"). Na remoção, apagar também `app/(loja)/%5Fpublico/[publico]/oferta`. `lib/publicos-da-borda.ts`
+não muda: a borda segue a declaração. `/carrinho/oferta` é outro fluxo (o passo 2 do bloco de compra) e fica, com
+`components/landing/product-picker.tsx`.
 
 ## 0.23.0
 ### Template
@@ -306,10 +312,12 @@ A home muda por público (link do anúncio, utm, quiz, conta, referer, região),
 Loja que reescreveu a home ANTES desta versão tem a home em `app/(loja)/page.tsx`; mover para `PaginaInicial` é
 condição para o público e para a vitrine por público. Loja que reescreveu `pagina-inicial.tsx` depois: conferir
 se manteve `catalogoDasVitrines(items, vitrines)` (o script acusa `vitrine_ignorada`).
-Loja que redireciona `/oferta` (`next.config.ts`) não pode declarar o container `oferta` em `lib/personalizacao.ts`
-(`DECLARACAO_DA_PERSONALIZACAO`): o gate `unbox:editavel` reprova com "a loja declara personalização por público sem a
-página do público de «oferta»". Tirar `"oferta"` dali, tirar `/oferta` de `CONTAINERS_POR_ROTA` e pô-la em
-`ROTAS_INTERNAS` (lib/rotas-editaveis.ts), senão o gate mede `/combos` (ou o destino) no lugar dela.
+Loja sem a landing `/oferta` (redirecionada no `next.config.ts` ou removida) não pode declarar o container `oferta`
+em `lib/personalizacao.ts` (`DECLARACAO_DA_PERSONALIZACAO`): o gate `unbox:editavel` reprova com "a loja declara
+personalização por público sem a página do público de «oferta»". Tirar `"oferta"` dali e `/oferta` de
+`CONTAINERS_POR_ROTA`; no redirect, pôr `/oferta` em `ROTAS_INTERNAS` (lib/rotas-editaveis.ts), senão o gate mede
+`/combos` (ou o destino) no lugar dela. Da 0.24.0 em diante a lista completa (com o chrome ocultável) está na ficha
+0.24.0.
 
 ## 0.22.1
 ### Template
