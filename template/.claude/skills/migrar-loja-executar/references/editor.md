@@ -94,7 +94,8 @@ A regra que mais se erra na migração, nas duas direções:
 
 Página institucional em código (sobre, sustentabilidade, imprensa, parceiros) custa um container, N primitivos e
 uma linha em `CONTAINERS_POR_ROTA`; a mesma página criada no editor (`/paginas/<endereço>`, seção de Texto e as
-seções da home) custa zero código e é 100% editável. Ofereça a troca ao usuário quando a página for prosa e foto;
+seções da home) custa zero código e é 100% editável. Ofereça a troca ao usuário quando a página for prosa e foto (chave `paginasInstitucionais`; blog,
+`blog`);
 mantenha em código quando o layout for parte da identidade (grid próprio, animação, dados da API).
 
 ### Quando a decisão foi "migrar"
@@ -102,7 +103,7 @@ mantenha em código quando o layout for parte da identidade (grid próprio, anim
 - **Catálogo em JSON → API**: a página de produto volta a ler `getProductBySlug`/`getCatalog` e a renderizar
   pelo `pdp-view.tsx` do template (ou pelo componente próprio da loja, lendo os mesmos campos); descrição por
   `sanitizeHtml`. Cada campo do JSON que a API não tem vira, nesta ordem de preferência: campo do produto no
-  painel (pergunte ao usuário se existe), prosa da marca em `Editable.Text`/`RichText` dentro da seção da
+  painel (pergunte ao usuário se existe; sem chave), prosa da marca em `Editable.Text`/`RichText` dentro da seção da
   PDP com o JSON como `fallback`, ou some (regra da honestidade: bloco sem dado não renderiza). Nunca mantenha
   o `{...json, ...api}`: é o que cria as duas fontes. O JSON só sai do repositório quando nenhum `fallback` o
   lê mais.

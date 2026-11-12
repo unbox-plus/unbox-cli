@@ -85,7 +85,14 @@ De 0.22.0 em diante, refatorar, salvo três ou mais sinais da loja (os números 
   `components/home/sections/familias.json`, arquivo da loja (opcional; o template não o traz), mesclado por cima
   do mapa do template. O script volta a ser igual em toda loja.
 ~ `agents/PADROES.md`: seção nova declara a família em `components/home/sections/familias.json`.
-~ `.claude/skills/migrar-loja-executar/SKILL.md`: o scaffold do refazer passa `--nome` e `--slug` ao `unbox create`.
+~ `.claude/skills/migrar-loja-analisar/SKILL.md`, `.claude/skills/migrar-loja-executar/SKILL.md` e
+  `.claude/skills/migrar-loja-executar/references/editor.md`: cada decisão pedida ao usuário ganha uma chave
+  estável (`caminho`, `catalogoJson`, `paginasInstitucionais`, `blog`, `textoFrequencias`, `kits`, `modoPrevia`,
+  `redirects`, `assinatura029`, `checkout`, `privacidade`, `npmInstall`); a análise passa a listar como decisão as
+  "Mudanças de comportamento" das fichas; a execução ganha a forma de máquina do plano (JSON dos blocos), a seção
+  "Regras que nenhum bloco quebra" (arquivos travados, padrões proibidos, travessão trocado e registrado) e o
+  scaffold do refazer com `--nome` e `--slug`; as duas ganham a seção "Modo esteira", que só vale quando o prompt
+  disser.
 ### Loja já gerada
 Opcional: copiar `scripts/check-editable.mjs`. Só o texto das mensagens muda; o gate aprova e reprova o mesmo.
 
@@ -96,6 +103,9 @@ medidor lista as seções sem família e mostra o exemplo; ele só mede, nunca r
 copiar.
 
 `.claude/skills/migrar-loja-*`: copiar (são as skills de migração que a loja carrega; nada da loja depende delas).
+Para quem migra com elas, duas coisas mudam no uso interativo: o travessão que o gate da marca reprova é trocado
+sem perguntar (e cada troca vai listada no relatório, para o dono da loja ver), e as "Mudanças de comportamento"
+de cada ficha entre a base e a atual entram na lista de decisões quando a loja é afetada.
 ### Ambiente
 nada
 ### Mudanças de comportamento
@@ -104,6 +114,10 @@ nada
 - `scripts/check-recipe.mjs` era o único `scripts/check-*` que a loja precisava editar (uma loja do piloto tinha as seções
   próprias no mapa). Daqui em diante todos os `scripts/check-*` saem iguais ao template, e uma verificação por hash
   pode tratá-los da mesma forma.
+- `lib/editable/` é igual ao template em toda loja, com duas exceções: `tokens.ts` (as cores) e o literal do
+  `STORE_SLUG` em `config.ts`, que o `create` carimba (do nome da loja, ou de `--slug`). Uma comparação por hash
+  normaliza esse literal antes. Ao refazer, o slug da loja nova tem de ser o da antiga (`slug` no
+  `analyze-version --json`, passado ao `create --slug`), senão ela pede ao editor o publicado de outra loja.
 
 ## 0.31.1
 ### Template

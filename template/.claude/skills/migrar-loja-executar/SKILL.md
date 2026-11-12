@@ -33,10 +33,12 @@ antes de seguir.
   código; combos, preview fake, rótulos por índice). Cada uma tem de estar respondida pelo usuário antes de
   você tocar no arquivo correspondente; "manter" é uma resposta válida e muda o que o bloco Editor faz
   naquela página (primitivos no código, em vez de conteúdo no editor). Mais três perguntas, se o relatório não
-  as respondeu: (1) os combos/kits da loja são kits da Unbox? (muda o bloco de kits); (2) a publicação vai pela
-  CLI (`unbox provision/env/deploy/publish`) ou fica como está?; (3) pode rodar `npm install` nesta loja? (é
-  código de terceiros com `postinstall` possível; a análise não instalou nada de propósito). Se o usuário já
-  respondeu, não pergunte de novo.
+  as respondeu: (1) os combos/kits da loja são kits da Unbox? (chave `kits`; muda o bloco de kits); (2) a
+  publicação vai pela CLI (`unbox provision/env/deploy/publish`) ou fica como está?; (3) pode rodar `npm install`
+  nesta loja? (chave `npmInstall`; é código de terceiros com `postinstall` possível; a análise não instalou nada
+  de propósito). Se o usuário já respondeu, não pergunte de novo. Cada decisão da análise traz a chave dela
+  (`catalogoJson`, `paginasInstitucionais`, `blog`, `textoFrequencias`, `modoPrevia`, `redirects`,
+  `assinatura029`, `checkout`, `privacidade`, `caminho`); use o mesmo nome no plano.
 - Esta skill não commita nem cria branch por conta própria: entrega no fim a lista de commits sugeridos
   (mensagem com até 50 caracteres e os arquivos de cada um), e o usuário decide. `package-lock.json` muda no
   bloco do SDK e vai no commit dele.
@@ -48,7 +50,8 @@ referência visual da análise (`~/.config/unbox/upgrade/<pasta>/antes/`): mesma
 copy, mesmas imagens, mesmo comportamento em 1440 e 390. "Igual" é comparado captura contra captura (`npm run
 unbox:qa` com `QA_OUT` apontando para `depois/`), não lido no código.
 
-- **O layout é restrição; o gate do editor é meta.** Quando embrulhar em primitivo exigiria mudar a estrutura
+- **O layout é restrição; o gate do editor é meta** (é regra, não decisão: a chave `layoutVsGate` só tem o valor
+  `fidelidade`). Quando embrulhar em primitivo exigiria mudar a estrutura
   de um componente (quebrar um grid, tirar uma animação, trocar uma lista dinâmica por contagem fixa que muda
   a tela), o layout ganha: o componente fica como está e entra no relatório como "sem primitivo, por
   fidelidade". Os 80% se buscam nos componentes que aceitam primitivo sem mudar de forma.
@@ -59,7 +62,8 @@ unbox:qa` com `QA_OUT` apontando para `depois/`), não lido no código.
 - **A única aparência que muda é a que o cliente escolheu.** O bloco "Mudanças de comportamento" da análise,
   respondido com "migrar", é a lista fechada do que pode ficar diferente (a conta nova da 0.29, o banner pelo
   otimizador, o botão sem seta, uma página que virou página do lojista). Fora dessa lista, diferença entre
-  `antes/` e `depois/` é defeito, e o bloco não está pronto.
+  `antes/` e `depois/` é defeito, e o bloco não está pronto. A única exceção sem escolha do cliente é a troca de
+  travessão que o gate da marca exige (ver "Regras que nenhum bloco quebra"), sempre registrada.
 - **Sem referência, sem prova.** Se a análise não conseguiu capturar uma rota, diga no plano como ela será
   conferida (a loja no ar, o dono da loja olhando) em vez de assumir que ficou igual.
 
@@ -85,7 +89,31 @@ está bom. Se ele já pediu para "não iniciar ainda", o plano é a entrega da s
 Regras do plano: referencie os grupos da análise pelo nome em vez de relistar arquivos (o plano expande só o
 que é decisão ou lógica recriada); todo bloco tem um critério de pronto verificável por comando; a ordem
 respeita as dependências da seção seguinte (SDK antes da 0.29; página do lojista publicada antes de a rota de
-código sair; marca antes das seções, refazendo).
+código sair; marca antes das seções, refazendo). Cada decisão do cliente aparece com a chave dela.
+
+**A forma de máquina do plano** (quando o prompt pedir; o modo esteira sempre pede): a mesma lista de blocos em
+JSON, um array na ordem do markdown:
+
+```json
+[{ "n": 1, "titulo": "upgrade-template e cópias", "tipo": "copias",
+   "criterio": ["tsc", "build", "hashes"], "rotas": [], "dependeDe": [], "perguntas": [] }]
+```
+
+- `n`: 1, 2, 3... na ordem do array, sem pular. `titulo`: texto curto.
+- `tipo`: `copias` (só cópias e merges mecânicos), `merge` (merges com decisão, SDK, 0.29, kits, infra),
+  `primitivos` (embrulhar componentes em primitivos sem mudar o layout), `reescrita` (porte ou reescrita grande)
+  ou `editor` (um item por rota, ou por grupo pequeno de rotas, do bloco do editor).
+- `criterio`: subconjunto de `tsc`, `build`, `hashes` (os arquivos travados abaixo), `rotas` (as rotas do build
+  iguais às de antes, menos as removidas por decisão), `editor` (gate do editor), `fidelidade` (capturas contra a
+  referência), `draft` (`check-subscription-draft`). Todo bloco tem `tsc`; do bloco de infra em diante, `build` e
+  `hashes`; `editor` e `fidelidade` exigem `build`.
+- `rotas`: as rotas que o bloco promete deixar iguais à referência (rota dinâmica como padrão,
+  `/produto/[productSlug]`, ou como um exemplo que a referência capturou). `dependeDe`: os `n` de que depende.
+  `perguntas`: as decisões ainda sem resposta que bloqueiam o bloco.
+- Opcionais, listas de rotas começando com `/`, cada uma com o motivo no markdown: `removeRotas` (rota que deixa
+  de existir por decisão), `foraDoEditor` (rota que continua no build mas sai da lista de páginas do editor) e
+  `soChrome` (rota que entra em `SO_CHROME` além das do template, só por `references/editor.md` §2: texto legal,
+  formulário, mecânica de compra). Sem estar aqui, rota que some ou página só com cabeçalho e rodapé é defeito.
 
 **A revisão adversarial.** Antes de entregar o plano ao usuário, passe-o por um subagente que não escreveu
 nada dele (um `Agent` novo, com o relatório da análise, as decisões do cliente, o plano e o caminho das
@@ -123,7 +151,8 @@ Quando a recomendação (e a escolha do cliente) é REFAZER, a ordem é outra, e
 4. **Seções, páginas, PDP e lógica própria, tal qual**: as pastas da marca (`components/<marca>/`,
    `components/product/pdp/<marca>/`, `lib/<marca>/`, as seções próprias dentro de `components/home/sections`),
    as rotas próprias em `app/(loja)/`, com os imports reapontados para `@unbox-plus/sdk` e `@/lib/unbox` e
-   registradas no `registry.ts` e em `CONTAINERS_POR_ROTA`. Lógica que morava em `lib/unbox/` renasce em
+   registradas no `registry.ts` e em `CONTAINERS_POR_ROTA`, e a família de layout de cada seção própria no
+   `familias.json` ao lado do `registry.ts`. Lógica que morava em `lib/unbox/` renasce em
    `lib/unbox.ts`. Analytics próprio vai para o `dataLayer` e os IDs para a foundation (`<Rastreio/>`).
 5. **Editor**: igual ao bloco 6 do refatorar, com a regra de fidelidade.
 6. **Comparação final**: `antes/` contra `depois/` em todas as rotas da referência.
@@ -176,10 +205,24 @@ que o comando deixou: nunca refaça à mão o que ele já fez, e nunca copie por
   0.25.0).
 - **SÓ A LOJA MUDOU** e **NOVO NA LOJA**: não toque, com duas exceções: o que mora em `lib/unbox/` sai de lá no
   bloco do SDK (senão `@/lib/unbox` fica ambíguo entre `lib/unbox.ts` e a pasta), e o que o bloco Editor pedir.
-- **`lib/editable/*` e `scripts/check-editable.mjs`**: cópia byte a byte do template, sempre. O editor e a loja
-  têm de ler o mesmo documento, e a correção entra por versão; um "ajuste" à mão aqui desliga o editor sem erro
-  de build. `lib/editable/tokens.ts` (as cores editáveis) é a única exceção; `lib/editable/config.ts` só carrega
-  o slug carimbado e não muda na migração.
+- **`lib/editable/*` e os gates `scripts/check-*`**: cópia byte a byte do template, sempre (lista completa em
+  "Regras que nenhum bloco quebra"). O editor e a loja têm de ler o mesmo documento, e a correção entra por
+  versão; um "ajuste" à mão aqui desliga o editor sem erro de build.
+
+## Regras que nenhum bloco quebra
+
+- **Arquivos travados.** Saem iguais, byte a byte, ao template da versão-alvo: `lib/editable/*`, menos
+  `tokens.ts` (as cores editáveis) e menos o literal do `STORE_SLUG` em `config.ts`, que o `create` carimbou e é
+  a única diferença esperada entre lojas; todos os `scripts/check-*.mjs` e `scripts/check-*.ts` (as seções
+  próprias entram no medidor de receita pelo `familias.json` da pasta das seções da home, ao lado do
+  `registry.ts`, não pelo script); e, no
+  `package.json`, o valor de cada chave de `scripts` que o template define (as chaves próprias da loja ficam).
+- **Proibido** para passar no typecheck ou no build: `@ts-nocheck`, `@ts-ignore`, `@ts-expect-error`,
+  `ignoreBuildErrors`, `ignoreDuringBuilds`, desligar `strict`, tirar `app/`, `components/` ou `lib/` do
+  `tsconfig`. Erro de tipo se conserta no código.
+- **Travessão na copy reprovado pelo gate da marca:** troque pelo sinal que a frase pede (vírgula, dois-pontos ou
+  ponto) e registre cada troca no relatório, "onde · antes → depois". Nunca edite o gate. É a única mudança de
+  copy que não passa pelo cliente, e por isso vai listada para ele.
 
 ## Ambiente
 
@@ -192,7 +235,7 @@ deixe com ele. Para a hospedagem, `unbox env` (0.29) grava o `.env.local` no pro
 ## Verificação depois de cada bloco
 
 ```bash
-npm install                      # só depois do bloco SDK, com o ok do usuário (traz @unbox-plus/sdk; o lock muda)
+npm install                      # só depois do bloco SDK, com o ok do usuário (`npmInstall`; traz @unbox-plus/sdk; o lock muda)
 npx tsc --noEmit                 # limpo antes de passar ao próximo bloco
 npm run build                    # no fim dos blocos 1 a 5: mesmas rotas de antes; o prebuild roda os gates da loja
 npx tsx scripts/check-subscription-draft.ts   # depois do bloco 0.29
@@ -234,3 +277,40 @@ Não escreva o histórico da migração no `CHANGELOG.md` do CLI nem no `CLAUDE.
 registro. Se encontrar uma armadilha nova, acrescente-a em `MIGRACAO.md` do repo da CLI (um PR em
 https://github.com/unbox-plus/unbox-cli), na versão em que ela nasce: é assim que a próxima loja não paga por ela
 de novo.
+
+## Modo esteira
+
+Esta seção só vale quando o prompt diz que a sessão roda em modo esteira: sem humano na conversa, com um
+orquestrador em volta que guarda as decisões padrão, roda os comandos, commita e verifica cada bloco. Fora disso,
+ignore-a; o resto da skill vale igual nos dois modos, e quando os dois divergem, esta seção vence.
+
+- **Decisão:** consulte a diretriz pela chave na ferramenta de decisão do orquestrador; se ela responde, siga e
+  registre que a origem foi a diretriz. Se não responde, ou se o ponto não tem chave (layout próprio de PDP ou
+  categoria, "duas leituras", campo do catálogo que talvez exista no painel), abra a pergunta pela mesma
+  ferramenta; o bloco que depende dela fica com o id da pergunta em `perguntas`. Nunca decida sozinho o que tem
+  chave. A publicação pela CLI não é pergunta: provision, deploy e publish são do orquestrador.
+- **"Pare até o usuário aprovar o plano":** entregue o plano (markdown e a forma de máquina do Passo 1) nos
+  arquivos que o prompt pedir e encerre a sessão; a aprovação acontece fora dela. A revisão adversarial é outra
+  sessão, que o orquestrador abre.
+- **Commits:** não commite nem crie branch. Descreva o que o bloco fez no documento do bloco, no arquivo de estado
+  da fase; quem commita é o orquestrador. Do git, só leitura (status, diff, log, show); para apagar ou mover, `rm`
+  e `mv` comuns.
+- **A CLI:** não rode `npx ... unbox` nem `node bin/unbox.js`: o orquestrador roda a análise e o
+  `upgrade-template` com a CLI pinada. A fonte dos `cp` é a pasta que o `upgrade-template` informou (a cópia do
+  template atual fica ali, em `atual/`, só com os pendentes) ou o caminho do template da versão-alvo que o prompt
+  der.
+- **O que já vem pronto:** árvore limpa, `git init` e a pasta da loja nova ao refazer vêm garantidos ou no prompt.
+- **`.env.local`:** não leia. O que faltar vai para a seção "Ambiente" do documento do bloco; o orquestrador
+  preenche.
+- **Comandos que só o orquestrador roda:** build, servidor, gate do editor (`unbox:editavel`), capturas
+  (`unbox:qa`) e `check-subscription-draft`, pelos meios que ele oferecer. Nunca `unbox:test`, `unbox:order:*`,
+  `unbox:webhook:*` nem `unbox:abandoned`.
+- **Sem decisão possível na sessão:** rota sem referência visual é "sem prova", com o motivo; página que viraria
+  página do lojista fica em código, com primitivos, e passa no gate (vira pendência do lojista); campo do
+  catálogo sem par no painel vira primitivo com o JSON como `fallback` (pendência).
+- **Armadilha nova:** registre pela ferramenta do orquestrador, dizendo se parece defeito da CLI ou do template
+  (aí ela vai se repetir nas outras lojas da mesma versão-base), em vez de propor PR.
+- **Relatório:** no arquivo que o prompt pedir, sem travessão, com as trocas de travessão e as pendências do
+  lojista listadas.
+- **Fim:** encerre a sessão pelo meio que o orquestrador indicar, dizendo se o trabalho ficou pronto ou
+  bloqueado e por quê. Comando recusado pelo orquestrador é regra: não procure outro caminho para o mesmo efeito.
