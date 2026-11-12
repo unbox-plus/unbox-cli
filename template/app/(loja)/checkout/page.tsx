@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getCatalog, getPaymentMethods, getShopData } from "@/lib/queries";
-import { getCartRef, getRecurFreq } from "@/lib/session";
+import { getCartRef } from "@/lib/session";
 import { resolveProductPrice } from "@/lib/format";
 import { CheckoutClient, type UpsellOffer } from "@/components/checkout/checkout-client";
 import { DataLayerReady } from "@/components/analytics/data-layer-ready";
@@ -29,8 +29,6 @@ export default async function CheckoutPage({
       }
       q.set("id", ref.cartId);
       q.set("token", ref.cartToken);
-      const freq = await getRecurFreq();
-      if (freq && !q.has("freq")) q.set("freq", freq);
       redirect(`/checkout?${q.toString()}`);
     }
   }

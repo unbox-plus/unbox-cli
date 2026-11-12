@@ -7,7 +7,9 @@
 //    domínio da loja (ex.: https://sualoja.com.br/carrinho/finalizar-pedido). Precisa do
 //    {cartId, cartToken} na URL — mesmo contrato do link de recuperação de carrinho (doc 06) —
 //    porque cartToken é httpOnly e o client não tem acesso a ele para montar a URL sozinho.
-import { getCartRef, getRecurFreq } from "@/lib/session";
+import { getCartRef } from "@/lib/session";
+import { withStoreClient } from "@/lib/unbox";
+import { hasPendingFrequency, syncCartFrequency } from "@/lib/cart-frequency";
 import { ok } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
@@ -18,14 +20,19 @@ export async function GET() {
 
   if (!ref) return ok({ url: "/carrinho" }); // nada pra finalizar ainda
 
-  // NOS DOIS MODOS a URL do checkout carrega ?id=&token=[&freq=]&step=1 — mesmo contrato do
+  // Rede de segurança da frequência de assinatura: se ainda há uma pendente no cookie (o GET
+  // /api/cart não conseguiu levá-la ao carrinho), tenta de novo antes de sair da loja. O checkout
+  // hospedado lê a frequência do carrinho, e só dele. Sem pendente, nenhuma chamada a mais.
+  if (await hasPendingFrequency()) {
+    const cart = await withStoreClient((c) => c.getCart(ref.cartId, ref.cartToken)).catch(() => null);
+    if (cart) await syncCartFrequency(ref, cart);
+  }
+
+  // NOS DOIS MODOS a URL do checkout carrega ?id=&token=&step=1, mesmo contrato do
   // link de recuperação. É isso que deixa o CRM montar o e-mail de abandono a partir da URL
   // navegada (pixel/GTM capturam a URL) e o link colar em outro aparelho. Sem os params na
   // URL, a recuperação de carrinho não existe pra quem só enxerga a navegação.
   const base = hostedUrl || "/checkout";
-  let url = `${base}?id=${encodeURIComponent(ref.cartId)}&token=${encodeURIComponent(ref.cartToken)}`;
-  const freq = await getRecurFreq();
-  if (freq) url += `&freq=${encodeURIComponent(freq)}`;
-  url += "&step=1";
+  const url = `${base}?id=${encodeURIComponent(ref.cartId)}&token=${encodeURIComponent(ref.cartToken)}&step=1`;
   return ok({ url });
 }

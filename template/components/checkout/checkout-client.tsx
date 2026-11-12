@@ -828,9 +828,7 @@ export function CheckoutClient({
         email,
         address,
         payment,
-        recurringItemsFrequencyId: hasRecurring
-          ? (cart?.recurringItemsFrequencyId ?? undefined)
-          : undefined,
+        // A frequência da assinatura não vai no corpo: o servidor a lê do carrinho.
         device: collectDevice(),
       });
       if (data.paymentType === "pix" && data.referenceId) {

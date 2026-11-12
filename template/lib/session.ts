@@ -19,7 +19,7 @@ const base = { httpOnly: true, secure: isProd, sameSite: "lax" as const, path: "
 
 const CART = "unbox_cart";
 const CUSTOMER = "unbox_customer";
-const RECUR_FREQ = "unbox_recur_freq"; // frequência de assinatura escolhida (vai no placeOrder)
+const RECUR_FREQ = "unbox_recur_freq"; // frequência que ainda não chegou ao carrinho (ver lib/cart-frequency.ts)
 const orderKey = (ref: string) => `unbox_order_${ref.replace(/[^a-zA-Z0-9_-]/g, "")}`;
 
 export interface CartRef { cartId: string; cartToken: string }
@@ -36,6 +36,10 @@ export async function getCartRef(): Promise<CartRef | null> {
 }
 
 export async function setCartRef(ref: CartRef): Promise<void> {
+  // Trocou de carrinho (link de outro carrinho, carrinho novo): a frequência pendente era do
+  // anterior e não pode ir parar neste.
+  const atual = await getCartRef();
+  if (atual?.cartId !== ref.cartId) (await cookies()).delete(RECUR_FREQ);
   (await cookies()).set(CART, JSON.stringify(ref), { ...base, maxAge: 60 * 60 * 24 * 7 }); // 7 dias
 }
 
@@ -44,15 +48,22 @@ export async function clearCartRef(): Promise<void> {
   (await cookies()).delete(RECUR_FREQ);
 }
 
-// ----------------------------------------- frequência de assinatura (até o checkout)
-// A frequência NÃO pode ser gravada no carrinho (o input não aceita); guardamos aqui até
-// o placeOrder, onde vira orderRecurrence.recurringItemsFrequencyId.
-export async function setRecurFreq(freqId: string): Promise<void> {
+// ------------------------------------- frequência de assinatura PENDENTE (fila, não fonte)
+// A frequência mora no CARRINHO (`recurringItemsFrequencyId`, gravado por
+// `setCartRecurringFrequency`), que é de onde o checkout hospedado e o interno a leem. Este
+// cookie guarda só uma frequência que ainda não chegou lá: a gravação falhou, ou o carrinho
+// é de uma versão que guardava a frequência só aqui (0.31.x e anteriores). Quem lê e escreve
+// é `lib/cart-frequency.ts`, e nada mais.
+export async function setPendingRecurFreq(freqId: string): Promise<void> {
   (await cookies()).set(RECUR_FREQ, freqId, { ...base, maxAge: 60 * 60 * 24 * 7 });
 }
 
-export async function getRecurFreq(): Promise<string | null> {
+export async function getPendingRecurFreq(): Promise<string | null> {
   return (await cookies()).get(RECUR_FREQ)?.value ?? null;
+}
+
+export async function clearPendingRecurFreq(): Promise<void> {
+  (await cookies()).delete(RECUR_FREQ);
 }
 
 // ------------------------------------------------------------------ cliente

@@ -87,7 +87,8 @@ export const placeOrderSchema = z.object({
     z.object({ type: z.literal("pix") }),
     z.object({ type: z.literal("card"), card: cardSchema }),
   ]),
-  recurringItemsFrequencyId: z.string().optional(),
+  // Sem `recurringItemsFrequencyId`: o servidor lê a frequência do carrinho. Um corpo antigo que
+  // ainda o mande não quebra (o zod descarta chave desconhecida).
   // opcional: se o browser não mandar, o servidor cai no fallback { type: "API" }.
   device: deviceSchema.optional(),
 });
