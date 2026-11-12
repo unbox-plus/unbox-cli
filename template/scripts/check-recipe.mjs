@@ -71,7 +71,7 @@ for (const [nome, rel] of arquivos) {
   const p = path.join(ROOT, rel);
   if (!fs.existsSync(p)) continue;
   const src = fs.readFileSync(p, "utf8");
-  const secoes = [...src.matchAll(/section:\s*"([^"]+)"/g)].map((m) => m[1]);
+  const secoes = [...src.matchAll(/"?section"?\s*:\s*"([^"]+)"/g)].map((m) => m[1]);
   if (!secoes.length) continue;
 
   const familias = secoes.map((s) => FAMILIA[s] ?? "?");

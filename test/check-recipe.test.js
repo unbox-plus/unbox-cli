@@ -51,6 +51,13 @@ test("familias.json inválido ou com valor errado: avisa e segue (o medidor nunc
   assert.match(out, /sem família mapeada: quiz-da-marca/);
 });
 
+test("receita com a chave entre aspas, como o applyPreset escreve a home, também é medida", () => {
+  const dir = loja();
+  fs.writeFileSync(path.join(dir, "components/home/home-recipe.ts"),
+    'export const r = [\n  {\n    "section": "hero"\n  },\n  {\n    "section": "kits"\n  }\n];\n');
+  assert.match(mede(dir), /receita "home": 2 seções, 2 famílias/);
+});
+
 test("o script do template não carrega travessão", () => {
   assert.ok(!fs.readFileSync(SCRIPT, "utf8").includes("—"));
 });

@@ -83,7 +83,9 @@ De 0.22.0 em diante, refatorar, salvo três ou mais sinais da loja (os números 
   (`DECLARACAO_DA_PERSONALIZACAO` em `lib/personalizacao.ts`, `OCULTA_CHROME_EM` em `lib/chrome-das-paginas.ts`).
 ~ `scripts/check-recipe.mjs`: as famílias de layout das seções PRÓPRIAS saem do script e passam a ser lidas de
   `components/home/sections/familias.json`, arquivo da loja (opcional; o template não o traz), mesclado por cima
-  do mapa do template. O script volta a ser igual em toda loja.
+  do mapa do template. O script volta a ser igual em toda loja. E passa a ler a receita com a chave entre aspas
+  (`"section": "hero"`), que é como o `create` escreve a home ao aplicar o estilo: até aqui a home dessas lojas
+  não era medida.
 ~ `agents/PADROES.md`: seção nova declara a família em `components/home/sections/familias.json`.
 ~ `.claude/skills/migrar-loja-analisar/SKILL.md`, `.claude/skills/migrar-loja-executar/SKILL.md` e
   `.claude/skills/migrar-loja-executar/references/editor.md`: cada decisão pedida ao usuário ganha uma chave
