@@ -81,14 +81,26 @@ De 0.22.0 em diante, refatorar, salvo três ou mais sinais da loja (os números 
 ### Template
 ~ `scripts/check-editable.mjs`: as reprovações de container declarado sem rota dizem onde tirar a declaração
   (`DECLARACAO_DA_PERSONALIZACAO` em `lib/personalizacao.ts`, `OCULTA_CHROME_EM` em `lib/chrome-das-paginas.ts`).
+~ `scripts/check-recipe.mjs`: as famílias de layout das seções PRÓPRIAS saem do script e passam a ser lidas de
+  `components/home/sections/familias.json`, arquivo da loja (opcional; o template não o traz), mesclado por cima
+  do mapa do template. O script volta a ser igual em toda loja.
+~ `agents/PADROES.md`: seção nova declara a família em `components/home/sections/familias.json`.
 ### Loja já gerada
 Opcional: copiar `scripts/check-editable.mjs`. Só o texto das mensagens muda; o gate aprova e reprova o mesmo.
+
+`scripts/check-recipe.mjs`: se a loja acrescentou entradas ao `FAMILIA` do script (compare com o do template da
+base; são as seções próprias), passe cada uma para `components/home/sections/familias.json`, como
+`{ "quiz-da-marca": "grade" }`, e copie o script do template. Sem entradas próprias, só copiar. Sem o JSON, o
+medidor lista as seções sem família e mostra o exemplo; ele só mede, nunca reprova o build. `agents/PADROES.md`:
+copiar.
 ### Ambiente
 nada
 ### Mudanças de comportamento
 nada
 ### Armadilhas
-nenhuma conhecida
+- `scripts/check-recipe.mjs` era o único `scripts/check-*` que a loja precisava editar (a byzance tinha as seções
+  próprias no mapa). Daqui em diante todos os `scripts/check-*` saem iguais ao template, e uma verificação por hash
+  pode tratá-los da mesma forma.
 
 ## 0.31.1
 ### Template
