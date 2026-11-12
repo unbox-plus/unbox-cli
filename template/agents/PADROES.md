@@ -5,7 +5,8 @@ reinventar código. A regra de ouro: **layout muda pela RECEITA**
 (`components/home/home-recipe.ts`), pelas **fontes** (bloco `UNBOX-FONTS` de
 `app/layout.tsx`) e pelos **tokens** (`app/globals.css`), nunca reescrevendo o JSX de uma
 seção pra ela "virar outra coisa". Variante nova = arquivo novo em
-`components/home/sections/` + registro no `registry.ts` + entrada aqui.
+`components/home/sections/` + registro no `registry.ts` + entrada aqui + a família de layout
+dela em `components/home/sections/familias.json` (o medidor `npm run unbox:receita` lê dali).
 
 O mesmo vale pro **chrome** (header e rodapé): muda pela receita
 `components/chrome/chrome-recipe.ts`, nunca reescrevendo `site-header.tsx`/`site-footer.tsx`
@@ -200,7 +201,8 @@ total diverge no checkout, defaults saem zerados por isso).
 6. **Composição (ritmo/largura/cards):** eixos `--section-gap`, `--container-max` e
    `--card-*` no mesmo bloco CONFIGURE (ver seção 1b).
 7. **Variante nova de seção:** criar o componente em `components/home/sections/`,
-   registrar no `registry.ts`, documentar aqui. Antes de desenhar, carregue o skill
+   registrar no `registry.ts`, declarar a família em `components/home/sections/familias.json`,
+   documentar aqui. Antes de desenhar, carregue o skill
    `frontend-design` e faça uma escolha estética própria da marca, variante nova que
    parece a original com outra cor não justifica existir. `npm run typecheck` valida a
    receita.

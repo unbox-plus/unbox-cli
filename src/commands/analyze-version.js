@@ -15,6 +15,13 @@ import { fetchTemplate } from "../template-fetch.js";
 import { readTree, classificar, auditoriaDoEditor, numeros, regua, compareVersions, planoDeAplicacao, CHECKOUT_PROPRIO, SINAIS_DE_LOJA, PackageJsonInvalido } from "../template-diff.js";
 import { lerMigracao, fichasEntre, variaveisDasFichas, SECOES } from "../migracao.js";
 
+// O placeholder do template: loja que ficou com ele (o create antigo não trocava em todo arquivo) não tem nome no
+// código, e o `nome` do --json sai null em vez de prometer "Minha Loja" como nome da marca.
+const NOME_DO_TEMPLATE = "Minha Loja";
+
+/** A versão do contrato do `--json` (ver o --help). Sobe quando um campo do contrato muda de forma ou sai. */
+export const SCHEMA_VERSION = 1;
+
 export const help = `
   unbox analyze-version: a versão do template desta loja, o que mudou desde então e o que fazer
 
@@ -34,7 +41,23 @@ export const help = `
                            o primeiro commit "scaffold: create-unbox-store ..." diz a verdadeira)
   --base-template <pasta>  o template da base já extraído (versão não publicada, ou sem rede)
   --no-network             não consulta o npm (precisa do cache ou de --base-template)
-  --json                   { base, atual, latest, grupos, pacote, editor, numeros, regua, fichas, ambiente, proximos }
+  --json                   { schemaVersion, dir, base, atual, latest, comparado, nome, marca, slug, grupos,
+                             pacote, editor, numeros, regua, fichas, ambiente, plano, proximos }
+
+  Contrato do --json (estável enquanto schemaVersion não mudar; o resto da saída é informativo):
+    envelope             { ok: true, data } ou { ok: false, error: { code, message } }
+    data.schemaVersion   1; sobe quando um campo abaixo muda de forma ou sai
+    data.base.versao     "X.Y.Z", a versão-base; data.base.fonte: carimbo | marcadores | --base
+    data.atual           "X.Y.Z", a versão desta CLI (o template contra o qual se comparou)
+    data.nome            string ou null: o nome que o create aplicou (pode ser um slug, como "casa-aurora");
+                         null quando a loja ficou com o "Minha Loja" do template
+    data.marca           string ou null: o nome da marca em marca/briefing.json (nome; sem ele, loja)
+    data.slug            string ou null: o STORE_SLUG de lib/editable/config.ts (o slug da loja no editor);
+                         null quando a loja não tem o arquivo ou ficou com o marcador
+    data.regua.recomendacao  refatorar | refazer | indeterminada
+    data.regua.corte_duro    boolean (base < 0.22.0)
+    data.regua.sinais_ativos número de 0 a 5; com "indeterminada" vem 0, e 0 aqui NÃO quer dizer loja simples
+    data.editor.rotas_proprias  lista de { rota, tipo, dinamica, le_api, le_json, candidata_a_pagina_do_lojista }
 `;
 
 const SPEC = {
@@ -67,6 +90,30 @@ export function nomeDaLoja(dir) {
   m = le("lib/seo-das-rotas.ts").match(/NOME_NO_TITULO\s*=\s*"((?:[^"\\]|\\.)*)"/);
   if (m) return m[1].replace(/\\(["\\])/g, "$1");
   try { return JSON.parse(le("marca/briefing.json")).nome ?? null; } catch { return null; }
+}
+
+/**
+ * O nome da marca no briefing (`marca/briefing.json`), ou null: o `nome` que o briefing de marca preenche e, sem
+ * ele, o `loja` que o create grava (o nome do wizard, ou o da pasta). Quando `nomeDaLoja` devolve um slug, é o
+ * lugar seguinte a olhar; se este também for um slug, só o dono da loja sabe o nome.
+ */
+export function marcaDaLoja(dir) {
+  let b;
+  try { b = JSON.parse(fs.readFileSync(path.join(dir, "marca/briefing.json"), "utf8")); } catch { return null; }
+  for (const v of [b?.nome, b?.loja]) if (typeof v === "string" && v.trim()) return v.trim();
+  return null;
+}
+
+/**
+ * O slug da loja no editor: o literal que o create carimbou em `lib/editable/config.ts` (`STORE_SLUG`). Ao refazer
+ * uma loja, a loja nova tem de carimbar o MESMO, senão pede ao editor o conteúdo publicado de outra loja; e ele nem
+ * sempre sai da derivação do nome (há loja com hífen no slug, que a derivação não dá). null sem o arquivo ou com o marcador intacto.
+ */
+export function slugDaLoja(dir) {
+  let src;
+  try { src = fs.readFileSync(path.join(dir, "lib/editable/config.ts"), "utf8"); } catch { return null; }
+  const m = src.match(/STORE_SLUG\s*=[^\n]*?"([^"]+)"/);
+  return m && m[1] !== "__STORE_SLUG__" ? m[1] : null;
 }
 
 /**
@@ -186,7 +233,7 @@ export async function analisar(dir, flags, { out, deps = {}, manterTemplate = fa
     const plano = planoDeAplicacao({ grupos, loja });
     const proximos = proximosPassos({ base, atual, latest, regua: r, comparado, plano });
     const { _pastasVivas, ...gruposPublicos } = grupos;
-    const resultado = { dir, base, atual, latest, comparado, nome, grupos: gruposPublicos, pacote: pacote.relatorio, editor, numeros: n, regua: r, fichas, ambiente, plano, proximos, _loja: loja, _pacote: pacote };
+    const resultado = { schemaVersion: SCHEMA_VERSION, dir, base, atual, latest, comparado, nome: nome === NOME_DO_TEMPLATE ? null : nome, marca: marcaDaLoja(dir), slug: slugDaLoja(dir), grupos: gruposPublicos, pacote: pacote.relatorio, editor, numeros: n, regua: r, fichas, ambiente, plano, proximos, _loja: loja, _pacote: pacote };
     // O upgrade copia do template COM o nome da loja (não do cru): ele fica com a pasta e a apaga no fim.
     if (manterTemplate) { resultado._atualDir = atualDir; temporarias.splice(temporarias.indexOf(atualDir), 1); }
     return resultado;

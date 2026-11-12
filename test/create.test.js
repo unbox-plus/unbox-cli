@@ -193,3 +193,46 @@ test("aviso de depreciação: só no legado e só em stderr", { skip: semGit }, 
   assert.doesNotMatch(legado.stdout, /comando padrão agora/);
   assert.doesNotMatch(novo.stderr + novo.stdout, /comando padrão agora/);
 });
+
+// --nome e --slug são novos: o código anterior não os conhece, então ficam fora da regressão. Só o código novo.
+const leEnv = (dir) => fs.readFileSync(path.join(dir, ".env.local"), "utf8");
+const leSlug = (dir) => fs.readFileSync(path.join(dir, "lib/editable/config.ts"), "utf8").match(/STORE_SLUG = [^\n]*?"([^"\n]+)";/)[1];
+const novoCreate = (rotulo, args, respostas) => gerar(rotulo, path.join(RAIZ, "bin/unbox.js"), ["create", ...args], respostas);
+
+test("--yes --nome: o nome vale para o site, o briefing e o slug do editor, sem aviso", () => {
+  const r = novoCreate("nome", ["loja", "--yes", "--no-install", "--nome", "Marca Ção"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(leEnv(r.dir), /^NEXT_PUBLIC_SITE_NAME=`?Marca Ção`?$/m);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(r.dir, "marca/briefing.json"), "utf8")).loja, "Marca Ção");
+  assert.equal(leSlug(r.dir), "marcacao");
+  assert.doesNotMatch(r.stderr, /o nome da pasta/);
+});
+
+test("--yes sem --nome: usa a pasta e avisa no stderr", () => {
+  const r = novoCreate("sem-nome", ["loja", "--yes", "--no-install"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stderr, /Nome da loja: "loja" \(o nome da pasta\)\. Para usar o nome da marca: --nome/);
+  assert.match(leEnv(r.dir), /^NEXT_PUBLIC_SITE_NAME=`?loja`?$/m);
+});
+
+test("--slug carimba o slug do editor tal qual, e o nome segue no resto", () => {
+  const r = novoCreate("slug", ["loja", "--yes", "--no-install", "--nome=Casa Aurora", "--slug=casa-aurora"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(leSlug(r.dir), "casa-aurora");
+  assert.match(leEnv(r.dir), /^NEXT_PUBLIC_SITE_NAME=`?Casa Aurora`?$/m);
+});
+
+test("wizard com --nome: a pergunta do nome some e o resto segue na ordem", () => {
+  const r = novoCreate("wizard-nome", ["loja", "--no-install", "--nome", "Outra Marca"], ["#000000", "#FFFFFF", "", "", "", "essencial", false, "custom"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(leEnv(r.dir), /^NEXT_PUBLIC_SITE_NAME=`?Outra Marca`?$/m);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(r.dir, "marca/briefing.json"), "utf8")).corPrimaria, "#000000");
+});
+
+test("--nome vazio e --slug inválido são erro de uso", () => {
+  for (const args of [["--nome", ""], ["--nome"], ["--slug", "Com Espaço"], ["--slug=ACENTO"]]) {
+    const r = novoCreate("uso", ["loja", "--yes", "--no-install", ...args]);
+    assert.equal(r.status, 1, `${args.join(" ")}: ${r.stdout}${r.stderr}`);
+    assert.ok(!fs.existsSync(r.dir), "nada gerado");
+  }
+});

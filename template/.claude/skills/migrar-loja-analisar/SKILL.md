@@ -60,7 +60,7 @@ Como ler cada bloco da saída (`--json` tem os mesmos dados, com estes nomes):
 
 O que o comando não vê, e você lê: por que a loja reescreveu (`git diff --no-index` entre o template da base e a
 loja), se há um modo "fake/preview/mock" próprio (`previewEnabled`, `mockupOr`, `UNBOX_PREVIEW`), e se os
-combos da loja são kits da Unbox (pergunte ao usuário; muda o bloco de kits).
+combos da loja são kits da Unbox (pergunte ao usuário, chave `kits`; muda o bloco de kits).
 
 **A referência visual.** A meta da migração, nos dois caminhos, é a loja sair igual à que entrou: mesmas
 seções na mesma ordem, mesma copy, mesmas imagens, mesmo comportamento nos dois breakpoints. Isso só é
@@ -122,7 +122,7 @@ são os de `numeros`, e todos medem a LOJA, não a versão; `regua.sinais` já t
 | `sem_primitivo` ≥ 30 e `rotas_sem_declaracao` ≥ 8 | embrulhar tudo em primitivos e declarar rotas é o mesmo trabalho que escrever as seções sobre o template novo |
 
 Dois sinais ou menos: refatorar. Quando der 3 por pouco (um sinal no limite), diga isso ao usuário com os
-números em vez de decidir sozinho. Ponha o custo estimado dos dois caminhos ao lado da recomendação
+números em vez de decidir sozinho (chave `caminho`). Ponha o custo estimado dos dois caminhos ao lado da recomendação
 (`MIGRACAO.md` do repo da CLI, "Custo por salto").
 
 **Os dois caminhos têm a mesma meta de layout.** "Refazer" não é licença para a loja ficar com a cara do
@@ -175,12 +175,12 @@ Escreva as duas opções:
   `fallback`) ou vá para o painel como campo do produto. Liste esses campos, um a um; é o custo real.
 - *Manter*: a página continua lendo o JSON, o painel segue sem ser a fonte, e o produto novo exige deploy.
   Funciona, mas o relatório tem de dizer que o editor e o painel não alcançam esse conteúdo.
-Não recomende um lado por padrão; diga o que cada um implica e pergunte.
+Não recomende um lado por padrão; diga o que cada um implica e pergunte (chave `catalogoJson`).
 
 **Rotas próprias de prosa** (`rotas_proprias` com "candidata a página do lojista"): páginas institucionais em
 código (sobre, sustentabilidade, imprensa, parceiros, onde encontrar) e blog em código (lista + artigo). O
 template serve exatamente isso pelo editor (`/paginas/<endereço>`, coleções e artigos), 100% editável e sem
-deploy. As duas opções:
+deploy. As duas opções (chave `paginasInstitucionais` para as institucionais, `blog` para o blog):
 - *Migrar*: a página vira página do lojista (ou o blog vira coleção), o código sai, o conteúdo é portado uma vez
   para o documento do editor. O que se perde: layout próprio que não exista como seção do catálogo (grid
   específico, animação, quiz), e qualquer dado que a página lia de JSON. A vitrine de produtos se mantém como
@@ -191,10 +191,25 @@ Para o blog em código, há um terceiro dado que força a decisão: se a coleç�
 (`colecoes_em_colisao`), "manter" obriga a renomear a coleção.
 
 Outros pontos que costumam aparecer e entram do mesmo jeito (os dois lados escritos): rótulos de frequência de
-assinatura por índice em vez de `title` da API; combos próprios (um produto com N unidades repartidas no front)
-que não são kits da Unbox; modo "preview/fake" que liga sem credenciais; redirects antigos; página de produto
-ou categoria com layout próprio que substitui `pdp-view`/`catalog-client` (se perde o espelho da categoria e o
-"+ Adicionar seção" do editor nessas páginas).
+assinatura por índice em vez de `title` da API (chave `textoFrequencias`); combos próprios (um produto com N
+unidades repartidas no front) que não são kits da Unbox (chave `kits`); modo "preview/fake" que liga sem
+credenciais (chave `modoPrevia`); redirects antigos (chave `redirects`); página de produto ou categoria com
+layout próprio que substitui `pdp-view`/`catalog-client` (se perde o espelho da categoria e o "+ Adicionar
+seção" do editor nessas páginas; sem chave: é sempre pergunta).
+
+**As fichas também trazem decisões.** A seção "Mudanças de comportamento" de cada ficha entre a base e a atual
+(`fichas` do comando) é uma escolha migrar × manter quando a loja é afetada, e entra na lista do mesmo jeito. As
+que têm chave: a edição de assinatura pelo cliente da 0.29.0 (`assinatura029`); checkout próprio × hospedado,
+quando a loja usa um e o template gera o outro (`checkout`); a página de privacidade fora do padrão (redirect
+externo, ou página sem `<LojaPadrao>`, que o gate do editor reprova) (`privacidade`). As demais (a foto do item no carrinho da 0.31.0, o banner pelo
+otimizador e a seta dos botões da 0.30.0) não têm chave: o padrão da ficha é "migrar", e só viram pergunta quando
+a loja é afetada de fato.
+
+**As chaves.** O nome entre crases ao lado de cada decisão (`caminho`, `catalogoJson`, `paginasInstitucionais`,
+`blog`, `textoFrequencias`, `kits`, `modoPrevia`, `redirects`, `assinatura029`, `checkout`, `privacidade`,
+`npmInstall`) é estável: um orquestrador que guarda respostas padrão as acha por ele, e a mesma decisão tem o
+mesmo nome nesta skill e na `migrar-loja-executar`. Ao mudar uma decisão de lugar, mantenha a chave; decisão nova
+ganha chave nova.
 
 ## O relatório
 
@@ -219,10 +234,10 @@ de arquivo importam porque o relatório é a entrada da `migrar-loja-executar` e
 decisão por item, cada uma com: a pergunta em uma linha; as opções (no mínimo migrar × manter) com o que se
 ganha e o que se perde em cada uma, em termos de página; a sua recomendação quando houver base técnica para
 ela (e "sem recomendação: é negócio" quando não houver, como no catálogo em JSON); e o que a resposta muda no
-plano (arquivos ou blocos afetados). Entram: cada mudança de comportamento do bloco acima; refatorar × refazer
-quando a régua deu no limite; se os combos são kits da Unbox; se a publicação vai pela CLI
-(`unbox provision/env/deploy/publish`); se pode rodar `npm install` na loja; e qualquer ponto em que a análise
-encontrou duas leituras possíveis e escolheu uma. Nada que tenha resposta técnica entra aqui como pergunta: o
+plano (arquivos ou blocos afetados), e a chave dela quando tiver uma. Entram: cada mudança de comportamento do
+bloco acima; refatorar × refazer quando a régua deu no limite (`caminho`); se os combos são kits da Unbox (`kits`);
+se a publicação vai pela CLI (`unbox provision/env/deploy/publish`); se pode rodar `npm install` na loja
+(`npmInstall`); e qualquer ponto em que a análise encontrou duas leituras possíveis e escolheu uma (sem chave). Nada que tenha resposta técnica entra aqui como pergunta: o
 que é mecânico (copiar, reaplicar) é plano, não decisão. A `migrar-loja-executar` lê esta lista no Passo 0 e só
 toca nos arquivos de cada item depois da resposta.
 
@@ -232,3 +247,25 @@ produto deixa de aparecer até existir no painel", não "o campo `nutritionHtml`
 
 Esta skill não executa nada da migração, não cria branch nem commita. Se o usuário quiser seguir, a
 `migrar-loja-executar` parte deste relatório (e começa pelo `unbox upgrade-template`).
+
+## Modo esteira
+
+Esta seção só vale quando o prompt diz que a sessão roda em modo esteira: sem humano na conversa, com um
+orquestrador em volta que guarda as decisões padrão, roda os comandos e lê os documentos que a sessão entrega.
+Fora disso, ignore-a; o resto da skill vale igual nos dois modos, e quando os dois divergem, esta seção vence.
+
+- **Decisão:** cada ponto que pede o usuário tem chave (acima). Consulte a diretriz pela chave na ferramenta de
+  decisão do orquestrador; se ela responde, siga e registre que a origem foi a diretriz. Se não responde, ou se o
+  ponto não tem chave (página de produto ou categoria com layout próprio, "duas leituras"), abra a pergunta pela
+  mesma ferramenta e siga com o resto. Nunca decida sozinho o que tem chave.
+- **Publicação pela CLI** não é pergunta: provision, deploy e publish são do orquestrador.
+- **O comando:** não rode `npx ... unbox` nem `node bin/unbox.js`. A análise (`analyze-version --json`) já foi
+  rodada pelo orquestrador com a CLI pinada, e o caminho do resultado vem no prompt.
+- **Referência visual:** as capturas de antes já estão na pasta de estado que o prompt indica; rota sem captura
+  é "sem prova" no relatório, com o motivo.
+- **Não leia o `.env.local`** nem rode build, servidor ou `npm install` na loja: o que faltar vai para o
+  relatório.
+- **Armadilha nova** (algo que custou e que a próxima loja da mesma versão-base vai pagar de novo): registre pela
+  ferramenta do orquestrador, dizendo se parece defeito da CLI ou do template, em vez de propor PR.
+- **O relatório** vai no arquivo que o prompt pedir, no formato de "O relatório", sem travessão. A lista de
+  decisões traz a chave de cada item e, para as que a diretriz já respondeu, a resposta e a origem.

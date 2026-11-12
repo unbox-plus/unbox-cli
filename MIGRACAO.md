@@ -77,6 +77,50 @@ De 0.22.0 em diante, refatorar, salvo três ou mais sinais da loja (os números 
 
 ---
 
+## próxima
+### Template
+~ `scripts/check-editable.mjs`: as reprovações de container declarado sem rota dizem onde tirar a declaração
+  (`DECLARACAO_DA_PERSONALIZACAO` em `lib/personalizacao.ts`, `OCULTA_CHROME_EM` em `lib/chrome-das-paginas.ts`).
+~ `scripts/check-recipe.mjs`: as famílias de layout das seções PRÓPRIAS saem do script e passam a ser lidas de
+  `components/home/sections/familias.json`, arquivo da loja (opcional; o template não o traz), mesclado por cima
+  do mapa do template. O script volta a ser igual em toda loja. E passa a ler a receita com a chave entre aspas
+  (`"section": "hero"`), que é como o `create` escreve a home ao aplicar o estilo: até aqui a home dessas lojas
+  não era medida.
+~ `agents/PADROES.md`: seção nova declara a família em `components/home/sections/familias.json`.
+~ `.claude/skills/migrar-loja-analisar/SKILL.md`, `.claude/skills/migrar-loja-executar/SKILL.md` e
+  `.claude/skills/migrar-loja-executar/references/editor.md`: cada decisão pedida ao usuário ganha uma chave
+  estável (`caminho`, `catalogoJson`, `paginasInstitucionais`, `blog`, `textoFrequencias`, `kits`, `modoPrevia`,
+  `redirects`, `assinatura029`, `checkout`, `privacidade`, `npmInstall`); a análise passa a listar como decisão as
+  "Mudanças de comportamento" das fichas; a execução ganha a forma de máquina do plano (JSON dos blocos), a seção
+  "Regras que nenhum bloco quebra" (arquivos travados, padrões proibidos, travessão trocado e registrado) e o
+  scaffold do refazer com `--nome` e `--slug`; as duas ganham a seção "Modo esteira", que só vale quando o prompt
+  disser.
+### Loja já gerada
+Opcional: copiar `scripts/check-editable.mjs`. Só o texto das mensagens muda; o gate aprova e reprova o mesmo.
+
+`scripts/check-recipe.mjs`: se a loja acrescentou entradas ao `FAMILIA` do script (compare com o do template da
+base; são as seções próprias), passe cada uma para `components/home/sections/familias.json`, como
+`{ "quiz-da-marca": "grade" }`, e copie o script do template. Sem entradas próprias, só copiar. Sem o JSON, o
+medidor lista as seções sem família e mostra o exemplo; ele só mede, nunca reprova o build. `agents/PADROES.md`:
+copiar.
+
+`.claude/skills/migrar-loja-*`: copiar (são as skills de migração que a loja carrega; nada da loja depende delas).
+Para quem migra com elas, duas coisas mudam no uso interativo: o travessão que o gate da marca reprova é trocado
+sem perguntar (e cada troca vai listada no relatório, para o dono da loja ver), e as "Mudanças de comportamento"
+de cada ficha entre a base e a atual entram na lista de decisões quando a loja é afetada.
+### Ambiente
+nada
+### Mudanças de comportamento
+nada
+### Armadilhas
+- `scripts/check-recipe.mjs` era o único `scripts/check-*` que a loja precisava editar (uma loja do piloto tinha as seções
+  próprias no mapa). Daqui em diante todos os `scripts/check-*` saem iguais ao template, e uma verificação por hash
+  pode tratá-los da mesma forma.
+- `lib/editable/` é igual ao template em toda loja, com duas exceções: `tokens.ts` (as cores) e o literal do
+  `STORE_SLUG` em `config.ts`, que o `create` carimba (do nome da loja, ou de `--slug`). Uma comparação por hash
+  normaliza esse literal antes. Ao refazer, o slug da loja nova tem de ser o da antiga (`slug` no
+  `analyze-version --json`, passado ao `create --slug`), senão ela pede ao editor o publicado de outra loja.
+
 ## 0.31.1
 ### Template
 ~ `.claude/skills/migrar-loja-analisar/SKILL.md`, `.claude/skills/migrar-loja-executar/SKILL.md`: só entra no
@@ -272,9 +316,15 @@ esconder cabeçalho e rodapé.
 ### Armadilhas
 Loja que reescreveu `catalog-client.tsx` perde o espelho da categoria no editor; o template só mudou uma linha
 ali depois, então a reescrita fica, mas sem o `layout="espelho"` a categoria não acompanha `/produtos`.
-Loja que redireciona `/oferta`: `OCULTA_CHROME_EM` (lib/chrome-das-paginas.ts) fica vazia e o `app/layout.tsx` deixa
-de passar `ocultaChromeEm` ao provider; com a lista vazia e a prop passada, o gate reprova ("a loja declara
-ocultaChromeEm sem a lista das páginas").
+Loja sem a landing `/oferta` (redirecionada no `next.config.ts` ou com `app/(loja)/oferta` removida): o build passa
+e o gate `unbox:editavel` reprova enquanto "oferta" estiver declarada ("a loja declara «oferta» e nenhuma rota o
+renderiza", "ocultaChromeEm sem a marca"). Tirar `"oferta"` de `DECLARACAO_DA_PERSONALIZACAO` (lib/personalizacao.ts)
+e `/oferta` de `CONTAINERS_POR_ROTA` (lib/rotas-editaveis.ts); no redirect, pôr `/oferta` em `ROTAS_INTERNAS`, senão
+o gate mede o destino no lugar dela. Esvaziar `OCULTA_CHROME_EM` (lib/chrome-das-paginas.ts) e tirar a prop
+`ocultaChromeEm` do `app/layout.tsx` (lista vazia com a prop passada reprova: "a loja declara ocultaChromeEm sem a
+lista das páginas"). Na remoção, apagar também `app/(loja)/%5Fpublico/[publico]/oferta`. `lib/publicos-da-borda.ts`
+não muda: a borda segue a declaração. `/carrinho/oferta` é outro fluxo (o passo 2 do bloco de compra) e fica, com
+`components/landing/product-picker.tsx`.
 
 ## 0.23.0
 ### Template
@@ -293,10 +343,12 @@ A home muda por público (link do anúncio, utm, quiz, conta, referer, região),
 Loja que reescreveu a home ANTES desta versão tem a home em `app/(loja)/page.tsx`; mover para `PaginaInicial` é
 condição para o público e para a vitrine por público. Loja que reescreveu `pagina-inicial.tsx` depois: conferir
 se manteve `catalogoDasVitrines(items, vitrines)` (o script acusa `vitrine_ignorada`).
-Loja que redireciona `/oferta` (`next.config.ts`) não pode declarar o container `oferta` em `lib/personalizacao.ts`
-(`DECLARACAO_DA_PERSONALIZACAO`): o gate `unbox:editavel` reprova com "a loja declara personalização por público sem a
-página do público de «oferta»". Tirar `"oferta"` dali, tirar `/oferta` de `CONTAINERS_POR_ROTA` e pô-la em
-`ROTAS_INTERNAS` (lib/rotas-editaveis.ts), senão o gate mede `/combos` (ou o destino) no lugar dela.
+Loja sem a landing `/oferta` (redirecionada no `next.config.ts` ou removida) não pode declarar o container `oferta`
+em `lib/personalizacao.ts` (`DECLARACAO_DA_PERSONALIZACAO`): o gate `unbox:editavel` reprova com "a loja declara
+personalização por público sem a página do público de «oferta»". Tirar `"oferta"` dali e `/oferta` de
+`CONTAINERS_POR_ROTA`; no redirect, pôr `/oferta` em `ROTAS_INTERNAS` (lib/rotas-editaveis.ts), senão o gate mede
+`/combos` (ou o destino) no lugar dela. Da 0.24.0 em diante a lista completa (com o chrome ocultável) está na ficha
+0.24.0.
 
 ## 0.22.1
 ### Template

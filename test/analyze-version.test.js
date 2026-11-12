@@ -64,7 +64,7 @@ test("--json: o contrato, sem as árvores internas", async () => {
   const r = await roda(c, { json: true });
   assert.equal(r.json.ok, true);
   const d = r.data;
-  assert.deepEqual(Object.keys(d).sort(), ["ambiente", "atual", "base", "comparado", "dir", "editor", "fichas", "grupos", "latest", "nome", "numeros", "pacote", "plano", "proximos", "regua"]);
+  assert.deepEqual(Object.keys(d).sort(), ["ambiente", "atual", "base", "comparado", "dir", "editor", "fichas", "grupos", "latest", "marca", "nome", "numeros", "pacote", "plano", "proximos", "regua", "schemaVersion", "slug"]);
   assert.deepEqual(d.base, { versao: "0.29.0", fonte: "carimbo", lacunas: [], publicada: true });
   assert.equal(d.atual, "0.30.0");
   assert.equal(d.nome, "Loja Teste");
@@ -73,6 +73,67 @@ test("--json: o contrato, sem as árvores internas", async () => {
   assert.ok(d.plano.pendentes.some((p) => p.arquivo === "lib/unbox.ts" && p.grupo === "novo_no_template"));
   assert.equal(d.regua.recomendacao, "refatorar");
   assert.equal(d.fichas[0].versao, "0.30.0");
+});
+
+// O contrato do --json (o --help o descreve): o que a esteira de migração e outros consumidores leem sem
+// acompanhar a CLI versão a versão. Campo que some ou muda de forma aqui é quebra: suba SCHEMA_VERSION.
+test("--json: o contrato estável (schemaVersion 1)", async () => {
+  const c = cenario();
+  const r = await roda(c, { json: true });
+  assert.equal(r.json.ok, true);
+  const d = r.data;
+  assert.equal(d.schemaVersion, 1);
+  assert.match(d.base.versao, /^\d+\.\d+\.\d+$/);
+  assert.ok(["carimbo", "marcadores", "--base"].includes(d.base.fonte));
+  assert.match(d.atual, /^\d+\.\d+\.\d+$/);
+  assert.equal(d.nome, "Loja Teste");
+  assert.equal(d.marca, "Loja Teste");
+  assert.equal(d.slug, "lojateste");
+  assert.ok(["refatorar", "refazer", "indeterminada"].includes(d.regua.recomendacao));
+  assert.equal(typeof d.regua.corte_duro, "boolean");
+  assert.equal(typeof d.regua.sinais_ativos, "number");
+  assert.ok(Array.isArray(d.editor.rotas_proprias) && d.editor.rotas_proprias.length > 0, "o cenário tem rotas próprias");
+  for (const rp of d.editor.rotas_proprias) {
+    assert.equal(typeof rp.rota, "string");
+    assert.ok(rp.rota.startsWith("/"), rp.rota);
+    assert.equal(typeof rp.tipo, "string");
+    assert.equal(typeof rp.dinamica, "boolean");
+    assert.equal(typeof rp.candidata_a_pagina_do_lojista, "boolean");
+  }
+});
+
+test("--json: erro no envelope { ok: false, error: { code, message } }", async () => {
+  const c = cenario();
+  const r = await roda(c, { json: true }, { args: ["--base", "x"] });
+  assert.equal(r.json.ok, false);
+  assert.equal(typeof r.json.error.code, "string");
+  assert.equal(typeof r.json.error.message, "string");
+});
+
+test("slug e marca: marcador intacto e loja sem briefing dão null", async () => {
+  const loja = LOJA();
+  loja["lib/editable/config.ts"] = 'export const STORE_SLUG = process.env.UNBOX_EDITOR_SHOP || "__STORE_SLUG__";\n';
+  delete loja["marca/briefing.json"];
+  const c = cenario({ loja });
+  const r = await roda(c, { json: true });
+  assert.equal(r.data.slug, null);
+  assert.equal(r.data.marca, null);
+});
+
+test("nome: loja que ficou com o placeholder do template sai null", async () => {
+  const loja = LOJA();
+  loja["app/api/unbox/paginas/route.ts"] = 'export const nome = process.env.NEXT_PUBLIC_SITE_NAME || "Minha Loja";\n';
+  delete loja["lib/seo-das-rotas.ts"];
+  const r = await roda(cenario({ loja }), { json: true });
+  assert.equal(r.data.nome, null);
+  assert.equal(r.data.marca, "Loja Teste");
+});
+
+test("marca: sem `nome` no briefing, vale o `loja` que o create grava", async () => {
+  const loja = LOJA();
+  loja["marca/briefing.json"] = JSON.stringify({ loja: "Casa Aurora" }) + "\n";
+  const r = await roda(cenario({ loja }), { json: true });
+  assert.equal(r.data.marca, "Casa Aurora");
 });
 
 test("a personalização do create não vira conflito: site-header com o nome da loja é intacto", async () => {
