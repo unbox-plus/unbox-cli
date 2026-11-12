@@ -120,6 +120,22 @@ test("slug e marca: marcador intacto e loja sem briefing dão null", async () =>
   assert.equal(r.data.marca, null);
 });
 
+test("nome: loja que ficou com o placeholder do template sai null", async () => {
+  const loja = LOJA();
+  loja["app/api/unbox/paginas/route.ts"] = 'export const nome = process.env.NEXT_PUBLIC_SITE_NAME || "Minha Loja";\n';
+  delete loja["lib/seo-das-rotas.ts"];
+  const r = await roda(cenario({ loja }), { json: true });
+  assert.equal(r.data.nome, null);
+  assert.equal(r.data.marca, "Loja Teste");
+});
+
+test("marca: sem `nome` no briefing, vale o `loja` que o create grava", async () => {
+  const loja = LOJA();
+  loja["marca/briefing.json"] = JSON.stringify({ loja: "Casa Aurora" }) + "\n";
+  const r = await roda(cenario({ loja }), { json: true });
+  assert.equal(r.data.marca, "Casa Aurora");
+});
+
 test("a personalização do create não vira conflito: site-header com o nome da loja é intacto", async () => {
   const c = cenario();
   const r = await roda(c, { json: true });

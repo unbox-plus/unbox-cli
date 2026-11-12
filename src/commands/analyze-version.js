@@ -15,6 +15,10 @@ import { fetchTemplate } from "../template-fetch.js";
 import { readTree, classificar, auditoriaDoEditor, numeros, regua, compareVersions, planoDeAplicacao, CHECKOUT_PROPRIO, SINAIS_DE_LOJA, PackageJsonInvalido } from "../template-diff.js";
 import { lerMigracao, fichasEntre, variaveisDasFichas, SECOES } from "../migracao.js";
 
+// O placeholder do template: loja que ficou com ele (o create antigo não trocava em todo arquivo) não tem nome no
+// código, e o `nome` do --json sai null em vez de prometer "Minha Loja" como nome da marca.
+const NOME_DO_TEMPLATE = "Minha Loja";
+
 /** A versão do contrato do `--json` (ver o --help). Sobe quando um campo do contrato muda de forma ou sai. */
 export const SCHEMA_VERSION = 1;
 
@@ -45,8 +49,9 @@ export const help = `
     data.schemaVersion   1; sobe quando um campo abaixo muda de forma ou sai
     data.base.versao     "X.Y.Z", a versão-base; data.base.fonte: carimbo | marcadores | --base
     data.atual           "X.Y.Z", a versão desta CLI (o template contra o qual se comparou)
-    data.nome            string ou null: o nome que o create aplicou (pode ser um slug, como "casa-aurora")
-    data.marca           string ou null: o nome da marca em marca/briefing.json
+    data.nome            string ou null: o nome que o create aplicou (pode ser um slug, como "casa-aurora");
+                         null quando a loja ficou com o "Minha Loja" do template
+    data.marca           string ou null: o nome da marca em marca/briefing.json (nome; sem ele, loja)
     data.slug            string ou null: o STORE_SLUG de lib/editable/config.ts (o slug da loja no editor);
                          null quando a loja não tem o arquivo ou ficou com o marcador
     data.regua.recomendacao  refatorar | refazer | indeterminada
@@ -87,12 +92,16 @@ export function nomeDaLoja(dir) {
   try { return JSON.parse(le("marca/briefing.json")).nome ?? null; } catch { return null; }
 }
 
-/** O nome da marca no briefing (`marca/briefing.json`), ou null. Quando `nomeDaLoja` devolve um slug, é ele o nome. */
+/**
+ * O nome da marca no briefing (`marca/briefing.json`), ou null: o `nome` que o briefing de marca preenche e, sem
+ * ele, o `loja` que o create grava (o nome do wizard, ou o da pasta). Quando `nomeDaLoja` devolve um slug, é o
+ * lugar seguinte a olhar; se este também for um slug, só o dono da loja sabe o nome.
+ */
 export function marcaDaLoja(dir) {
-  try {
-    const nome = JSON.parse(fs.readFileSync(path.join(dir, "marca/briefing.json"), "utf8")).nome;
-    return typeof nome === "string" && nome.trim() ? nome : null;
-  } catch { return null; }
+  let b;
+  try { b = JSON.parse(fs.readFileSync(path.join(dir, "marca/briefing.json"), "utf8")); } catch { return null; }
+  for (const v of [b?.nome, b?.loja]) if (typeof v === "string" && v.trim()) return v.trim();
+  return null;
 }
 
 /**
@@ -224,7 +233,7 @@ export async function analisar(dir, flags, { out, deps = {}, manterTemplate = fa
     const plano = planoDeAplicacao({ grupos, loja });
     const proximos = proximosPassos({ base, atual, latest, regua: r, comparado, plano });
     const { _pastasVivas, ...gruposPublicos } = grupos;
-    const resultado = { schemaVersion: SCHEMA_VERSION, dir, base, atual, latest, comparado, nome, marca: marcaDaLoja(dir), slug: slugDaLoja(dir), grupos: gruposPublicos, pacote: pacote.relatorio, editor, numeros: n, regua: r, fichas, ambiente, plano, proximos, _loja: loja, _pacote: pacote };
+    const resultado = { schemaVersion: SCHEMA_VERSION, dir, base, atual, latest, comparado, nome: nome === NOME_DO_TEMPLATE ? null : nome, marca: marcaDaLoja(dir), slug: slugDaLoja(dir), grupos: gruposPublicos, pacote: pacote.relatorio, editor, numeros: n, regua: r, fichas, ambiente, plano, proximos, _loja: loja, _pacote: pacote };
     // O upgrade copia do template COM o nome da loja (não do cru): ele fica com a pasta e a apaga no fim.
     if (manterTemplate) { resultado._atualDir = atualDir; temporarias.splice(temporarias.indexOf(atualDir), 1); }
     return resultado;
