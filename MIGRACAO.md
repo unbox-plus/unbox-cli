@@ -77,6 +77,19 @@ De 0.22.0 em diante, refatorar, salvo três ou mais sinais da loja (os números 
 
 ---
 
+## próxima
+### Template
+~ `scripts/check-editable.mjs`: as reprovações de container declarado sem rota dizem onde tirar a declaração
+  (`DECLARACAO_DA_PERSONALIZACAO` em `lib/personalizacao.ts`, `OCULTA_CHROME_EM` em `lib/chrome-das-paginas.ts`).
+### Loja já gerada
+Opcional: copiar `scripts/check-editable.mjs`. Só o texto das mensagens muda; o gate aprova e reprova o mesmo.
+### Ambiente
+nada
+### Mudanças de comportamento
+nada
+### Armadilhas
+nenhuma conhecida
+
 ## 0.31.1
 ### Template
 ~ `.claude/skills/migrar-loja-analisar/SKILL.md`, `.claude/skills/migrar-loja-executar/SKILL.md`: só entra no
