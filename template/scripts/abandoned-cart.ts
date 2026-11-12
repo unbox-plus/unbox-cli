@@ -60,10 +60,10 @@ if (!cartId || !cartToken) {
     return;
   }
 
-  // Formato único do link (id+token+freq+step=1), o mesmo que o /api/checkout/email manda
+  // Formato único do link (id+token+step=1), o mesmo que o /api/checkout/email manda
   // no evento checkout_started — ver lib/cart-recovery.ts.
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
-  const recoveryUrl = buildRecoveryUrl(siteUrl, cartId, cartToken, cart.recurringItemsFrequencyId);
+  const recoveryUrl = buildRecoveryUrl(siteUrl, cartId, cartToken);
 
   const r = await dispatchCrm({
     type: "abandoned_cart",

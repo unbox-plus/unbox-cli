@@ -14,7 +14,7 @@ export interface CrmEvent {
   cartId?: string;
   orderId?: string;
   referenceId?: string;
-  /** Link pronto pra restaurar o carrinho (/checkout?id=&token=&freq=&step=) — top-level pra
+  /** Link pronto pra restaurar o carrinho (/checkout?id=&token=&step=), top-level pra
    *  quem consumir o webhook (Klaviyo/Revi) achar fácil, sem precisar abrir o payload. */
   recoveryUrl?: string;
   payload?: Record<string, any>;
