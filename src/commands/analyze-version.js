@@ -45,7 +45,7 @@ export const help = `
     data.schemaVersion   1; sobe quando um campo abaixo muda de forma ou sai
     data.base.versao     "X.Y.Z", a versão-base; data.base.fonte: carimbo | marcadores | --base
     data.atual           "X.Y.Z", a versão desta CLI (o template contra o qual se comparou)
-    data.nome            string ou null: o nome que o create aplicou (pode ser um slug, como "popai-snack")
+    data.nome            string ou null: o nome que o create aplicou (pode ser um slug, como "casa-aurora")
     data.marca           string ou null: o nome da marca em marca/briefing.json
     data.slug            string ou null: o STORE_SLUG de lib/editable/config.ts (o slug da loja no editor);
                          null quando a loja não tem o arquivo ou ficou com o marcador
@@ -98,7 +98,7 @@ export function marcaDaLoja(dir) {
 /**
  * O slug da loja no editor: o literal que o create carimbou em `lib/editable/config.ts` (`STORE_SLUG`). Ao refazer
  * uma loja, a loja nova tem de carimbar o MESMO, senão pede ao editor o conteúdo publicado de outra loja; e ele nem
- * sempre sai da derivação do nome (a thryn tem "thryn-nutrition"). null sem o arquivo ou com o marcador intacto.
+ * sempre sai da derivação do nome (há loja com hífen no slug, que a derivação não dá). null sem o arquivo ou com o marcador intacto.
  */
 export function slugDaLoja(dir) {
   let src;

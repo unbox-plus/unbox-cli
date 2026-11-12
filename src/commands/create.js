@@ -153,6 +153,12 @@ export const help = `
   Flags:
     --yes, -y          não pergunta nada (defaults + modo mockup; pasta default "minha-loja")
     --estilo <nome>    estilo visual: essencial | promocional | editorial | boutique
+    --nome <texto>     nome da loja (o da marca, como o cliente vê): título, SEO, NEXT_PUBLIC_SITE_NAME
+                       e briefing; dispensa a pergunta do wizard. Sem ele e sem terminal (ou com --yes),
+                       o nome é o da pasta, com aviso
+    --slug <slug>      slug da loja no editor (STORE_SLUG de lib/editable/config.ts). Sem ele, sai do
+                       nome sem acento, espaço nem hífen ("Casa Aurora" vira casaaurora). Para refazer
+                       uma loja, passe o da antiga: o campo slug de unbox analyze-version --json
     --install          roda npm install ao final
     --no-install       não roda npm install
     --help, -h         esta ajuda
@@ -160,6 +166,7 @@ export const help = `
   Exemplos:
     unbox create minha-loja
     unbox create loja-x --yes --no-install --estilo boutique
+    unbox create casa-aurora --yes --nome "Casa Aurora"
 
   O comando antigo, create-unbox-store, continua funcionando com as mesmas flags.
 
@@ -168,7 +175,7 @@ export const help = `
 
 /** Flags do create. `--yes` e `--help` chegam como globais (src/main.js), em qualquer posição. */
 function parseArgs(argv, globals) {
-  const flags = { yes: Boolean(globals.yes), install: undefined, target: undefined, estilo: undefined };
+  const flags = { yes: Boolean(globals.yes), install: undefined, target: undefined, estilo: undefined, nome: undefined, slug: undefined };
   const positional = [];
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -176,6 +183,10 @@ function parseArgs(argv, globals) {
     else if (arg === "--no-install") flags.install = false;
     else if (arg === "--estilo") flags.estilo = argv[++i];
     else if (arg.startsWith("--estilo=")) flags.estilo = arg.slice("--estilo=".length);
+    else if (arg === "--nome") flags.nome = argv[++i] ?? "";
+    else if (arg.startsWith("--nome=")) flags.nome = arg.slice("--nome=".length);
+    else if (arg === "--slug") flags.slug = argv[++i] ?? "";
+    else if (arg.startsWith("--slug=")) flags.slug = arg.slice("--slug=".length);
     else if (arg.startsWith("--")) {
       // Flag desconhecida vira erro, não silêncio: "--estylo boutique" ignorado geraria
       // uma loja com o estilo errado sem ninguém perceber.
@@ -184,6 +195,14 @@ function parseArgs(argv, globals) {
     else positional.push(arg);
   }
   flags.target = positional[0];
+  if (flags.nome !== undefined) {
+    flags.nome = flags.nome.trim();
+    if (!flags.nome || flags.nome.startsWith("--")) throw new UsageError('--nome precisa de um texto, ex.: --nome "Casa Aurora".');
+  }
+  // O slug vai para um literal TS e para a URL do editor: só minúsculas, números e hífen.
+  if (flags.slug !== undefined && !/^[a-z0-9][a-z0-9-]{0,59}$/.test(flags.slug)) {
+    throw new UsageError(`--slug inválido: "${flags.slug}". Use só minúsculas, números e hífen (ex.: casaaurora).`);
+  }
   if (flags.estilo && !PRESET_NAMES.includes(flags.estilo)) {
     throw new UsageError(`Estilo desconhecido: "${flags.estilo}". Opções: ${PRESET_NAMES.join(", ")}.`);
   }
@@ -225,7 +244,12 @@ export async function runCreate(args, globals = {}, { legacy = false, interactiv
 
   if (nonInteractive) {
     targetName = targetName || "minha-loja";
-    displayName = path.basename(targetName);
+    displayName = flags.nome ?? path.basename(targetName);
+    // Sem --nome, o cliente veria o nome da pasta ("casa-aurora") no título e no SEO. Avisa sempre: só quem
+    // chamou sabe se a pasta já é o nome da marca.
+    if (flags.nome === undefined) {
+      process.stderr.write(`  ⚠ Nome da loja: "${displayName}" (o nome da pasta). Para usar o nome da marca: --nome "Nome da Marca".\n\n`);
+    }
     primary = DEFAULT_PRIMARY;
     cta = DEFAULT_CTA;
   } else {
@@ -237,7 +261,7 @@ export async function runCreate(args, globals = {}, { legacy = false, interactiv
         initial: "minha-loja",
       },
       {
-        type: "text",
+        type: flags.nome ? null : "text",
         name: "displayName",
         message: "Nome de exibição da loja",
         initial: (prev) => prev || "Minha Loja",
@@ -308,7 +332,7 @@ export async function runCreate(args, globals = {}, { legacy = false, interactiv
       },
     ], { onCancel });
     targetName = targetName || answers.targetName;
-    displayName = answers.displayName || targetName;
+    displayName = flags.nome ?? (answers.displayName || targetName);
     primary = normalizeHex(answers.primary) || DEFAULT_PRIMARY;
     cta = normalizeHex(answers.cta) || DEFAULT_CTA;
     site = (answers.site ?? "").trim();
@@ -394,7 +418,7 @@ export async function runCreate(args, globals = {}, { legacy = false, interactiv
   const preset = PRESETS[estilo];
   const brandTokens = deriveBrandTokens({ primary, cta }, preset);
   applyPreset(targetDir, estilo, brandTokens);
-  applyStoreName(targetDir, displayName);
+  applyStoreName(targetDir, displayName, { slugEditor: flags.slug });
   console.log(`  ✓ Estilo "${preset.label}" aplicado: layout, fontes e neutros do preset + primária ${primary}, CTA ${cta}, loja "${displayName}"`);
 
   writeBriefing(targetDir, {

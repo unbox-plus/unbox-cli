@@ -85,6 +85,7 @@ De 0.22.0 em diante, refatorar, salvo três ou mais sinais da loja (os números 
   `components/home/sections/familias.json`, arquivo da loja (opcional; o template não o traz), mesclado por cima
   do mapa do template. O script volta a ser igual em toda loja.
 ~ `agents/PADROES.md`: seção nova declara a família em `components/home/sections/familias.json`.
+~ `.claude/skills/migrar-loja-executar/SKILL.md`: o scaffold do refazer passa `--nome` e `--slug` ao `unbox create`.
 ### Loja já gerada
 Opcional: copiar `scripts/check-editable.mjs`. Só o texto das mensagens muda; o gate aprova e reprova o mesmo.
 
@@ -93,12 +94,14 @@ base; são as seções próprias), passe cada uma para `components/home/sections
 `{ "quiz-da-marca": "grade" }`, e copie o script do template. Sem entradas próprias, só copiar. Sem o JSON, o
 medidor lista as seções sem família e mostra o exemplo; ele só mede, nunca reprova o build. `agents/PADROES.md`:
 copiar.
+
+`.claude/skills/migrar-loja-*`: copiar (são as skills de migração que a loja carrega; nada da loja depende delas).
 ### Ambiente
 nada
 ### Mudanças de comportamento
 nada
 ### Armadilhas
-- `scripts/check-recipe.mjs` era o único `scripts/check-*` que a loja precisava editar (a byzance tinha as seções
+- `scripts/check-recipe.mjs` era o único `scripts/check-*` que a loja precisava editar (uma loja do piloto tinha as seções
   próprias no mapa). Daqui em diante todos os `scripts/check-*` saem iguais ao template, e uma verificação por hash
   pode tratá-los da mesma forma.
 

@@ -111,8 +111,11 @@ objeção), e entregue. O revisor não aprova nem reprova; quem aprova é o usu�
 Quando a recomendação (e a escolha do cliente) é REFAZER, a ordem é outra, e cada bloco também termina em
 `tsc --noEmit` limpo:
 
-1. **Scaffold**: `unbox create` numa pasta nova (pergunte onde), com o mesmo nome e slug da loja; credenciais
-   pelo `unbox provision`, ou as que o usuário passar. Nada da loja antiga entra ainda.
+1. **Scaffold**: `unbox create <pasta> --nome "<nome da marca>" --slug <slug>` numa pasta nova (pergunte onde).
+   O `--slug` é o `slug` da análise (`analyze-version --json`, o STORE_SLUG da loja antiga): sem ele, a loja
+   nova pede ao editor o publicado de outra loja. O `--nome` é o nome que o cliente vê: o `nome` da análise,
+   ou a `marca` dela quando o `nome` é um slug (`casa-aurora`); sem nenhum dos dois, confirme com o usuário.
+   Credenciais pelo `unbox provision`, ou as que o usuário passar. Nada da loja antiga entra ainda.
 2. **Marca**: `public/brand/`, as fontes de `app/layout.tsx`, os tokens de cor de `app/globals.css` (só os
    tokens, não o CSS inteiro), `marca/` e o briefing, `lib/editable/tokens.ts`.
 3. **Redirects e infra própria**: os `redirects()` e `rewrites()` do `next.config.ts` antigo, `app/robots.ts`,

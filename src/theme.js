@@ -261,8 +261,12 @@ export function applyPreset(targetDir, presetName, brandTokens) {
   }
 }
 
-/** Troca o fallback "Minha Loja" pelo nome de exibição escolhido (header, footer e metadata). */
-export function applyStoreName(targetDir, displayName) {
+/**
+ * Troca o fallback "Minha Loja" pelo nome de exibição escolhido (header, footer e metadata). `slugEditor`, quando
+ * vem, é o STORE_SLUG do editor tal qual (a loja refeita tem de pedir ao editor o publicado da MESMA loja de
+ * antes, e o slug dela nem sempre sai da derivação do nome); sem ele, o slug do editor é o derivado do nome.
+ */
+export function applyStoreName(targetDir, displayName, { slugEditor } = {}) {
   if (!displayName) return;
   // Literal de string TS: escapa barra e aspas. E TODA substituição usa função (não string)
   // — com string, um nome com `$&` ou `$'` vira padrão de replace e corrompe o TSX.
@@ -324,6 +328,6 @@ export function applyStoreName(targetDir, displayName) {
     if (!content.includes("__STORE_SLUG__")) {
       throw new Error("[create-unbox-store] marcador __STORE_SLUG__ não encontrado em lib/editable/config.ts: a foundation do editor pode ter mudado.");
     }
-    fs.writeFileSync(configEditavel, content.replaceAll("__STORE_SLUG__", () => slug));
+    fs.writeFileSync(configEditavel, content.replaceAll("__STORE_SLUG__", () => slugEditor || slug));
   }
 }
