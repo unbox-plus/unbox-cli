@@ -2,6 +2,7 @@
 import { withStoreClient } from "@/lib/unbox";
 import { getCartRef } from "@/lib/session";
 import { cartResponse } from "@/lib/cart-response";
+import { clearCartFrequencyIfNoRecurring } from "@/lib/cart-frequency";
 import { ok, fail, failFrom } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
@@ -19,6 +20,8 @@ export async function PATCH(req: Request) {
       return r?.cartEvents ?? [];
     });
     const full = await withStoreClient((c) => c.getCart(ref.cartId, ref.cartToken));
+    // Saiu o último item de assinatura: a frequência sai do carrinho também (nunca lança).
+    await clearCartFrequencyIfNoRecurring(ref, full);
     return ok({ cart: await cartResponse(full, events) });
   } catch (e) {
     return failFrom(e);
@@ -38,6 +41,8 @@ export async function DELETE(req: Request) {
       return r?.cartEvents ?? [];
     });
     const full = await withStoreClient((c) => c.getCart(ref.cartId, ref.cartToken));
+    // Saiu o último item de assinatura: a frequência sai do carrinho também (nunca lança).
+    await clearCartFrequencyIfNoRecurring(ref, full);
     return ok({ cart: await cartResponse(full, events) });
   } catch (e) {
     return failFrom(e);

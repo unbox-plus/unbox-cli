@@ -90,7 +90,6 @@ function hostDePreview(hostHeader: string): boolean {
 // Roda ANTES de qualquer coisa da porta de preview, porque vale em todo host — inclusive
 // no domínio próprio da marca, onde o resto deste arquivo não faz nada.
 const COOKIE_CARRINHO = "unbox_cart";
-const COOKIE_FREQ = "unbox_recur_freq";
 
 function urlDoCheckoutComPonteiro(req: NextRequest): NextResponse | null {
   if (req.nextUrl.pathname !== "/checkout") return null;
@@ -106,8 +105,6 @@ function urlDoCheckoutComPonteiro(req: NextRequest): NextResponse | null {
   const url = req.nextUrl.clone();
   url.searchParams.set("id", ref.cartId);
   url.searchParams.set("token", ref.cartToken);
-  const freq = req.cookies.get(COOKIE_FREQ)?.value;
-  if (freq && !url.searchParams.get("freq")) url.searchParams.set("freq", freq);
   if (!url.searchParams.get("step")) url.searchParams.set("step", "1");
   return NextResponse.redirect(url);
 }

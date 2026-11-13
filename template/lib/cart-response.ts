@@ -1,8 +1,7 @@
 // Monta a resposta de carrinho para o BFF: normaliza + anexa a FREQUÊNCIA de assinatura
-// (a frequência não vive no carrinho da Unbox — está no cookie; o título vem da política da loja).
+// (o id vem do próprio carrinho, `recurringItemsFrequencyId`; o título, da política da loja).
 import "server-only";
 import { normalizeCart, type UiCart } from "./cart-normalize";
-import { getRecurFreq } from "./session";
 import { getShopData, getCatalog, getKitLabel } from "./queries";
 
 // Brindes/bônus liberados automaticamente pela Unbox (ex.: item grátis ao atingir um valor no
@@ -43,7 +42,7 @@ export async function cartResponse(rawCart: any, extraEvents: any[] = []): Promi
   if (!cart) return null;
   await Promise.all([fillMissingThumbnails(cart), fillKitLabels(cart)]);
   if (cart.hasRecurring) {
-    const freqId = await getRecurFreq();
+    const freqId: string | null = rawCart?.recurringItemsFrequencyId ?? null;
     if (freqId) {
       cart.recurringFrequencyId = freqId;
       try {

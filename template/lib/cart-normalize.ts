@@ -71,7 +71,7 @@ export interface UiCart {
   shippingAddress?: UiShippingAddress | null;
   recurringItemsFrequencyId?: string | null;
   hasRecurring: boolean;
-  /** Frequência de assinatura escolhida (resolvida do cookie + política da loja). */
+  /** Frequência de assinatura escolhida (id do carrinho + título da política da loja). */
   recurringFrequencyId?: string;
   recurringFrequencyTitle?: string;
   items: UiCartItem[];

@@ -9,7 +9,8 @@
 // Não redireciona; devolve JSON.
 import { withStoreClient } from "@/lib/unbox";
 import { getCatalog } from "@/lib/queries";
-import { getCartRef, setCartRef, setRecurFreq } from "@/lib/session";
+import { getCartRef, setCartRef } from "@/lib/session";
+import { syncCartFrequency } from "@/lib/cart-frequency";
 import { parseProdutosParam, resolveSkusToItems } from "@/lib/cart-link";
 import { cartResponse } from "@/lib/cart-response";
 import { comImagemDoCatalogo } from "@/lib/cart-thumbnail";
@@ -30,11 +31,19 @@ export async function POST(req: Request) {
     try {
       const cart = await withStoreClient((c) => c.getCart(id, token));
       if (!cart) return fail("Carrinho expirado ou link inválido.", 404);
+      // O carrinho que este navegador tinha ANTES do link: o cookie de frequência pendente só
+      // vale para o mesmo carrinho. Sem essa conferência, a frequência de um carrinho iria
+      // parar em outro.
+      const anterior = await getCartRef();
       await setCartRef({ cartId: id, cartToken: token });
-      // A frequência de assinatura é um campo do pedido (placeOrder), não do carrinho: por
-      // isso ela viaja em cookie — sem isso, um carrinho de assinatura restaurado em outra
-      // sessão mostra "Assinatura" sem frequência e falha no checkout ("Selecione a frequência").
-      if (freq) await setRecurFreq(freq);
+      // A frequência de assinatura mora no carrinho, e o link já a leva junto. O `?freq=` só
+      // aparece em link gerado antes disso: ele preenche o carrinho que ainda está sem
+      // frequência e nunca troca a que já está lá. O helper nunca lança, então uma falha aqui
+      // não vira o 404 de "link inválido" com o cookie do carrinho já gravado.
+      await syncCartFrequency({ cartId: id, cartToken: token }, cart, {
+        fromLink: freq,
+        useCookie: anterior?.cartId === id,
+      });
       return ok({ ok: true, cart: await cartResponse(cart) });
     } catch {
       // Par inválido/expirado — NÃO grava o cookie, não derruba o carrinho atual do visitante.

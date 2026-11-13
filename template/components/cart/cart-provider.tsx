@@ -195,6 +195,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     const u = new URL(window.location.href);
     const id = u.searchParams.get("id");
     const token = u.searchParams.get("token");
+    // `freq` só aparece em link gerado antes de a frequência morar no carrinho; a rota o usa para
+    // preencher um carrinho que ainda esteja sem ela.
     const freq = u.searchParams.get("freq");
     if (!id || !token) return;
     cartRestoreRef.current = true;

@@ -106,7 +106,8 @@ específico vem da loja.
 `@unbox-plus/sdk` 0.4.0 ou mais novo.
 
 ## Link de recuperação e frequência de assinatura
-`recurringItemsFrequencyId` é um campo do pedido (`placeOrder`), não do carrinho, e por isso
-vive em cookie no meio do caminho — ao restaurar um carrinho de assinatura por link (`?id=&token=`, doc 05-cart), é
-obrigatório também repassar `&freq=` (ver `app/api/cart/link/route.ts`), senão o cliente reabre o
-checkout sem frequência selecionada e não consegue finalizar.
+A frequência de assinatura (`recurringItemsFrequencyId`) mora no CARRINHO: `lib/cart-frequency.ts` a grava
+com `setCartRecurringFrequency` do SDK, e é de lá que o checkout hospedado e o interno a leem. Por isso o
+link de recuperação (`?id=&token=`, doc 05-cart) já leva a frequência junto com o carrinho e não precisa de
+`&freq=`. Um `&freq=` em link gerado antes disso continua aceito por `app/api/cart/link/route.ts`, só para
+preencher um carrinho que ainda esteja sem frequência; ele nunca troca a que já está lá.

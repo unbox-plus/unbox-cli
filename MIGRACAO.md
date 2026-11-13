@@ -95,6 +95,30 @@ De 0.22.0 em diante, refatorar, salvo três ou mais sinais da loja (os números 
   "Regras que nenhum bloco quebra" (arquivos travados, padrões proibidos, travessão trocado e registrado) e o
   scaffold do refazer com `--nome` e `--slug`; as duas ganham a seção "Modo esteira", que só vale quando o prompt
   disser.
+~ `package.json`: `@unbox-plus/sdk` `^0.5.0` (traz `setCartRecurringFrequency`).
++ `lib/cart-frequency.ts`: a frequência de assinatura passa a morar no CARRINHO (`recurringItemsFrequencyId`,
+  gravado com `setCartRecurringFrequency`), que é de onde o checkout hospedado a lê. O cookie
+  `unbox_recur_freq` vira fila de pendente: pendente comum (carrinho de versão anterior, `?freq=` de link antigo)
+  só preenche carrinho sem frequência; escolha do cliente cuja gravação falhou (prefixo `!`) vence o carrinho.
+  Toda frequência de fora (corpo, `?freq=`, cookie) é conferida contra `allowedFrequencies` da loja.
+~ `lib/session.ts`: `setRecurFreq`/`getRecurFreq` viram `setPendingRecurFreq`/`getPendingRecurFreq`, mais
+  `clearPendingRecurFreq`; só `lib/cart-frequency.ts` os usa. `setCartRef` apaga o pendente quando o carrinho
+  muda.
+~ `app/api/cart/route.ts`: o POST grava a frequência no carrinho (corpo, escolha anterior pendente, a que o
+  carrinho já tem, pendente comum e só então o padrão da loja); o GET leva ao carrinho a pendente.
+~ `app/api/checkout-destination/route.ts`: com pendente no cookie, tenta levá-la ao carrinho antes de sair; a URL
+  perde o `&freq=`.
+~ `app/api/cart/link/route.ts`: o `?freq=` de link antigo só preenche carrinho sem frequência; o cookie só vale
+  se for do mesmo carrinho.
+~ `app/api/cart/items/route.ts`: saiu o último item de assinatura, a frequência sai do carrinho (`null`).
+~ `app/api/checkout/route.ts`, `components/checkout/checkout-client.tsx`, `lib/schemas.ts`: o checkout interno
+  lê a frequência do carrinho; o corpo do `/api/checkout` não a leva mais.
+~ `lib/cart-response.ts`, `lib/cart-normalize.ts`: a frequência mostrada vem do carrinho.
+~ `lib/cart-recovery.ts`, `app/api/cart/share/route.ts`, `app/api/checkout/email/route.ts`,
+  `scripts/abandoned-cart.ts`, `middleware.ts`, `app/(loja)/checkout/page.tsx`: as URLs perdem o `&freq=`
+  (`buildRecoveryUrl` fica com três parâmetros).
+~ `components/cart/cart-provider.tsx`, `lib/checkout-nav.ts`, `lib/crm.ts`, `agents/definitions/04-pdp.md`,
+  `agents/definitions/08-customer.md`, `CLAUDE.md`, `.env.example`: comentários e docs.
 ### Loja já gerada
 Opcional: copiar `scripts/check-editable.mjs`. Só o texto das mensagens muda; o gate aprova e reprova o mesmo.
 
@@ -108,10 +132,35 @@ copiar.
 Para quem migra com elas, duas coisas mudam no uso interativo: o travessão que o gate da marca reprova é trocado
 sem perguntar (e cada troca vai listada no relatório, para o dono da loja ver), e as "Mudanças de comportamento"
 de cada ficha entre a base e a atual entram na lista de decisões quando a loja é afetada.
+
+Frequência de assinatura no carrinho (SDK 0.5.0):
+- Com `UNBOX_HOSTED_CHECKOUT_URL` preenchida, obrigatório e como um bloco só: subir o SDK para `^0.5.0`; copiar
+  `lib/cart-frequency.ts`; trocar os helpers em `lib/session.ts`; reaplicar `app/api/cart/route.ts` (POST e
+  GET), `app/api/checkout-destination/route.ts`, `app/api/cart/link/route.ts`, `app/api/checkout/route.ts` e
+  `lib/cart-response.ts`. O `setCartRef` novo de `lib/session.ts` faz parte do bloco. Sem o GET e o `checkout-destination`, os carrinhos abertos antes do deploy seguem
+  sem frequência no checkout; sem o `cart-response`, o mini-carrinho e o `/carrinho` deixam de mostrar a
+  frequência; os chamadores de `getRecurFreq` deixam de compilar com o rename.
+- Checkout interno: funciona hoje pelo cookie. Recomendado aplicar o mesmo bloco inteiro; aplicar só parte (a
+  leitura do `checkout/route.ts` sem o helper, por exemplo) faz um carrinho aberto antes do deploy cair em
+  "Selecione a frequência da assinatura".
+- `app/api/cart/items/route.ts`, `lib/cart-recovery.ts` e chamadores, `share`, `middleware.ts`,
+  `checkout/page.tsx`, docs: copiar ou reaplicar (dependem da escolha sobre o `&freq=` abaixo).
+- Loja que já tem a correção local (oddie-supply: método `setCartRecurringFrequency` em `lib/unbox/client.ts`,
+  ou a função `setCartFrequency` da 0.25.0): apagar a local e usar a do pacote. Diferença para aquela correção:
+  lá a falha era engolida sem log; aqui ela fica pendente no cookie e é tentada de novo.
 ### Ambiente
 nada
 ### Mudanças de comportamento
-nada
+- Checkout hospedado: a assinatura passa a chegar com a frequência escolhida na loja (antes, "Frequência: Não
+  selecionada" com o preço de assinante). É correção, sem escolha.
+- Se o cliente troca a frequência no checkout hospedado e volta à loja, o carrinho da loja mostra a nova (antes
+  mostraria a do cookie).
+- Os links de checkout, compartilhar e recuperação deixam de levar `&freq=`. Escolha do dono: migrar (URLs mais
+  curtas, uma fonte só) × manter (se algum CRM ou automação externa lê o `freq` da URL). Manter não é deixar o
+  código como estava: sem o cookie como fonte, o valor tem de vir de `cart.recurringItemsFrequencyId`, com um
+  `getCart` no `share`, no `checkout-destination` e na rota de e-mail.
+- Adicionar um item de assinatura sem frequência no corpo não volta mais o carrinho ao padrão da loja: a
+  frequência que o carrinho já tem fica. Frequência fora da política da loja (corpo ou `?freq=`) é ignorada.
 ### Armadilhas
 - `scripts/check-recipe.mjs` era o único `scripts/check-*` que a loja precisava editar (uma loja do piloto tinha as seções
   próprias no mapa). Daqui em diante todos os `scripts/check-*` saem iguais ao template, e uma verificação por hash
@@ -120,6 +169,14 @@ nada
   `STORE_SLUG` em `config.ts`, que o `create` carimba (do nome da loja, ou de `--slug`). Uma comparação por hash
   normaliza esse literal antes. Ao refazer, o slug da loja nova tem de ser o da antiga (`slug` no
   `analyze-version --json`, passado ao `create --slug`), senão ela pede ao editor o publicado de outra loja.
+- Frequência de assinatura: o cookie nunca sobrescreve um valor que já está no carrinho, e o cookie de um
+  carrinho nunca é gravado em outro (o `setCartRef` apaga o pendente quando o carrinho muda). Um add de item recorrente sem frequência no corpo não
+  troca a frequência do carrinho pelo padrão da loja.
+- Um link de abandono enviado antes da mudança, no modo hospedado e de carrinho sem frequência gravada, abre
+  direto no checkout da Unbox (não passa pela loja) e continua sem frequência: o cliente escolhe lá.
+- `setCartRecurringFrequency`: `null` limpa; `""` não muda nada no servidor e o SDK recusa antes da rede.
+- Corrida que fica: um GET em voo com pendente comum e um POST com escolha nova ao mesmo tempo. O helper relê
+  o carrinho antes de gravar, o que estreita a janela para a latência de uma gravação; não a fecha.
 
 ## 0.31.1
 ### Template
@@ -293,7 +350,10 @@ continua indo para `error.tsx`.
   escolhida no carrinho), ausente do SDK 0.4.1. O `gql()` do pacote é público: recriar como função da loja que
   recebe o client (`setCartFrequency(c, cartId, cartToken, freqId)` chamando `c.gql(...)`) e trocar a chamada
   `c.setCartFrequency(...)` por ela. Listar os métodos do `client.ts` da loja que não existem em
-  `dist/client.d.ts` antes de apagar a pasta.
+  `dist/client.d.ts` antes de apagar a pasta. Com o SDK 0.5.0 ou mais novo esse método existe no pacote como
+  `setCartRecurringFrequency(cartId, cartToken, freqId)`: em vez de recriar a função, apagar a local
+  (`setCartFrequency`, `setCartRecurringFrequency` ou outro nome) e chamar a do pacote (ver a ficha da versão
+  que trouxe o SDK 0.5.0).
 
 ## 0.24.0
 ### Template

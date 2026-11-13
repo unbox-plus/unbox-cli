@@ -8,7 +8,8 @@
 //  - RECUSA ANTES DE COBRAR quando falta SESSION_SECRET (ver a primeira guarda do handler)
 import { withStoreClient } from "@/lib/unbox";
 import { serverEnv } from "@/lib/config";
-import { getCartRef, setOrderToken, clearCartRef, getRecurFreq } from "@/lib/session";
+import { getCartRef, setOrderToken, clearCartRef } from "@/lib/session";
+import { syncCartFrequency } from "@/lib/cart-frequency";
 import { acquireCheckoutLock, releaseCheckoutLock } from "@/lib/checkout-lock";
 import { rateLimit, clientIp, LIMITS } from "@/lib/ratelimit";
 import { dispatchCrm } from "@/lib/crm";
@@ -43,7 +44,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const { email, address, payment, recurringItemsFrequencyId, device } = parsed.data;
+    const { email, address, payment, device } = parsed.data;
 
     // RELEITURA do carrinho — estado final real (doc 11): evita FULFILLMENT_GROUP_AND_CART_ITEMS_DO_NOT_MATCH_ERROR
     const cart = await withStoreClient((c) => c.getCart(ref.cartId, ref.cartToken));
@@ -56,9 +57,10 @@ export async function POST(req: Request) {
     const total = cart.checkout?.summary?.total?.amount;
     if (typeof total !== "number") return fail("Não foi possível calcular o total.", 422);
 
-    // Assinatura: o carrinho tem item(ns) isRecurring? A frequência veio em cookie (preferência) ou no body.
+    // Assinatura: o carrinho tem item(ns) isRecurring? A frequência é a do carrinho; o helper só
+    // entra para levar até ele uma que tenha ficado pendente no cookie (nunca lança).
     const hasRecurring = (cart.items?.edges ?? []).some((e: any) => e.node?.isRecurring === true);
-    const freqId = (await getRecurFreq()) ?? recurringItemsFrequencyId ?? undefined;
+    const freqId = cart.recurringItemsFrequencyId || (await syncCartFrequency(ref, cart)) || undefined;
     if (hasRecurring) {
       if (payment.type !== "card") return fail("Assinaturas exigem pagamento com cartão de crédito.", 422);
       if (!freqId) return fail("Selecione a frequência da assinatura.", 422);

@@ -59,8 +59,9 @@ export async function generateStaticParams() {
 - Só exibir se product.recurrenceAllowed === true
 - "Avulso" (default) → isRecurring: false
 - "Assinar" → isRecurring: true + selecionar frequência
-- A FREQUÊNCIA vai no placeOrder (orderRecurrence), NÃO no cartItem
-- No cartItem: apenas isRecurring: true (sem frequencyId — campo não existe no live)
+- A FREQUÊNCIA não vai no cartItem: vai no corpo do POST /api/cart (recurringItemsFrequencyId),
+  que a grava no carrinho (lib/cart-frequency.ts); o placeOrder a lê de lá
+- No cartItem: apenas isRecurring: true (o item não tem campo de frequência)
 ```
 
 ## AddToCartForm

@@ -344,8 +344,8 @@ registre o pedido, quem leva isso adiante é o gerente de conta da Unbox, não a
 **Para o comprador, nunca explique a plataforma.** Ele precisa da regra da loja, não do motivo
 técnico dela, e o único lugar onde a Unbox aparece para ele é o selo "Powered by Unbox".
 
-O caso que originou esta regra, frequência de assinatura, que é campo do pedido e vale para o
-pedido inteiro:
+O caso que originou esta regra, frequência de assinatura: a Unbox guarda uma frequência por
+carrinho, que vira a do pedido, e ela vale para o pedido inteiro:
 
 | | |
 |---|---|
