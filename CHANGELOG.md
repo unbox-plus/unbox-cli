@@ -1,5 +1,38 @@
 ## Changelog
 
+### v0.32.0 — a frequência da assinatura mora no carrinho; `create --nome`/`--slug` e o contrato do `analyze-version --json`
+
+**A assinatura chega ao checkout hospedado com a frequência escolhida na loja.**
+
+- **`lib/cart-frequency.ts`** (novo): a frequência passa a ser gravada no carrinho (`recurringItemsFrequencyId`,
+  com `setCartRecurringFrequency` do `@unbox-plus/sdk` `^0.5.0`), que é de onde o checkout hospedado a lê. Antes
+  ela vivia só num cookie da loja e o checkout mostrava "Frequência: Não selecionada" com o preço de assinante.
+- O cookie `unbox_recur_freq` vira fila de pendente: carrinho de versão anterior ou `?freq=` de link antigo só
+  preenche carrinho sem frequência; a escolha do cliente cuja gravação falhou vence e é tentada de novo. Toda
+  frequência de fora é conferida contra a política da loja.
+- Os links de checkout, compartilhar e recuperação de carrinho deixam de levar `&freq=`.
+- Adicionar item de assinatura sem frequência no corpo não volta mais o carrinho ao padrão da loja.
+
+**`unbox create --nome` e `--slug`.**
+
+- `--nome "Casa Aurora"` dá o nome da marca (título, SEO, `NEXT_PUBLIC_SITE_NAME`, briefing) sem a pergunta do
+  wizard; sem ele e sem terminal, o nome é o da pasta, agora com aviso.
+- `--slug` fixa o `STORE_SLUG` do editor. Para refazer uma loja, passe o da antiga, senão a loja nova pede ao
+  editor o conteúdo publicado de outra.
+
+**`unbox analyze-version --json` com contrato estável.**
+
+- `schemaVersion: 1` no envelope, e os campos `nome`, `marca` (do `marca/briefing.json`) e `slug` (o
+  `STORE_SLUG` da loja). O contrato está no `--help`.
+
+**Gates e skills de migração.**
+
+- `unbox:receita` lê as famílias das seções próprias de `components/home/sections/familias.json` (o script volta
+  a ser igual em toda loja) e passa a medir a home escrita pelo `create` com chave entre aspas.
+- `unbox:editavel` diz onde tirar a declaração de container sem rota.
+- `migrar-loja-analisar` e `migrar-loja-executar`: chaves estáveis para cada decisão, as "Mudanças de
+  comportamento" das fichas entram como decisão, plano em JSON e "Modo esteira" (só quando o prompt pedir).
+
 ### v0.31.1 — senha com `#` sem aviso falso; a análise de migração respeita o nome de cada arquivo da loja
 
 **Senha com `#` deixou de gerar aviso no arranque da loja.**

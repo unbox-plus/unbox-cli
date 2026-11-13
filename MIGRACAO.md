@@ -77,7 +77,7 @@ De 0.22.0 em diante, refatorar, salvo três ou mais sinais da loja (os números 
 
 ---
 
-## próxima
+## 0.32.0
 ### Template
 ~ `scripts/check-editable.mjs`: as reprovações de container declarado sem rota dizem onde tirar a declaração
   (`DECLARACAO_DA_PERSONALIZACAO` em `lib/personalizacao.ts`, `OCULTA_CHROME_EM` em `lib/chrome-das-paginas.ts`).
