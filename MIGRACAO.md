@@ -145,7 +145,7 @@ Frequência de assinatura no carrinho (SDK 0.5.0):
   "Selecione a frequência da assinatura".
 - `app/api/cart/items/route.ts`, `lib/cart-recovery.ts` e chamadores, `share`, `middleware.ts`,
   `checkout/page.tsx`, docs: copiar ou reaplicar (dependem da escolha sobre o `&freq=` abaixo).
-- Loja que já tem a correção local (oddie-supply: método `setCartRecurringFrequency` em `lib/unbox/client.ts`,
+- Loja que já tem a correção local (método `setCartRecurringFrequency` em `lib/unbox/client.ts`,
   ou a função `setCartFrequency` da 0.25.0): apagar a local e usar a do pacote. Diferença para aquela correção:
   lá a falha era engolida sem log; aqui ela fica pendente no cookie e é tentada de novo.
 ### Ambiente
