@@ -113,7 +113,9 @@ endereços da loja e os erros comuns estão em `DEPLOY.md`; o agente é o `agent
 `npm run unbox:medir` roda dois medidores de Python que contam o que faz uma loja ter "cara de
 template": quantos tamanhos de tipo, raios, hex fora de token e larguras de container existem
 (`scripts/sistema.py`), e se o vocabulário gráfico da marca foi distribuído ou vive numa seção só
-(`scripts/vocabulario.py`). Rodam no `prebuild` e **não bloqueiam**: imprimem e saem 0.
+(`scripts/vocabulario.py`). Rodam no `prebuild` e **não bloqueiam**: imprimem e saem 0. Antes deles,
+o `scripts/medir-sistema.mjs` lista todo `h1`..`h4` com tamanho, entrelinha ou peso na classe: a escada vence
+essas classes (veja "Título não leva tamanho na classe"), e o título sai menor ou maior sem nenhum outro aviso.
 
 Não são gate ainda de propósito. Medido em cinco lojas geradas e na própria foundation, todas
 estouram os tetos que vieram no script, a foundation inclusive: ligar como gate hoje reprovaria
