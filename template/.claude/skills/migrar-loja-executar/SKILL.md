@@ -140,8 +140,11 @@ Quando a recomendação (e a escolha do cliente) é REFAZER, a ordem é outra, e
 `tsc --noEmit` limpo:
 
 1. **Scaffold**: `unbox create <pasta> --nome "<nome da marca>" --slug <slug>` numa pasta nova (pergunte onde).
-   O `--slug` é o `slug` da análise (`analyze-version --json`, o STORE_SLUG da loja antiga): sem ele, a loja
-   nova pede ao editor o publicado de outra loja. O `--nome` é o nome que o cliente vê: o `nome` da análise,
+   O `--slug` é o slug da loja NA PLATAFORMA (o `<slug>` de `<slug>.myunbox.com.br`, o `UNBOX_SHOP_SLUG`): na
+   hospedagem a Unbox grava `UNBOX_EDITOR_SHOP` com ele e o editor acha a loja por ele, então é ele que vale, e
+   o `unbox provision` troca o literal de `lib/editable/config.ts` quando for outro. O `slug` da análise
+   (`analyze-version --json`) é o literal da loja antiga e serve de conferência: diferente do da plataforma,
+   fique com o da plataforma. O `--nome` é o nome que o cliente vê: o `nome` da análise,
    ou a `marca` dela quando o `nome` é um slug (`casa-aurora`); sem nenhum dos dois, confirme com o usuário.
    Credenciais pelo `unbox provision`, ou as que o usuário passar. Nada da loja antiga entra ainda.
 2. **Marca**: `public/brand/`, as fontes de `app/layout.tsx`, os tokens de cor de `app/globals.css` (só os

@@ -98,8 +98,10 @@ De 0.22.0 em diante, refatorar, salvo três ou mais sinais da loja (os números 
 ~ `lib/newsletter.ts`: comentário sobre a vitrine (o código não cai nela sozinho).
 ~ `.env.example`: `NEXT_PUBLIC_SITE_URL` passa a vir COMENTADA (o `create` deixa de escrever
   `http://localhost:3000` no `.env.local`); linha nova sobre a newsletter de vitrine; o bloco do editor diz que
-  as quatro variáveis dele são gravadas pela Unbox na hospedagem (e que lá `UNBOX_EDITOR_SHOP` é o slug da loja
-  na plataforma, que vence o literal de `lib/editable/config.ts`).
+  as quatro variáveis dele são gravadas pela Unbox na hospedagem; o comentário de `UNBOX_EDITOR_SHOP` passa a
+  dizer que ela é o slug da loja na plataforma (antes: "variável própria, não é o `UNBOX_SHOP_SLUG`").
+~ `lib/editable/config.ts`: só o comentário, com a mesma regra: na hospedagem o slug do editor é o da plataforma,
+  e o literal vale no `next dev`.
 ~ `app/layout.tsx`, `app/robots.ts`, `app/sitemap.ts`, `lib/paginas-seo.ts`, `app/api/checkout/email/route.ts`,
   `app/(loja)/produto/[productSlug]/page.tsx`, `scripts/abandoned-cart.ts`: o fallback de `NEXT_PUBLIC_SITE_URL`
   passa de `??` para `||`. Com a variável definida e VAZIA, o `??` mantinha o vazio e `new URL("")` no
@@ -133,6 +135,11 @@ variável é gerenciada, e `.env*` não vai ao git); a linha de localhost só fa
 `.env.local` para outra hospedagem ou prévia. Opcional: apagar a linha do `.env.local` e reaplicar os `||` nos
 sete arquivos acima (são da loja).
 
+Slug do editor: rodar `unbox provision` de novo (é seguro) com a CLI nova troca o literal de
+`lib/editable/config.ts` pelo slug da loja na plataforma quando eles diferem, e a troca vai no próximo
+`unbox deploy`. No ar não muda nada (a variável da Unbox já vencia o literal); muda o `next dev`, que pedia ao editor
+o conteúdo de outra loja. O comentário novo do arquivo é opcional (copiar mantendo o literal).
+
 Kit com item nulo: reaplicar o filtro nas duas páginas (são da loja). O `mapFlavors` da PDP passa a filtrar
 `c != null` antes do `.map`, e o filtro de `componentes` da assinatura lê `c?.productId`. Loja cujo build cai em
 `Cannot read properties of null (reading 'productId')` no prerender de `/produto/...` é este caso.
@@ -148,12 +155,19 @@ CLI: o `unbox env` e o `unbox provision` passam a tratar `EDITOR_URL`, `NEXT_PUB
 provisionamento e recusa que a loja as defina. Antes, a CLI tentava enviar as três que vêm preenchidas no
 `.env.local`, a API recusava e o aviso pedia "Atualize a CLI" em todo envio; agora sai uma linha só, sem chamada a
 mais, e o `--unset` delas é recusado antes da API. Loja já gerada: nada a fazer, basta a CLI nova.
+
+CLI, slug do editor: vale o da plataforma (o que o backend grava em `UNBOX_EDITOR_SHOP` e o editor usa para achar a
+loja). O `unbox create` carimba o `UNBOX_SHOP_SLUG` respondido no wizard, que ganha do `--slug` (com aviso); o
+`unbox provision` lê o slug do token e troca o literal de `lib/editable/config.ts` quando for outro.
 ### Mudanças de comportamento
 nada para o comprador nem para o lojista sem escolha: a newsletter de vitrine é opt-in, e o resto é gate,
 relatório e documentação. O build passa a reprovar uma combinação que antes ia ao ar calada (credenciais da Unbox
 com a newsletter apontando para a vitrine): quem tiver isso troca pelo destino real ou esvazia a variável, e o
 bloco some.
 ### Armadilhas
+- Refazer loja com `create --slug`: passe o slug da loja na PLATAFORMA (o `<slug>` de `<slug>.myunbox.com.br`), não o
+  literal da loja antiga (`slug` do `analyze-version --json`) quando os dois diferem. Na hospedagem só o da
+  plataforma vale, e o `provision` corrige o literal de qualquer forma; o `slug` da análise serve de conferência.
 - Ícone portado que era filho direto de um flex e encolhia no celular: dentro do `Editable.Icon` ele para de
   encolher (o span tem `min-width` automático) e empurra o texto ao lado. `min-w-0` no `className` do
   `Editable.Icon` devolve o encolhimento; com `shrink-0` no SVG, não ponha (o SVG vazaria sobre o texto). Medido

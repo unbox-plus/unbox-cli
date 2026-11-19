@@ -317,11 +317,12 @@ export function applyStoreName(targetDir, displayName, { slugEditor } = {}) {
     const content = fs.readFileSync(p, "utf8");
     fs.writeFileSync(p, content.replaceAll('"minhaloja"', `"${slug}"`));
   }
-  // Editor da Unbox: o MESMO slug vira o STORE_SLUG de lib/editable/config.ts (a foundation traz o
-  // marcador __STORE_SLUG__; é por ele que a loja pede o conteúdo publicado ao editor). Tem de ser
-  // IGUAL ao `slug` da entrada da loja no shops.json do editor, que segue esta mesma derivação
-  // (minúsculas, sem acento, só letras e números). Marcador ausente é erro, não silêncio: uma loja
-  // com "__STORE_SLUG__" no ar pede o publicado de uma loja que não existe e nunca muda.
+  // Editor da Unbox: o STORE_SLUG de lib/editable/config.ts (a foundation traz o marcador __STORE_SLUG__; é
+  // por ele que a loja pede o conteúdo publicado ao editor no next dev). Na hospedagem vale o slug da loja na
+  // plataforma, que a Unbox grava em UNBOX_EDITOR_SHOP; por isso `slugEditor` (o UNBOX_SHOP_SLUG ou o --slug)
+  // ganha da derivação do nome, que é só o palpite de quando não há nenhum dos dois, e o `unbox provision`
+  // corrige. Marcador ausente é erro, não silêncio: uma loja com "__STORE_SLUG__" pede o publicado de uma
+  // loja que não existe e nunca muda.
   const configEditavel = path.join(targetDir, "lib", "editable", "config.ts");
   if (fs.existsSync(configEditavel)) {
     const content = fs.readFileSync(configEditavel, "utf8");

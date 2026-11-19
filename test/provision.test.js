@@ -34,6 +34,8 @@ function apiFalsa({
   outraMaquina = false,
   chavesNaLoja = [],
   adicionar = (input) => ({ _id: String(10 + chavesNaLoja.length), title: input.title, fingerprint: fingerprintDe(input.deployPublicKey), createdAt: null }),
+  // O slug da loja na plataforma (claim do token). Função para poder lançar.
+  slug = () => "loja-teste",
 } = {}) {
   const chamadas = [];
   const adicionadas = [];
@@ -41,6 +43,7 @@ function apiFalsa({
   const api = {
     endpoint: "https://partners.teste/graphql",
     async shopId() { chamadas.push("shopId"); return "loja1"; },
+    async shopSlug() { chamadas.push("shopSlug"); return slug(); },
     async request(query, vars) {
       chamadas.push(query.match(/\{\s*(\w+)/)[1]);
       if (/setCustomStorefrontEnvironment/.test(query)) return { setCustomStorefrontEnvironment: ambiente(vars.input) };
@@ -349,4 +352,43 @@ test("segunda máquina com a chave em uso em outro repositório: gera outra e ad
   assert.equal(falsa.adicionadas[0].deployPublicKey, pub);
   assert.ok(fs.existsSync(path.join(sb.home, ".config/unbox/keys/loja1_ed25519.bak")));
   assert.match(r.stderr, /em uso em outro repositório/);
+});
+
+const CONFIG_DO_EDITOR = (literal) =>
+  `export const STORE_SLUG = process.env.UNBOX_EDITOR_SHOP || "${literal}";\nexport const EDITOR_URL = "";\n`;
+const literalDoEditor = (dir) => fs.readFileSync(path.join(dir, "lib/editable/config.ts"), "utf8").match(/\|\| "([^"]+)"/)[1];
+
+test("slug do editor: o literal diferente do da plataforma é trocado e vai no próximo deploy", { skip: semKeygen }, async () => {
+  const sb = sandbox();
+  remotoDaUnbox(sb);
+  const dir = projetoSemGit(sb);
+  credenciais(dir);
+  escreve(dir, "lib/editable/config.ts", CONFIG_DO_EDITOR("lojateste"));
+  const r = await roda(dir, { json: true });
+  assert.equal(r.erro, undefined, r.erro?.message);
+  assert.deepEqual(JSON.parse(r.stdout).data.editorSlug, { slug: "loja-teste", antes: "lojateste" });
+  assert.equal(literalDoEditor(dir), "loja-teste");
+  // A troca fica na árvore da deploy, para o próximo unbox deploy commitar.
+  assert.match(g(dir, "status", "--porcelain", "-uall"), /lib\/editable\/config\.ts/);
+
+  const texto = await roda(dir, {});
+  assert.equal(texto.erro, undefined, texto.erro?.message);
+  assert.doesNotMatch(texto.stdout, /Editor:/, "igual ao da plataforma: nada a dizer");
+});
+
+test("slug do editor: texto da troca, e falha na leitura vira aviso sem mexer no arquivo", { skip: semKeygen }, async () => {
+  const sb = sandbox();
+  remotoDaUnbox(sb);
+  const dir = projetoSemGit(sb);
+  credenciais(dir);
+  escreve(dir, "lib/editable/config.ts", CONFIG_DO_EDITOR("lojateste"));
+  const falha = await roda(dir, {}, { falsa: apiFalsa({ slug: () => { throw Object.assign(new Error("x"), { code: "NETWORK" }); } }) });
+  assert.equal(falha.erro, undefined, falha.erro?.message);
+  assert.match(falha.stderr, /não consegui ler o slug da loja agora \(NETWORK\)/);
+  assert.equal(literalDoEditor(dir), "lojateste");
+
+  const r = await roda(dir, {});
+  assert.equal(r.erro, undefined, r.erro?.message);
+  assert.match(r.stdout, /Editor: {7}slug loja-teste, o da loja na Unbox; lib\/editable\/config\.ts trazia lojateste/);
+  assert.equal(literalDoEditor(dir), "loja-teste");
 });

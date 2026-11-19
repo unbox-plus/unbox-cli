@@ -10,6 +10,7 @@ import { parseArgs } from "../args.js";
 import { CliError, UsageError } from "../errors.js";
 import { loadProjectEnv, requireCredentials, describeOrigins } from "../env.js";
 import { createPartnerApi } from "../partner-api.js";
+import { trocaSlugDaLoja } from "../editor-slug.js";
 import { requireProgram } from "../proc.js";
 import { ensureKey, rotateKey, gitSshCommand } from "../deploy-key.js";
 import { fingerprintDe, registraChaveDaMaquina } from "../deploy-keys.js";
@@ -31,6 +32,8 @@ export const help = `
        (alguns minutos; se falhar, tenta de novo quando faz sentido);
     2. cria a branch deploy AO LADO da sua branch atual, que não é alterada;
     3. envia as variáveis do .env.local para a hospedagem (como o unbox env);
+       e, se o slug do editor em lib/editable/config.ts não for o da loja na Unbox, troca pelo da Unbox
+       (é ele que vale na hospedagem; a troca vai no próximo unbox deploy);
     4. deixa tudo pronto para o unbox deploy.
 
   A chave de deploy fica em ~/.config/unbox/keys/<shopId>_ed25519, só nesta máquina.
@@ -102,6 +105,25 @@ async function enviaVariaveis(api, loaded, out) {
   }
 }
 
+/**
+ * Na hospedagem, o editor acha a loja pelo slug dela na plataforma (a Unbox grava `UNBOX_EDITOR_SHOP` com ele, e
+ * a variável vence o literal de `lib/editable/config.ts`). Literal diferente só erra no `next dev`, onde pede ao
+ * editor o conteúdo de outra loja: troca pelo da plataforma. A troca fica na árvore, e vai no próximo deploy.
+ * Falha de leitura é aviso: o provisionamento já valeu e o literal não muda nada no ar.
+ */
+async function alinhaSlugDoEditor(api, dir, out) {
+  let slug;
+  try {
+    slug = await api.shopSlug();
+  } catch (e) {
+    out.warn(`  Aviso: não consegui ler o slug da loja agora (${e.code ?? e.message}); o de lib/editable/config.ts ficou como estava.`);
+    return null;
+  }
+  if (!slug) return null;
+  const antes = trocaSlugDaLoja(dir, slug);
+  return antes ? { slug, antes } : null;
+}
+
 function texto(d, extra) {
   const linhas = ["", "✓ Loja provisionada e projeto ligado à Unbox", ""];
   linhas.push(`  Repositório:  ${d.repositorySshUrl}`);
@@ -125,6 +147,10 @@ function texto(d, extra) {
     const { vazias, outras } = separaVazias(d.env.skipped);
     const puladas = (vazias.length ? `, ${vazias.length} vazias` : "") + (outras.length ? `, ${outras.length} não ${outras.length === 1 ? "enviada" : "enviadas"} (veja os avisos)` : "");
     linhas.push(`  Variáveis:    ${d.env.sent.length} enviadas para a hospedagem${puladas}`);
+  }
+  if (d.editorSlug) {
+    linhas.push(`  Editor:       slug ${d.editorSlug.slug}, o da loja na Unbox; lib/editable/config.ts trazia ${d.editorSlug.antes} e foi`);
+    linhas.push("                trocado (vale no next dev; vai no próximo unbox deploy)");
   }
   linhas.push("");
   linhas.push("  Próximo passo: unbox deploy", "");
@@ -200,6 +226,7 @@ export async function runProvision(args, globals = {}, { out, interactive = proc
     st,
   });
 
+  const editorSlug = await alinhaSlugDoEditor(api, dir, out);
   const envData = await enviaVariaveis(api, loaded, out);
   const productionUrl = await enderecoDeProducao(api, out);
   const data = {
@@ -209,6 +236,7 @@ export async function runProvision(args, globals = {}, { out, interactive = proc
     productionUrl,
     deployKey: { fingerprint: fingerprintDe(chave.publicKey) ?? null, added },
     env: envData,
+    ...(editorSlug && { editorSlug }),
   };
   out.result(data, (d) => texto(d, vinculo));
 }
