@@ -392,3 +392,29 @@ test("slug do editor: texto da troca, e falha na leitura vira aviso sem mexer no
   assert.match(r.stdout, /Editor: {7}slug loja-teste, o da loja na Unbox; lib\/editable\/config\.ts trazia lojateste/);
   assert.equal(literalDoEditor(dir), "loja-teste");
 });
+
+test("slug do editor: com UNBOX_EDITOR_SHOP no .env.local o arquivo não é tocado e a árvore fica limpa", { skip: semKeygen }, async () => {
+  // O caso da esteira de migração: ela escreve a variável e para se o provision sujar a árvore.
+  const sb = sandbox();
+  remotoDaUnbox(sb);
+  const dir = projetoComCommits(sb, { "README.md": "x\n", ".gitignore": ".env*\n", "lib/editable/config.ts": CONFIG_DO_EDITOR("lojateste") });
+  escreve(dir, ".env.local", `UNBOX_PARTNER_API_KEY=da2-chave-do-parceiro\nUNBOX_USER=api_loja\nUNBOX_PASS=${SENHA}\nUNBOX_EDITOR_SHOP=loja-teste\n`);
+  const r = await roda(dir, { json: true });
+  assert.equal(r.erro, undefined, r.erro?.message);
+  assert.equal(JSON.parse(r.stdout).data.editorSlug, undefined);
+  assert.equal(literalDoEditor(dir), "lojateste");
+  assert.equal(g(dir, "status", "--porcelain"), "");
+  assert.doesNotMatch(r.stderr, /UNBOX_EDITOR_SHOP do/);
+});
+
+test("slug do editor: UNBOX_EDITOR_SHOP diferente do da plataforma avisa, sem tocar o arquivo", { skip: semKeygen }, async () => {
+  const sb = sandbox();
+  remotoDaUnbox(sb);
+  const dir = projetoSemGit(sb);
+  escreve(dir, ".env.local", `UNBOX_PARTNER_API_KEY=da2-chave-do-parceiro\nUNBOX_USER=api_loja\nUNBOX_PASS=${SENHA}\nUNBOX_EDITOR_SHOP=outra\n`);
+  escreve(dir, "lib/editable/config.ts", CONFIG_DO_EDITOR("lojateste"));
+  const r = await roda(dir, {});
+  assert.equal(r.erro, undefined, r.erro?.message);
+  assert.match(r.stderr, /UNBOX_EDITOR_SHOP do \.env\.local é outra, e a loja na Unbox é loja-teste\. Na hospedagem vale loja-teste/);
+  assert.equal(literalDoEditor(dir), "lojateste");
+});

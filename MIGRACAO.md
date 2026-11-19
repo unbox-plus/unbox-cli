@@ -158,7 +158,9 @@ mais, e o `--unset` delas é recusado antes da API. Loja já gerada: nada a faze
 
 CLI, slug do editor: vale o da plataforma (o que o backend grava em `UNBOX_EDITOR_SHOP` e o editor usa para achar a
 loja). O `unbox create` carimba o `UNBOX_SHOP_SLUG` respondido no wizard, que ganha do `--slug` (com aviso); o
-`unbox provision` lê o slug do token e troca o literal de `lib/editable/config.ts` quando for outro.
+`unbox provision` lê o slug do token e troca o literal de `lib/editable/config.ts` quando for outro, exceto quando o
+`.env.local` traz `UNBOX_EDITOR_SHOP` (aí a variável já decide no `next dev`, o arquivo não é tocado e a árvore
+fica limpa; se ela for outra que não a da plataforma, o provision avisa).
 ### Mudanças de comportamento
 nada para o comprador nem para o lojista sem escolha: a newsletter de vitrine é opt-in, e o resto é gate,
 relatório e documentação. O build passa a reprovar uma combinação que antes ia ao ar calada (credenciais da Unbox

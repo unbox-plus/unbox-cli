@@ -33,7 +33,8 @@ export const help = `
     2. cria a branch deploy AO LADO da sua branch atual, que não é alterada;
     3. envia as variáveis do .env.local para a hospedagem (como o unbox env);
        e, se o slug do editor em lib/editable/config.ts não for o da loja na Unbox, troca pelo da Unbox
-       (é ele que vale na hospedagem; a troca vai no próximo unbox deploy);
+       (é ele que vale na hospedagem; a troca vai no próximo unbox deploy). Com UNBOX_EDITOR_SHOP no
+       .env.local, o arquivo não é tocado: a variável já decide no next dev;
     4. deixa tudo pronto para o unbox deploy.
 
   A chave de deploy fica em ~/.config/unbox/keys/<shopId>_ed25519, só nesta máquina.
@@ -109,9 +110,13 @@ async function enviaVariaveis(api, loaded, out) {
  * Na hospedagem, o editor acha a loja pelo slug dela na plataforma (a Unbox grava `UNBOX_EDITOR_SHOP` com ele, e
  * a variável vence o literal de `lib/editable/config.ts`). Literal diferente só erra no `next dev`, onde pede ao
  * editor o conteúdo de outra loja: troca pelo da plataforma. A troca fica na árvore, e vai no próximo deploy.
+ *
+ * Com `UNBOX_EDITOR_SHOP` no ambiente do projeto (o que o `next dev` vê), o literal não é lido em lugar nenhum e
+ * fica como está: quem escreve a variável (a esteira de migração, por exemplo) conta com a árvore limpa depois do
+ * provision. Se ela for outra que não a da plataforma, o aviso diz qual vale.
  * Falha de leitura é aviso: o provisionamento já valeu e o literal não muda nada no ar.
  */
-async function alinhaSlugDoEditor(api, dir, out) {
+async function alinhaSlugDoEditor(api, dir, loaded, out) {
   let slug;
   try {
     slug = await api.shopSlug();
@@ -120,6 +125,13 @@ async function alinhaSlugDoEditor(api, dir, out) {
     return null;
   }
   if (!slug) return null;
+  const doAmbiente = String(loaded.env.UNBOX_EDITOR_SHOP ?? "").trim();
+  if (doAmbiente) {
+    if (doAmbiente !== slug) {
+      out.warn(`  Aviso: UNBOX_EDITOR_SHOP do ${loaded.envFile} é ${doAmbiente}, e a loja na Unbox é ${slug}. Na hospedagem vale ${slug}; no next dev, o ${loaded.envFile} pede ao editor o conteúdo de outra loja.`);
+    }
+    return null;
+  }
   const antes = trocaSlugDaLoja(dir, slug);
   return antes ? { slug, antes } : null;
 }
@@ -226,7 +238,7 @@ export async function runProvision(args, globals = {}, { out, interactive = proc
     st,
   });
 
-  const editorSlug = await alinhaSlugDoEditor(api, dir, out);
+  const editorSlug = await alinhaSlugDoEditor(api, dir, loaded, out);
   const envData = await enviaVariaveis(api, loaded, out);
   const productionUrl = await enderecoDeProducao(api, out);
   const data = {
