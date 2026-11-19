@@ -48,7 +48,7 @@ const NAO_INFORMADO = "não informado";
 
 export const revalidate = 300;
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 // Mesmo literal do app/layout.tsx: o create-unbox-store reescreve "Minha Loja" nos dois
 // arquivos com o nome real da loja.
 const SITE_NAME = "Minha Loja";
@@ -249,8 +249,10 @@ export default async function ProductPage({
       .map((n: any) => n.product ?? n)
       .map((x: any) => [x?.productId, x?.imageUrls?.[0]] as const),
   );
+  // A API devolve `null` dentro de `kitComponents` quando um item do kit aponta para um produto que
+  // não existe mais (o tipo do SDK não prevê): sem o filtro, um kit quebrado derruba o build da loja.
   const mapFlavors = (k: NonNullable<typeof kitData>) =>
-    (k.kitComponents ?? []).map((c) => ({
+    (k.kitComponents ?? []).filter((c): c is NonNullable<typeof c> => c != null).map((c) => ({
       productId: c.productId,
       variantId: c.productVariantId,
       label: c.label ?? c.variantTitle ?? c.productTitle ?? "Item",

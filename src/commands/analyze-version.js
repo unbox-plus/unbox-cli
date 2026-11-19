@@ -14,6 +14,7 @@ import { baseVersion, latestPublished, loadMarkers } from "../template-version.j
 import { fetchTemplate } from "../template-fetch.js";
 import { readTree, classificar, auditoriaDoEditor, numeros, regua, compareVersions, planoDeAplicacao, CHECKOUT_PROPRIO, SINAIS_DE_LOJA, PackageJsonInvalido } from "../template-diff.js";
 import { lerMigracao, fichasEntre, variaveisDasFichas, SECOES } from "../migracao.js";
+import { slugDaLoja } from "../editor-slug.js";
 
 // O placeholder do template: loja que ficou com ele (o create antigo não trocava em todo arquivo) não tem nome no
 // código, e o `nome` do --json sai null em vez de prometer "Minha Loja" como nome da marca.
@@ -52,7 +53,8 @@ export const help = `
     data.nome            string ou null: o nome que o create aplicou (pode ser um slug, como "casa-aurora");
                          null quando a loja ficou com o "Minha Loja" do template
     data.marca           string ou null: o nome da marca em marca/briefing.json (nome; sem ele, loja)
-    data.slug            string ou null: o STORE_SLUG de lib/editable/config.ts (o slug da loja no editor);
+    data.slug            string ou null: o STORE_SLUG de lib/editable/config.ts (o slug da loja no editor no next dev;
+                         na hospedagem vale o da plataforma, que a Unbox grava em UNBOX_EDITOR_SHOP);
                          null quando a loja não tem o arquivo ou ficou com o marcador
     data.regua.recomendacao  refatorar | refazer | indeterminada
     data.regua.corte_duro    boolean (base < 0.22.0)
@@ -105,16 +107,10 @@ export function marcaDaLoja(dir) {
 }
 
 /**
- * O slug da loja no editor: o literal que o create carimbou em `lib/editable/config.ts` (`STORE_SLUG`). Ao refazer
- * uma loja, a loja nova tem de carimbar o MESMO, senão pede ao editor o conteúdo publicado de outra loja; e ele nem
- * sempre sai da derivação do nome (há loja com hífen no slug, que a derivação não dá). null sem o arquivo ou com o marcador intacto.
+ * O slug da loja no editor: o literal que o create carimbou em `lib/editable/config.ts` (`STORE_SLUG`). Na hospedagem
+ * vale o slug da loja na plataforma, que a Unbox grava em `UNBOX_EDITOR_SHOP`; o literal é o do `next dev`.
  */
-export function slugDaLoja(dir) {
-  let src;
-  try { src = fs.readFileSync(path.join(dir, "lib/editable/config.ts"), "utf8"); } catch { return null; }
-  const m = src.match(/STORE_SLUG\s*=[^\n]*?"([^"]+)"/);
-  return m && m[1] !== "__STORE_SLUG__" ? m[1] : null;
-}
+export { slugDaLoja };
 
 /**
  * Uma cópia do template com a MESMA personalização de nome que o create fez na loja, numa pasta temporária.

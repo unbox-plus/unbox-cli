@@ -140,8 +140,11 @@ Quando a recomendação (e a escolha do cliente) é REFAZER, a ordem é outra, e
 `tsc --noEmit` limpo:
 
 1. **Scaffold**: `unbox create <pasta> --nome "<nome da marca>" --slug <slug>` numa pasta nova (pergunte onde).
-   O `--slug` é o `slug` da análise (`analyze-version --json`, o STORE_SLUG da loja antiga): sem ele, a loja
-   nova pede ao editor o publicado de outra loja. O `--nome` é o nome que o cliente vê: o `nome` da análise,
+   O `--slug` é o slug da loja NA PLATAFORMA (o `<slug>` de `<slug>.myunbox.com.br`, o `UNBOX_SHOP_SLUG`): na
+   hospedagem a Unbox grava `UNBOX_EDITOR_SHOP` com ele e o editor acha a loja por ele, então é ele que vale, e
+   o `unbox provision` troca o literal de `lib/editable/config.ts` quando for outro. O `slug` da análise
+   (`analyze-version --json`) é o literal da loja antiga e serve de conferência: diferente do da plataforma,
+   fique com o da plataforma. O `--nome` é o nome que o cliente vê: o `nome` da análise,
    ou a `marca` dela quando o `nome` é um slug (`casa-aurora`); sem nenhum dos dois, confirme com o usuário.
    Credenciais pelo `unbox provision`, ou as que o usuário passar. Nada da loja antiga entra ainda.
 2. **Marca**: `public/brand/`, as fontes de `app/layout.tsx`, os tokens de cor de `app/globals.css` (só os
@@ -240,13 +243,21 @@ npx tsc --noEmit                 # limpo antes de passar ao próximo bloco
 npm run build                    # no fim dos blocos 1 a 5: mesmas rotas de antes; o prebuild roda os gates da loja
 npx tsx scripts/check-subscription-draft.ts   # depois do bloco 0.29
 npm run unbox:editavel           # bloco 6, com o servidor no ar e NEXT_PUBLIC_EDITOR_ORIGIN; saída 2 = não rodou
+                                 # loja SEM Shop (pelo cadastro, não pelo .env): -- --sem-api (references/editor.md, §1)
 ```
 
 Faça o `build` de verdade, não apenas o typecheck: o `prebuild` da loja roda gates (marca, travessão,
 placeholder, medidores) que o `tsc` não roda, e o `import "server-only"` de `lib/unbox.ts` só acusa import indevido
 no build. `npm run unbox:test` (contra a API real) só com credenciais e com o ok do usuário: ele cria carrinho e
 pedido de teste. Sem credenciais, uma loja com modo preview/fake próprio serve para o gate do editor rodar,
-porque o client falso entrega o catálogo.
+porque o client falso entrega o catálogo. Loja sem Shop e sem esse modo: `--sem-api` deixa produto e categoria
+"sem prova" e julga o resto (references/editor.md, §1).
+
+Newsletter numa loja de vitrine (sem Shop): o bloco só renderiza com `NEXT_PUBLIC_NEWSLETTER_ACTION`, e o template
+traz a rota de vitrine em `app/api/previa/newsletter/` ("cadastro simulado", não guarda o e-mail, 404 com as
+credenciais). O destino entra só pela variável; o gate da marca reprova o destino de vitrine escrito no código e a
+loja com as credenciais que o mantenha na variável. Quando a loja ganhar Shop, a variável muda para o destino real
+(ou some, e o bloco some junto).
 
 ## O bloco do editor
 

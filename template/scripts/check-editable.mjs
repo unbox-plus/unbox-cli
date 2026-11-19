@@ -68,6 +68,13 @@
 //         mão, e o relatório diz isso.)
 //      node scripts/check-editable.mjs --url http://localhost:3000/blog/um-artigo
 //        (uma página do lojista: a declaração da rota dela é achada pelo padrão, `/[colecao]/[handle]`.)
+//      node scripts/check-editable.mjs --url http://localhost:3000 --sem-api
+//        (LOJA SEM SHOP NA UNBOX, e só ela: as rotas que a própria loja diz estarem sem exemplo por não ter
+//         credenciais (`semExemploPorque: "sem-credenciais"` em /api/unbox/paginas: produto e categoria) saem
+//         como "sem prova" em vez de NÃO RODOU, e o resto do gate vale igual. Quem decide é o cadastro da loja,
+//         nunca "o meu .env não tem credenciais": numa loja com Shop, rode com as credenciais, que é o que
+//         mede a PDP e a categoria. Rota sem exemplo por outro motivo (catálogo vazio, fora do ar) continua
+//         NÃO RODOU com ou sem a flag.)
 import { createRequire } from "node:module";
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -77,6 +84,7 @@ const URL_ = args.url ?? "http://localhost:3000";
 const MINIMO = Number(args.minimo ?? 0.8);
 const ALVO = new URL(URL_);
 const ORIGEM = ALVO.origin;
+const SEM_API = Boolean(args["sem-api"]);
 
 function carregarPlaywright() {
   const req = createRequire(import.meta.url);
@@ -113,6 +121,8 @@ const declaradaPelaLoja = (p) => ({
   soChrome: p.soChrome === true,
   // a rota é um MOLDE das páginas que o lojista cria (foundation 13): os containers dela são do documento
   doLojista: p.doLojista === true,
+  // por que a loja não deu exemplo, quando o motivo é dela (hoje só "sem-credenciais"): é o que `--sem-api` lê
+  ...(typeof p.semExemploPorque === "string" ? { semExemploPorque: p.semExemploPorque } : {}),
   ...(Array.isArray(p.containers) ? { containers: p.containers.filter((c) => typeof c === "string") } : {}),
 });
 
@@ -192,9 +202,14 @@ async function descobrirPaginas() {
   // criou página nenhuma (ou não publicou). Fica impresso como "molde não medido", fora do NÃO RODOU. A casca
   // é medida no dia em que houver uma página publicada, por ela, como qualquer rota dinâmica.
   const moldesNaoMedidos = declarada.lista.filter((p) => !temCaminho(p) && p.doLojista).map((p) => p.rota);
-  const semExemplo = declarada.lista.filter((p) => !temCaminho(p) && !p.doLojista).map((p) => p.rota);
+  // SEM PROVA (`--sem-api`): só a rota que a LOJA diz estar sem exemplo por não ter credenciais, e só quando quem
+  // roda declara que a loja não tem Shop. Sem a flag, ela continua em `semExemplo` (NÃO RODOU), como sempre.
+  const semCredenciais = (p) => !temCaminho(p) && !p.doLojista && p.semExemploPorque === "sem-credenciais";
+  const semProva = SEM_API ? declarada.lista.filter(semCredenciais).map((p) => p.rota) : [];
+  const semExemplo = declarada.lista.filter((p) => !temCaminho(p) && !p.doLojista && !semProva.includes(p.rota)).map((p) => p.rota);
+  const porFaltaDeCredenciais = declarada.lista.filter(semCredenciais).map((p) => p.rota);
   if (!comExemplo.length) return { erro: `${ORIGEM}/api/unbox/paginas não trouxe nenhuma página com caminho para abrir.` };
-  return { paginas: comExemplo, fonte: "a própria loja (/api/unbox/paginas)", semExemplo, moldesNaoMedidos };
+  return { paginas: comExemplo, fonte: "a própria loja (/api/unbox/paginas)", semExemplo, semProva, porFaltaDeCredenciais, moldesNaoMedidos };
 }
 
 const achado = await descobrirPaginas();
@@ -322,6 +337,13 @@ const semExemplo = achado.semExemplo ?? [];
 if (semExemplo.length) {
   console.log(`\nROTAS DECLARADAS SEM EXEMPLO PARA ABRIR (${semExemplo.length}), NÃO foram medidas: ${semExemplo.join(", ")}`);
   console.log("  (a loja não devolveu um caminho concreto para elas: catálogo vazio, sem credenciais da Unbox neste ambiente, ou fora do ar)");
+  const porFalta = (achado.porFaltaDeCredenciais ?? []).filter((r) => semExemplo.includes(r));
+  if (porFalta.length) console.log(`  A loja diz que ${porFalta.join(", ")} está(ão) sem exemplo porque ela roda sem credenciais da Unbox. Loja com Shop: rode com as credenciais. Loja sem Shop (vitrine): rode com --sem-api, e essas rotas saem como sem prova.`);
+}
+const semProva = achado.semProva ?? [];
+if (semProva.length) {
+  console.log(`\nROTAS SEM PROVA, LOJA SEM SHOP (--sem-api) (${semProva.length}), NÃO foram medidas: ${semProva.join(", ")}`);
+  console.log("  (a loja não tem credenciais da Unbox, então não há produto nem categoria para abrir. Medir quando a loja tiver Shop; isto não conta como NÃO RODOU só porque --sem-api foi pedido)");
 }
 const moldesNaoMedidos = achado.moldesNaoMedidos ?? [];
 if (moldesNaoMedidos.length) {
@@ -579,8 +601,61 @@ if (foraDeContainer.size) {
   console.log(`\nEDITÁVEIS FORA DE CONTAINER (${foraDeContainer.size}): a página os renderiza soltos, então eles NÃO são editáveis:`);
   for (const [p, x] of [...foraDeContainer].slice(0, 40)) console.log(`  ${p} · ${x.type}${x.label ? ` · ${x.label}` : ""} · em ${x.paginas.join(", ")}`);
   if (foraDeContainer.size > 40) console.log(`  … +${foraDeContainer.size - 40}`);
-  console.log(`  Envolva as seções dessa(s) página(s) em <Editable.Sections container="<nome-da-página>"> com um <Editable.Section id=…> por seção.`);
-  console.log(`  A ordem é do container e a copy é do container: duas páginas no MESMO container dividem as duas de propósito; página que quer copy própria declara container próprio.`);
+  // PÁGINA SÓ CHROME (por regra, ou declarada `[]` em CONTAINERS_POR_ROTA): envolver em container é a dica ERRADA
+  // ali, porque o container novo divergiria da declaração. O componente da marca que aparece nela não leva
+  // primitivo nessa página.
+  const soChromeAqui = new Set(resultados.filter((r) => r.soChrome || (Array.isArray(r.containers) && r.containers.length === 0)).map((r) => r.caminho));
+  const naPaginaSoChrome = [...foraDeContainer.values()].filter((x) => x.paginas.every((pg) => soChromeAqui.has(pg)));
+  if (naPaginaSoChrome.length < foraDeContainer.size) {
+    console.log(`  Envolva as seções dessa(s) página(s) em <Editable.Sections container="<nome-da-página>"> com um <Editable.Section id=…> por seção.`);
+    console.log(`  A ordem é do container e a copy é do container: duas páginas no MESMO container dividem as duas de propósito; página que quer copy própria declara container próprio.`);
+  }
+  if (naPaginaSoChrome.length) {
+    const paginas = [...new Set(naPaginaSoChrome.flatMap((x) => x.paginas))].join(", ");
+    console.log(`  ${paginas}: página só de cabeçalho e rodapé (SO_CHROME ou containers [] em lib/rotas-editaveis.ts). Ali o componente não leva primitivo:`);
+    console.log(`    renderize o literal (uma variante do componente sem Editable.*), ou, se ele aparece em toda página, ele é do chrome (container "chrome").`);
+    console.log(`    Não envolva em container: a declaração [] passaria a divergir.`);
+  }
+  // DE ONDE VEM: o manifesto traz o caminho e o rótulo, não o componente. O rótulo e o último segmento do
+  // caminho são literais no código (`label="…"`, `path="…"`), e é por eles que o arquivo se acha.
+  if (RAIZ_DA_LOJA) {
+    const fontes = [];
+    const andar = (dir) => {
+      let entradas = [];
+      try { entradas = readdirSync(dir, { withFileTypes: true }); } catch { return; }
+      for (const e of entradas) {
+        const p = path.join(dir, e.name);
+        if (e.isDirectory()) { if (e.name !== "node_modules" && !p.endsWith(`${path.sep}lib${path.sep}editable`)) andar(p); }
+        else if (/\.(tsx|jsx)$/.test(e.name)) fontes.push(p);
+      }
+    };
+    for (const d of ["app", "components", "lib"]) andar(path.join(RAIZ_DA_LOJA, d));
+    const textos = fontes.map((f) => { try { return [f, readFileSync(f, "utf8").split("\n")]; } catch { return [f, []]; } });
+    const esc = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const origens = [];
+    for (const [p, x] of [...foraDeContainer].slice(0, 20)) {
+      const seg = String(p).split(".").pop();
+      const reLabel = x.label ? new RegExp(`label=\\{?["'\`]${esc(x.label)}["'\`]`) : null;
+      const rePath = new RegExp(`path=\\{?["'\`]${esc(seg)}["'\`]`);
+      const achados = [];
+      for (const [f, linhas] of textos) {
+        linhas.forEach((l, i) => {
+          if (!rePath.test(l)) return;
+          // com rótulo, ele tem de estar perto do path (a mesma tag, que pode quebrar em linhas): sem isso, um
+          // path="titulo" casaria com metade da loja
+          const perto = linhas.slice(Math.max(0, i - 3), i + 4).join("\n");
+          const nota = !reLabel ? 1 : reLabel.test(perto) ? 2 : 0;
+          if (nota) achados.push({ onde: `${path.relative(RAIZ_DA_LOJA, f)}:${i + 1}`, nota });
+        });
+      }
+      achados.sort((a, b) => b.nota - a.nota);
+      if (achados.length) origens.push(`  ${p}: ${achados.slice(0, 3).map((a) => a.onde).join(", ")}${achados.length > 3 ? ` (+${achados.length - 3})` : ""}`);
+    }
+    if (origens.length) {
+      console.log("  Provável origem (busca por path= e label= no código):");
+      for (const o of origens) console.log(`  ${o}`);
+    }
+  }
 }
 
 if (semTipo.size) {
@@ -808,6 +883,7 @@ if (args.json) {
     fonteDaLista: achado.fonte,
     minimo: MINIMO,
     rotasSemExemplo: semExemplo,
+    ...(SEM_API ? { rotasSemProva: semProva } : {}),
     moldesNaoMedidos,
     prefixoReservadoEmRotaDoCodigo: prefixoIndevido,
     parDoCorteDoDocumento: parDoCorte,
@@ -876,6 +952,8 @@ const conferidas = medidas.filter((r) => r.declaracao && !r.declaracao.naoConfer
 const declaracao = conferidas ? `, declaração de containers batendo em ${conferidas} página(s)` : ", declaração de containers não conferida (a loja não foi ouvida)";
 // o molde não medido vai na frase de aprovação: aprovado sem tê-lo olhado é o que a frase tem de dizer
 const moldes = moldesNaoMedidos.length ? `; ${moldesNaoMedidos.length} molde(s) do lojista sem página publicada, não medido(s)` : "";
+// a rota sem prova também: aprovado sem a PDP e a categoria é aprovado de uma vitrine, e a frase tem de dizer isso
+const provas = semProva.length ? `; ${semProva.length} rota(s) sem prova, loja sem Shop (--sem-api): ${semProva.join(", ")}` : "";
 const par = parDoCorte.motivo ? `, par do corte não conferido (${parDoCorte.motivo})` : parDoCorte.comFatia.length ? `, o par do corte do documento fechando em ${parDoCorte.comFatia.length} rota(s) do lojista` : "";
-console.log(`\n[check-editable] aprovado: ${medidas.length} página(s), ${resumo}, nenhuma seção sem tipo, nenhum editável fora de container${declaracao}${par}${moldes}`);
+console.log(`\n[check-editable] aprovado: ${medidas.length} página(s), ${resumo}, nenhuma seção sem tipo, nenhum editável fora de container${declaracao}${par}${moldes}${provas}`);
 process.exit(0);

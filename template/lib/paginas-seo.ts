@@ -46,7 +46,7 @@ import {
   type PaginaDoLojista,
 } from "@/lib/editable/document";
 
-export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 // O nome sai do ambiente (o create-unbox-store escreve `NEXT_PUBLIC_SITE_NAME` no scaffold), como em
 // app/llms.txt e em /api/unbox/paginas. O literal é só o último recurso.
 export const SITE_NAME = process.env.NEXT_PUBLIC_SITE_NAME || "Minha Loja";

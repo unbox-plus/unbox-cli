@@ -223,7 +223,7 @@ export default async function AssinaturaDetalhePage({
   );
   const componentes = (k: any) =>
     ((k?.kitComponents ?? []) as any[]).filter(
-      (c) => c.productId && c.productVariantId,
+      (c) => c?.productId && c.productVariantId,
     );
   // `kitLabelImage` é uma imagem opcional do kit e quase sempre vem vazia: sem ela, vale a foto do próprio produto do item.
   const semImagemDoKit = new Set<string>();

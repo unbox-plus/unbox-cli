@@ -15,6 +15,7 @@ import {
   isReserved,
   joiIndex,
   lotes,
+  mensagemGerenciadas,
   mensagemPulada,
   mensagemVazias,
   planSet,
@@ -36,7 +37,9 @@ export const help = `
 
   Não vão:
     - as vazias;
-    - NEXT_PUBLIC_SITE_URL, reservada e gerenciada pela Unbox (o valor do arquivo vale só para o next dev);
+    - as gerenciadas pela Unbox, que as grava na hospedagem: NEXT_PUBLIC_SITE_URL, EDITOR_URL,
+      NEXT_PUBLIC_EDITOR_ORIGIN, NEXT_PUBLIC_ADMIN_ORIGIN e UNBOX_EDITOR_SHOP (o valor do arquivo vale só
+      para o next dev);
     - os nomes reservados: TZ e os que começam com VERCEL_, NEXT_PUBLIC_VERCEL_, NOW_, AWS_ e LAMBDA_.
 
   Só builds novos usam as variáveis: depois de mudar, rode unbox deploy (e depois unbox publish).
@@ -128,7 +131,9 @@ async function gravaLote(api, lote, ctx) {
 export async function syncEnvironment({ api, loaded, out }) {
   const { set, skipped, fromTerminal } = planSet(loaded);
   const { vazias, outras } = separaVazias(skipped);
-  for (const item of outras) out.warn(`  ${item.reason === "gerenciada" ? "" : "Aviso: "}${mensagemPulada(item)}`);
+  const gerenciadas = outras.filter((i) => i.reason === "gerenciada").map((i) => i.key);
+  if (gerenciadas.length) out.warn(`  ${mensagemGerenciadas(gerenciadas)}`);
+  for (const item of outras) if (item.reason !== "gerenciada") out.warn(`  Aviso: ${mensagemPulada(item)}`);
   if (vazias.length) out.warn(`  ${mensagemVazias(vazias, loaded.envFile)}`);
   if (fromTerminal.length) {
     out.warn(`  Aviso: valor do ambiente do terminal, que vence o do ${loaded.envFile}: ${fromTerminal.join(", ")}.`);
