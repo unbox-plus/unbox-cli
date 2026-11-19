@@ -249,8 +249,10 @@ export default async function ProductPage({
       .map((n: any) => n.product ?? n)
       .map((x: any) => [x?.productId, x?.imageUrls?.[0]] as const),
   );
+  // A API devolve `null` dentro de `kitComponents` quando um item do kit aponta para um produto que
+  // não existe mais (o tipo do SDK não prevê): sem o filtro, um kit quebrado derruba o build da loja.
   const mapFlavors = (k: NonNullable<typeof kitData>) =>
-    (k.kitComponents ?? []).map((c) => ({
+    (k.kitComponents ?? []).filter((c): c is NonNullable<typeof c> => c != null).map((c) => ({
       productId: c.productId,
       variantId: c.productVariantId,
       label: c.label ?? c.variantTitle ?? c.productTitle ?? "Item",
