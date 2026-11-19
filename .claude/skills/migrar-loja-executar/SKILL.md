@@ -240,13 +240,21 @@ npx tsc --noEmit                 # limpo antes de passar ao próximo bloco
 npm run build                    # no fim dos blocos 1 a 5: mesmas rotas de antes; o prebuild roda os gates da loja
 npx tsx scripts/check-subscription-draft.ts   # depois do bloco 0.29
 npm run unbox:editavel           # bloco 6, com o servidor no ar e NEXT_PUBLIC_EDITOR_ORIGIN; saída 2 = não rodou
+                                 # loja SEM Shop (pelo cadastro, não pelo .env): -- --sem-api (references/editor.md, §1)
 ```
 
 Faça o `build` de verdade, não apenas o typecheck: o `prebuild` da loja roda gates (marca, travessão,
 placeholder, medidores) que o `tsc` não roda, e o `import "server-only"` de `lib/unbox.ts` só acusa import indevido
 no build. `npm run unbox:test` (contra a API real) só com credenciais e com o ok do usuário: ele cria carrinho e
 pedido de teste. Sem credenciais, uma loja com modo preview/fake próprio serve para o gate do editor rodar,
-porque o client falso entrega o catálogo.
+porque o client falso entrega o catálogo. Loja sem Shop e sem esse modo: `--sem-api` deixa produto e categoria
+"sem prova" e julga o resto (references/editor.md, §1).
+
+Newsletter numa loja de vitrine (sem Shop): o bloco só renderiza com `NEXT_PUBLIC_NEWSLETTER_ACTION`, e o template
+traz a rota de vitrine em `app/api/previa/newsletter/` ("cadastro simulado", não guarda o e-mail, 404 com as
+credenciais). O destino entra só pela variável; o gate da marca reprova o destino de vitrine escrito no código e a
+loja com as credenciais que o mantenha na variável. Quando a loja ganhar Shop, a variável muda para o destino real
+(ou some, e o bloco some junto).
 
 ## O bloco do editor
 
