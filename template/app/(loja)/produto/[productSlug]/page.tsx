@@ -48,7 +48,7 @@ const NAO_INFORMADO = "não informado";
 
 export const revalidate = 300;
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 // Mesmo literal do app/layout.tsx: o create-unbox-store reescreve "Minha Loja" nos dois
 // arquivos com o nome real da loja.
 const SITE_NAME = "Minha Loja";
