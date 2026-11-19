@@ -97,7 +97,9 @@ De 0.22.0 em diante, refatorar, salvo três ou mais sinais da loja (os números 
   em `app/`, `components/` ou `lib/` (código ou JSON), o mesmo alcance da verificação da esteira.
 ~ `lib/newsletter.ts`: comentário sobre a vitrine (o código não cai nela sozinho).
 ~ `.env.example`: `NEXT_PUBLIC_SITE_URL` passa a vir COMENTADA (o `create` deixa de escrever
-  `http://localhost:3000` no `.env.local`); linha nova sobre a newsletter de vitrine.
+  `http://localhost:3000` no `.env.local`); linha nova sobre a newsletter de vitrine; o bloco do editor diz que
+  as quatro variáveis dele são gravadas pela Unbox na hospedagem (e que lá `UNBOX_EDITOR_SHOP` é o slug da loja
+  na plataforma, que vence o literal de `lib/editable/config.ts`).
 ~ `app/layout.tsx`, `app/robots.ts`, `app/sitemap.ts`, `lib/paginas-seo.ts`, `app/api/checkout/email/route.ts`,
   `app/(loja)/produto/[productSlug]/page.tsx`, `scripts/abandoned-cart.ts`: o fallback de `NEXT_PUBLIC_SITE_URL`
   passa de `??` para `||`. Com a variável definida e VAZIA, o `??` mantinha o vazio e `new URL("")` no
@@ -140,6 +142,12 @@ Kit com item nulo: reaplicar o filtro nas duas páginas (são da loja). O `mapFl
 A variável do endereço da loja deixa de vir preenchida no `.env.local` gerado; continua existindo e continua
 gerenciada pela Unbox na hospedagem. A da newsletter ganha um valor de vitrine documentado no `.env.example`.
 Nenhuma entra, nenhuma sai.
+
+CLI: o `unbox env` e o `unbox provision` passam a tratar `EDITOR_URL`, `NEXT_PUBLIC_EDITOR_ORIGIN`,
+`NEXT_PUBLIC_ADMIN_ORIGIN` e `UNBOX_EDITOR_SHOP` como gerenciadas, igual ao backend, que as grava em toda loja no
+provisionamento e recusa que a loja as defina. Antes, a CLI tentava enviar as três que vêm preenchidas no
+`.env.local`, a API recusava e o aviso pedia "Atualize a CLI" em todo envio; agora sai uma linha só, sem chamada a
+mais, e o `--unset` delas é recusado antes da API. Loja já gerada: nada a fazer, basta a CLI nova.
 ### Mudanças de comportamento
 nada para o comprador nem para o lojista sem escolha: a newsletter de vitrine é opt-in, e o resto é gate,
 relatório e documentação. O build passa a reprovar uma combinação que antes ia ao ar calada (credenciais da Unbox
