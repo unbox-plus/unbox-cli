@@ -249,7 +249,61 @@ for (const caminho of arquivosDeCopy) {
   });
 }
 
-// ── 10. (vago) ───────────────────────────────────────────────────────────────
+// ── 10. Newsletter de vitrine só em loja sem Shop ───────────────────────────
+// A rota de vitrine (app/api/previa/newsletter) responde "cadastro simulado" e não guarda o e-mail; com as
+// credenciais da Unbox ela responde 404. Então ela só pode ser destino quando a loja NÃO tem as credenciais: com
+// elas, o formulário iria ao ar mandando o e-mail para um 404, que é o "engolir" do item 9 por outro caminho. E o
+// destino de vitrine só entra pela variável: escrito no código, ele viaja para a loja com Shop sem ninguém ver.
+// O ambiente é o do build (a hospedagem passa as variáveis no processo) mais os .env* que o `next build` lê, na
+// mesma ordem dele; quem estiver no processo vence.
+const DESTINO_DE_VITRINE = "/api/previa/newsletter";
+const ambienteDoBuild = (() => {
+  const lido = {};
+  for (const arquivo of [".env", ".env.production", ".env.local", ".env.production.local"]) {
+    const texto = read(arquivo);
+    if (!texto) continue;
+    // CRLF também: um .env salvo no Windows não pode fazer o item passar sem ter lido nada
+    for (const linha of texto.split(/\r?\n/)) {
+      const m = linha.match(/^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/);
+      if (!m) continue;
+      const bruto = m[2].trim();
+      // entre aspas, o valor é o de dentro (com ou sem comentário depois); sem aspas, `#` abre comentário
+      const aspas = bruto.match(/^(["'`])(.*?)\1(?:\s+#.*)?$/);
+      lido[m[1]] = aspas ? aspas[2] : bruto.replace(/(^|\s+)#.*$/, "").trim();
+    }
+  }
+  return { ...lido, ...Object.fromEntries(Object.entries(process.env).filter(([, v]) => v !== undefined)) };
+})();
+// o caminho, sem query, âncora nem barra final: `/api/previa/newsletter?x=1` é o mesmo destino
+const destinoDaNewsletter = (ambienteDoBuild.NEXT_PUBLIC_NEWSLETTER_ACTION ?? "").trim().replace(/[?#].*$/, "").replace(/\/+$/, "");
+// a régua do SDK (hasUnboxCredentials, `Boolean(valor)`): as três juntas, não vazias, são o modo real
+const comCredenciais = ["UNBOX_PARTNER_API_KEY", "UNBOX_USER", "UNBOX_PASS"].every((k) => Boolean(ambienteDoBuild[k]));
+if (comCredenciais && destinoDaNewsletter.endsWith(DESTINO_DE_VITRINE)) {
+  errors.push(`NEXT_PUBLIC_NEWSLETTER_ACTION aponta para a newsletter de vitrine (${DESTINO_DE_VITRINE}) numa loja com as credenciais da Unbox: ali a rota responde 404 e o e-mail se perde. Ponha o destino real (CRM, ESP) ou deixe a variável vazia, e o bloco some.`);
+}
+// o literal: app/, components/ e lib/, em todo arquivo de código ou dado (a receita da home pode ser JSON)
+const arquivosDoDestino = [];
+function varreDestino(dir) {
+  let entradas;
+  try { entradas = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+  for (const e of entradas) {
+    if (e.name === "node_modules" || e.name === ".next") continue;
+    const caminho = path.join(dir, e.name);
+    if (e.isDirectory()) varreDestino(caminho);
+    else if (/\.(tsx?|jsx?|mjs|json)$/.test(e.name)) arquivosDoDestino.push(caminho);
+  }
+}
+for (const d of ["app", "components", "lib"]) varreDestino(path.join(ROOT, d));
+for (const caminho of arquivosDoDestino) {
+  const rel = path.relative(ROOT, caminho).split(path.sep).join("/");
+  if (rel.startsWith("app/api/previa/newsletter/")) continue;
+  const linhas = fs.readFileSync(caminho, "utf8").split("\n");
+  linhas.forEach((linha, idx) => {
+    if (linha.includes(DESTINO_DE_VITRINE)) {
+      errors.push(`${rel}:${idx + 1} escreve o destino da newsletter de vitrine no código: ele só entra por NEXT_PUBLIC_NEWSLETTER_ACTION, que a loja com Shop troca pelo destino real.`);
+    }
+  });
+}
 // Aqui morava a regra "a variável do id da loja tem de se chamar `shopId`", que existia porque o
 // core descobria a loja procurando esse nome LITERAL nas variables. Na API de parceiros a loja sai
 // do JWT que vai no Authorization e nenhuma consulta da loja manda shopId, então a regra não tem
