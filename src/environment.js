@@ -7,16 +7,32 @@ import { UsageError } from "./errors.js";
 import { mensagensDoErro } from "./storefront.js";
 
 /**
+ * As que a Unbox GRAVA em toda loja no provisionamento, com o que cada uma leva. Cópia de
+ * `CUSTOM_STOREFRONT_EDITOR_ENVIRONMENT_KEYS` e `CUSTOM_STOREFRONT_SITE_URL_ENVIRONMENT_KEY` do backend
+ * (custom-storefront, `src/config/customStorefrontConfig.ts`). O `.env.local` continua trazendo as do
+ * editor porque o `next dev` precisa delas; na hospedagem vale o valor da Unbox, e o aviso é próprio,
+ * sem cara de erro.
+ */
+export const MANAGED_KEYS = {
+  EDITOR_URL: "a ligação da loja com o editor",
+  NEXT_PUBLIC_EDITOR_ORIGIN: "a ligação da loja com o editor",
+  NEXT_PUBLIC_ADMIN_ORIGIN: "a ligação da loja com o painel Admin",
+  UNBOX_EDITOR_SHOP: "a ligação da loja com o editor",
+  NEXT_PUBLIC_SITE_URL: "o endereço de produção da loja",
+};
+
+/**
  * Nomes que a Unbox ou a hospedagem gerenciam, e que a loja não pode definir nem remover. Cópia da
- * lista do backend (custom-storefront, `CUSTOM_STOREFRONT_RESERVED_ENVIRONMENT_KEYS` e `..._PREFIXES`):
+ * lista do backend (`CUSTOM_STOREFRONT_RESERVED_ENVIRONMENT_KEYS` e `..._PREFIXES`, no mesmo arquivo):
  * aqui ela é só o filtro, para não perder o lote inteiro por uma chave. A palavra final é da API, e
  * uma reservada que o backend acrescentar depois é achada pela bisseção do comando.
  */
-export const RESERVED_KEYS = ["NEXT_PUBLIC_SITE_URL", "TZ"];
+export const RESERVED_KEYS = [...Object.keys(MANAGED_KEYS), "TZ"];
 export const RESERVED_PREFIXES = ["VERCEL_", "NEXT_PUBLIC_VERCEL_", "NOW_", "AWS_", "LAMBDA_"];
 
-/** A que a Unbox grava com o endereço da loja: aviso próprio, sem cara de erro. */
-export const MANAGED_KEY = "NEXT_PUBLIC_SITE_URL";
+export function isManaged(key) {
+  return Object.hasOwn(MANAGED_KEYS, key);
+}
 
 /** Os limites da validação da API. O do valor é em CARACTERES (`.length`), como no backend. */
 export const KEY_RE = /^[A-Z][A-Z0-9_]*$/;
@@ -34,7 +50,9 @@ function nomeValido(key) {
 
 /** Por que uma chave do arquivo não vai, ou `null` se vai. */
 function motivo(key, value) {
-  if (key === MANAGED_KEY) return "gerenciada";
+  // Vazia é vazia mesmo sendo gerenciada: o template traz UNBOX_EDITOR_SHOP em branco, e avisar dela
+  // em todo envio seria ruído sobre uma chave que a loja nem preencheu.
+  if (isManaged(key)) return value === undefined || value === "" ? "vazia" : "gerenciada";
   if (isReserved(key)) return "reservada";
   if (!nomeValido(key)) return "nome_invalido";
   if (value === undefined || value === "") return "vazia";
@@ -82,7 +100,7 @@ export function lotes(lista, n = LIMITE_LOTE) {
 export function validaUnset(keys) {
   if (!keys.length) throw new UsageError("Informe as chaves a remover: unbox env --unset CHAVE [CHAVE...].");
   for (const key of keys) {
-    if (key === MANAGED_KEY || isReserved(key)) {
+    if (isReserved(key)) {
       throw new UsageError(`${key} é gerenciada pela Unbox ou pela hospedagem e não pode ser removida.`);
     }
     if (!nomeValido(key)) {
@@ -93,7 +111,7 @@ export function validaUnset(keys) {
 }
 
 const TEXTO = {
-  gerenciada: (k) => `${k} não foi enviada: é gerenciada pela Unbox, que reserva o nome para o endereço de produção da loja. O valor do arquivo vale só para o next dev.`,
+  gerenciada: (k) => `${k} não foi enviada: é gerenciada pela Unbox, que grava na hospedagem ${MANAGED_KEYS[k] ?? "o valor dela"}. O valor do arquivo vale só para o next dev.`,
   reservada: (k) => `${k} não foi enviada: o nome é reservado pela Unbox ou pela hospedagem.`,
   reservada_nova: (k) =>
     `${k} não foi enviada: a Unbox passou a reservar este nome e esta versão da CLI ainda não sabia. Atualize a CLI ou fale com a Unbox.`,
@@ -102,6 +120,12 @@ const TEXTO = {
   vazia_terminal: (k) => `${k} não foi enviada: está vazia no ambiente do terminal, que vence o arquivo. Rode unset ${k} e de novo o unbox env.`,
   valor_grande: (k) => `${k} não foi enviada: o valor passa de ${VALUE_MAX} caracteres.`,
 };
+
+/** Duas ou mais gerenciadas num aviso só: elas vêm juntas em todo .env.local gerado, e o motivo é um. */
+export function mensagemGerenciadas(keys) {
+  if (keys.length === 1) return mensagemPulada({ key: keys[0], reason: "gerenciada" });
+  return `Não enviadas, porque a Unbox as grava na hospedagem: ${keys.join(", ")}. O valor do arquivo vale só para o next dev.`;
+}
 
 export function mensagemPulada({ key, reason }) {
   return (TEXTO[reason] ?? ((k) => `${k} não foi enviada.`))(key);

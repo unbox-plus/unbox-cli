@@ -1,10 +1,10 @@
 // Identidade desta loja PARA O EDITOR. O CLI carimba o literal no scaffold; EDITOR_URL vem do
 // ambiente (sem ele, o editor fica desligado).
 //
-// `UNBOX_EDITOR_SHOP` é variável PRÓPRIA, de propósito: não reuse `UNBOX_SHOP_SLUG`, que é o slug
-// da loja NA PLATAFORMA (sai do JWT). Os dois costumam coincidir e no dia em que divergirem o
-// editor deixa de achar a loja sem dizer por quê. Este nome tem de bater com o `slug` da entrada
-// dela no shops.json do editor.
+// Na hospedagem da Unbox, `UNBOX_EDITOR_SHOP` é gravada pela própria Unbox com o slug da loja NA
+// PLATAFORMA (o do claim do token e o de <slug>.myunbox.com.br), e o editor acha a loja por ele. O
+// literal abaixo vale onde a variável não existe, o `next dev`, e tem de ser o mesmo: o `unbox
+// provision` troca o literal pelo da plataforma quando eles diferem.
 export const STORE_SLUG = process.env.UNBOX_EDITOR_SHOP || "__STORE_SLUG__";
 export const EDITOR_URL = (process.env.EDITOR_URL || "").replace(/\/+$/, "");
 /** Origem do editor vista pelo navegador (frame-ancestors + postMessage). */

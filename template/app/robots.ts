@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next";
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 
 // Áreas privadas/transacionais não indexáveis (doc 10).
 // EXPORTADA de propósito: é a MESMA lista que decide quais páginas o editor da Unbox oferece ao

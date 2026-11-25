@@ -68,9 +68,12 @@ function arvore(dir) {
   return out;
 }
 
-/** Confere o formato do que é sorteado e troca por um marcador fixo. */
-function normalizar(rel, buf) {
+/** Confere o formato do que é sorteado e troca por um marcador fixo. `slugMuda`: o literal do editor sai da comparação. */
+function normalizar(rel, buf, { slugMuda = false } = {}) {
   let s = buf.toString("utf8");
+  if (slugMuda && rel === path.join("lib", "editable", "config.ts")) {
+    return s.replace(/(STORE_SLUG = [^\n]*?")[^"\n]+(";)/, "$1<slug>$2");
+  }
   if (rel === ".env.local") {
     const pega = (k) => s.match(new RegExp(`^${k}=(.*)$`, "m"))?.[1];
     assert.match(pega("SESSION_SECRET"), /^[0-9a-f]{64}$/, "SESSION_SECRET");
@@ -112,7 +115,7 @@ function segredoConfere(dir) {
   assert.ok(ts.includes(`"${env}"`), "SEGREDO_DA_LOJA === SESSION_SECRET");
 }
 
-function mesmaLoja(esperado, obtido, rotulo) {
+function mesmaLoja(esperado, obtido, rotulo, opcoes = {}) {
   assert.equal(obtido.status, esperado.status, `${rotulo}: código de saída`);
   if (esperado.status !== 0) return;
   segredoConfere(obtido.dir);
@@ -122,8 +125,8 @@ function mesmaLoja(esperado, obtido, rotulo) {
   const b = arvore(obtido.dir);
   assert.deepEqual([...b.keys()].sort(), [...a.keys()].sort(), `${rotulo}: mesmos arquivos`);
   for (const [rel, conteudo] of a) {
-    const x = normalizar(rel, conteudo);
-    const y = normalizar(rel, b.get(rel));
+    const x = normalizar(rel, conteudo, opcoes);
+    const y = normalizar(rel, b.get(rel), opcoes);
     assert.ok(Buffer.isBuffer(x) ? x.equals(y) : x === y, `${rotulo}: ${rel} difere`);
   }
 }
@@ -138,8 +141,11 @@ const CENARIOS = [
     nome: "wizard com credenciais difíceis e token do MCP",
     args: ["loja", "--no-install"],
     respostas: [...CORES, "boutique", true, "custom", "da2-chave", "api_loja", "p$ss`w#rd $1 'x'", "SHOP1", "minha-loja", "mcp-token-123"],
+    // Mudança de propósito: o UNBOX_SHOP_SLUG (o slug da plataforma) vira o slug do editor; antes saía do nome.
+    slugMuda: true,
     // Prova de que o wizard foi mesmo respondido, e não pulado nos dois lados.
     confere: (dir) => {
+      assert.equal(leSlug(dir), "minha-loja", "o slug do editor é o UNBOX_SHOP_SLUG");
       assert.ok(fs.existsSync(path.join(dir, ".mcp.json")), ".mcp.json gerado");
       const env = fs.readFileSync(path.join(dir, ".env.local"), "utf8");
       assert.match(env, /^UNBOX_USER=api_loja$/m);
@@ -179,8 +185,8 @@ for (const c of CENARIOS) {
     const antigo = gerar("antigo", path.join(BASE, "bin/cli.js"), c.args, c.respostas);
     const legado = gerar("legado", path.join(RAIZ, "bin/cli.js"), c.args, c.respostas);
     const novo = gerar("novo", path.join(RAIZ, "bin/unbox.js"), ["create", ...c.args], c.respostas);
-    mesmaLoja(antigo, legado, "create-unbox-store");
-    mesmaLoja(antigo, novo, "unbox create");
+    mesmaLoja(antigo, legado, "create-unbox-store", { slugMuda: c.slugMuda });
+    mesmaLoja(antigo, novo, "unbox create", { slugMuda: c.slugMuda });
     if (c.confere) c.confere(novo.dir);
     if (antigo.status !== 0) assert.equal(antigo.status, 1, "erro de uso no create sai com 1");
   });
@@ -227,6 +233,22 @@ test("wizard com --nome: a pergunta do nome some e o resto segue na ordem", () =
   assert.equal(r.status, 0, r.stderr);
   assert.match(leEnv(r.dir), /^NEXT_PUBLIC_SITE_NAME=`?Outra Marca`?$/m);
   assert.equal(JSON.parse(fs.readFileSync(path.join(r.dir, "marca/briefing.json"), "utf8")).corPrimaria, "#000000");
+});
+
+test("wizard com UNBOX_SHOP_SLUG e --slug diferente: vale o da plataforma, com aviso", () => {
+  const r = novoCreate("slug-plataforma", ["loja", "--no-install", "--slug", "outro-slug"],
+    [...CORES, "boutique", true, "custom", "da2-chave", "api_loja", "senha", "SHOP1", "minha-loja", ""]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(leSlug(r.dir), "minha-loja");
+  assert.match(r.stderr, /Slug do editor: minha-loja \(o UNBOX_SHOP_SLUG\), e não outro-slug \(o --slug\)/);
+});
+
+test("wizard com UNBOX_SHOP_SLUG que não é slug: vale o --slug", () => {
+  const r = novoCreate("slug-invalido", ["loja", "--no-install", "--slug", "outro-slug"],
+    [...CORES, "boutique", true, "custom", "da2-chave", "api_loja", "senha", "SHOP1", "Minha Loja", ""]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(leSlug(r.dir), "outro-slug");
+  assert.doesNotMatch(r.stderr, /Slug do editor/);
 });
 
 test("--nome vazio e --slug inválido são erro de uso", () => {

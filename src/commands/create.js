@@ -15,6 +15,7 @@ import { TEMPLATE_DIR, packageVersion } from "../paths.js";
 import { envValue } from "../env.js";
 import { UsageError, CliError } from "../errors.js";
 import crypto from "node:crypto";
+import { SLUG_RE } from "../editor-slug.js";
 const EXCLUDE = new Set(["bootstrap.sh", "package-lock.json", ".DS_Store"]);
 // Cores default = CANVAS PROVISÓRIA, não escolha estética. Tinta quase-preta + âmbar
 // contido: a base mais neutra possível pra qualquer marca cair bem em cima. Trocar pelas
@@ -156,9 +157,12 @@ export const help = `
     --nome <texto>     nome da loja (o da marca, como o cliente vê): título, SEO, NEXT_PUBLIC_SITE_NAME
                        e briefing; dispensa a pergunta do wizard. Sem ele e sem terminal (ou com --yes),
                        o nome é o da pasta, com aviso
-    --slug <slug>      slug da loja no editor (STORE_SLUG de lib/editable/config.ts). Sem ele, sai do
-                       nome sem acento, espaço nem hífen ("Casa Aurora" vira casaaurora). Para refazer
-                       uma loja, passe o da antiga: o campo slug de unbox analyze-version --json
+    --slug <slug>      slug da loja no editor (STORE_SLUG de lib/editable/config.ts), o que vale no
+                       next dev. Na hospedagem da Unbox vale sempre o slug da loja na plataforma, que a
+                       Unbox grava em UNBOX_EDITOR_SHOP: passe esse (é o <slug> de <slug>.myunbox.com.br).
+                       O UNBOX_SHOP_SLUG respondido no wizard ganha do --slug. Sem nenhum dos dois, sai do
+                       nome sem acento, espaço nem hífen ("Casa Aurora" vira casaaurora), e o
+                       unbox provision troca pelo da plataforma
     --install          roda npm install ao final
     --no-install       não roda npm install
     --help, -h         esta ajuda
@@ -200,7 +204,7 @@ function parseArgs(argv, globals) {
     if (!flags.nome || flags.nome.startsWith("--")) throw new UsageError('--nome precisa de um texto, ex.: --nome "Casa Aurora".');
   }
   // O slug vai para um literal TS e para a URL do editor: só minúsculas, números e hífen.
-  if (flags.slug !== undefined && !/^[a-z0-9][a-z0-9-]{0,59}$/.test(flags.slug)) {
+  if (flags.slug !== undefined && !SLUG_RE.test(flags.slug)) {
     throw new UsageError(`--slug inválido: "${flags.slug}". Use só minúsculas, números e hífen (ex.: casaaurora).`);
   }
   if (flags.estilo && !PRESET_NAMES.includes(flags.estilo)) {
@@ -213,6 +217,21 @@ function parseArgs(argv, globals) {
  * Gera a loja. `args` é o que sobrou do argv depois das flags globais; `interactive` existe para
  * os testes (o padrão é o de sempre: há terminal?).
  */
+/**
+ * O slug do editor que o create carimba. Na hospedagem quem decide é a plataforma (a Unbox grava
+ * `UNBOX_EDITOR_SHOP` com o slug da loja, e a variável vence o literal), então o UNBOX_SHOP_SLUG do wizard,
+ * quando veio e é um slug, ganha do --slug: carimbar outro faria o `next dev` pedir ao editor o conteúdo de
+ * outra loja. Sem nenhum dos dois, `applyStoreName` deriva do nome; o `unbox provision` corrige depois.
+ */
+function slugDoEditor(flagSlug, shopSlug) {
+  const daPlataforma = String(shopSlug ?? "").trim();
+  if (!SLUG_RE.test(daPlataforma)) return flagSlug;
+  if (flagSlug && flagSlug !== daPlataforma) {
+    process.stderr.write(`  ⚠ Slug do editor: ${daPlataforma} (o UNBOX_SHOP_SLUG), e não ${flagSlug} (o --slug). Na hospedagem da Unbox o editor usa o slug da loja na plataforma.\n\n`);
+  }
+  return daPlataforma;
+}
+
 export async function runCreate(args, globals = {}, { legacy = false, interactive = process.stdin.isTTY } = {}) {
   // O create é um wizard: não tem resultado para um agente ler, nem projeto existente para apontar.
   if (globals.json) throw new UsageError("O create é interativo e não tem saída --json. Rode sem essa flag.");
@@ -369,7 +388,7 @@ export async function runCreate(args, globals = {}, { legacy = false, interactiv
       { type: "text", name: "UNBOX_USER", message: "UNBOX_USER" },
       { type: "password", name: "UNBOX_PASS", message: "UNBOX_PASS" },
       { type: "text", name: "UNBOX_SHOP_ID", message: "UNBOX_SHOP_ID (opcional, Enter pra deixar em branco)" },
-      { type: "text", name: "UNBOX_SHOP_SLUG", message: "UNBOX_SHOP_SLUG (opcional, Enter pra deixar em branco)" },
+      { type: "text", name: "UNBOX_SHOP_SLUG", message: "UNBOX_SHOP_SLUG (opcional; também vira o slug da loja no editor; Enter pra deixar em branco)" },
       { type: "password", name: "UNBOX_MCP_TOKEN", message: "Token do MCP da Unbox (opcional, habilita o .mcp.json pronto; pedir à Unbox; Enter pra pular)" },
     ], { onCancel });
   } else {
@@ -418,7 +437,7 @@ export async function runCreate(args, globals = {}, { legacy = false, interactiv
   const preset = PRESETS[estilo];
   const brandTokens = deriveBrandTokens({ primary, cta }, preset);
   applyPreset(targetDir, estilo, brandTokens);
-  applyStoreName(targetDir, displayName, { slugEditor: flags.slug });
+  applyStoreName(targetDir, displayName, { slugEditor: slugDoEditor(flags.slug, credAnswers.UNBOX_SHOP_SLUG) });
   console.log(`  ✓ Estilo "${preset.label}" aplicado: layout, fontes e neutros do preset + primária ${primary}, CTA ${cta}, loja "${displayName}"`);
 
   writeBriefing(targetDir, {

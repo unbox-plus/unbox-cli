@@ -27,7 +27,7 @@ const fetchOriginal = globalThis.fetch;
 beforeEach(() => {
   chamadas = [];
   respostas = [];
-  tokens = [jwt({ "arn:unbox:shopId": "loja-1" }), jwt({ "arn:unbox:shopId": "loja-1", n: 2 })];
+  tokens = [jwt({ "arn:unbox:shopId": "loja-1", "arn:unbox:shopSlug": "loja-um" }), jwt({ "arn:unbox:shopId": "loja-1", "arn:unbox:shopSlug": "loja-um", n: 2 })];
   globalThis.fetch = async (url, init) => {
     const body = JSON.parse(init.body);
     const signIn = /signIn/.test(body.query);
@@ -78,6 +78,12 @@ test("shopId vem do claim do token, e diverge do env com aviso", async () => {
   const api = await createPartnerApi({ env: { ...ENV, UNBOX_SHOP_ID: "outra-loja" }, out });
   assert.equal(await api.shopId(), "loja-1");
   assert.match(buf.stderr, /UNBOX_SHOP_ID do ambiente \(outra-loja\) não é a loja do login \(loja-1\)/);
+});
+
+test("shopSlug vem do claim do token: é o slug que a Unbox grava em UNBOX_EDITOR_SHOP", async () => {
+  const { out } = saida();
+  const api = await createPartnerApi({ env: { ...ENV, UNBOX_SHOP_SLUG: "outro-slug" }, out });
+  assert.equal(await api.shopSlug(), "loja-um");
 });
 
 test("conta sem permissão: código MISSING_PERMISSION e a mensagem que diz o que fazer", async () => {

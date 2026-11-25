@@ -11,6 +11,7 @@ import {
   isReserved,
   joiIndex,
   lotes,
+  mensagemGerenciadas,
   mensagemPulada,
   planSet,
   validaUnset,
@@ -33,10 +34,10 @@ function carrega(conteudo, terminal = {}) {
 }
 
 test("reservadas: nomes e prefixos do backend", () => {
-  for (const k of ["NEXT_PUBLIC_SITE_URL", "TZ", "VERCEL_URL", "NEXT_PUBLIC_VERCEL_ENV", "NOW_REGION", "AWS_REGION", "LAMBDA_X"]) {
+  for (const k of ["NEXT_PUBLIC_SITE_URL", "EDITOR_URL", "NEXT_PUBLIC_EDITOR_ORIGIN", "NEXT_PUBLIC_ADMIN_ORIGIN", "UNBOX_EDITOR_SHOP", "TZ", "VERCEL_URL", "NEXT_PUBLIC_VERCEL_ENV", "NOW_REGION", "AWS_REGION", "LAMBDA_X"]) {
     assert.ok(isReserved(k), k);
   }
-  for (const k of ["UNBOX_USER", "NEXT_PUBLIC_SITE_NAME", "TZX", "MY_VERCEL_URL"]) assert.ok(!isReserved(k), k);
+  for (const k of ["UNBOX_USER", "NEXT_PUBLIC_SITE_NAME", "TZX", "MY_VERCEL_URL", "EDITOR_URL_X", "UNBOX_EDITOR"]) assert.ok(!isReserved(k), k);
 });
 
 test("planSet: só as chaves do arquivo, e cada pulada com o motivo", () => {
@@ -44,6 +45,10 @@ test("planSet: só as chaves do arquivo, e cada pulada com o motivo", () => {
     "UNBOX_USER=api_loja",
     "VAZIA=",
     "NEXT_PUBLIC_SITE_URL=http://localhost:3000",
+    "EDITOR_URL=https://editor.myunbox.com.br",
+    "NEXT_PUBLIC_EDITOR_ORIGIN=https://editor.myunbox.com.br",
+    "NEXT_PUBLIC_ADMIN_ORIGIN=https://admin.unbox.com.br",
+    "UNBOX_EDITOR_SHOP=loja",
     "TZ=America/Sao_Paulo",
     "minuscula=x",
     "COM-HIFEN=x",
@@ -57,6 +62,10 @@ test("planSet: só as chaves do arquivo, e cada pulada com o motivo", () => {
   assert.deepEqual(skipped.map((x) => [x.key.slice(0, 20), x.reason]), [
     ["VAZIA", "vazia"],
     ["NEXT_PUBLIC_SITE_URL", "gerenciada"],
+    ["EDITOR_URL", "gerenciada"],
+    ["NEXT_PUBLIC_EDITOR_O", "gerenciada"],
+    ["NEXT_PUBLIC_ADMIN_OR", "gerenciada"],
+    ["UNBOX_EDITOR_SHOP", "gerenciada"],
     ["TZ", "reservada"],
     ["minuscula", "nome_invalido"],
     ["COM-HIFEN", "nome_invalido"],
@@ -101,6 +110,7 @@ test("lotes: 50 por chamada", () => {
 test("validaUnset: vazia, reservada e nome inválido são uso incorreto; repetida some", () => {
   assert.throws(() => validaUnset([]), (e) => e.code === "USAGE");
   assert.throws(() => validaUnset(["NEXT_PUBLIC_SITE_URL"]), (e) => e.code === "USAGE" && /gerenciada/.test(e.message));
+  assert.throws(() => validaUnset(["NEXT_PUBLIC_EDITOR_ORIGIN"]), (e) => e.code === "USAGE" && /gerenciada/.test(e.message));
   assert.throws(() => validaUnset(["VERCEL_URL"]), (e) => e.code === "USAGE");
   assert.throws(() => validaUnset(["minuscula"]), (e) => e.code === "USAGE");
   assert.deepEqual(validaUnset(["A", "B", "A"]), ["A", "B"]);
@@ -117,6 +127,20 @@ test("joiIndex: mensagens reais da validação do backend", () => {
 });
 
 test("mensagemPulada: só o nome, nunca o valor", () => {
-  assert.match(mensagemPulada({ key: "NEXT_PUBLIC_SITE_URL", reason: "gerenciada" }), /gerenciada pela Unbox, que reserva o nome.*vale só para o next dev/);
+  assert.match(mensagemPulada({ key: "NEXT_PUBLIC_SITE_URL", reason: "gerenciada" }), /gerenciada pela Unbox, que grava na hospedagem o endereço de produção da loja.*vale só para o next dev/);
+  assert.match(mensagemPulada({ key: "NEXT_PUBLIC_ADMIN_ORIGIN", reason: "gerenciada" }), /grava na hospedagem a ligação da loja com o painel Admin.*vale só para o next dev/);
+  assert.doesNotMatch(mensagemPulada({ key: "EDITOR_URL", reason: "gerenciada" }), /Atualize a CLI/);
   assert.match(mensagemPulada({ key: "X", reason: "reservada_nova" }), /Atualize a CLI/);
+});
+
+test("gerenciadas: vazia conta como vazia; várias saem num aviso só", () => {
+  const loaded = carrega("UNBOX_EDITOR_SHOP=\nEDITOR_URL=https://editor.myunbox.com.br\n");
+  assert.deepEqual(planSet(loaded).skipped.map((x) => [x.key, x.reason]), [
+    ["UNBOX_EDITOR_SHOP", "vazia"],
+    ["EDITOR_URL", "gerenciada"],
+  ]);
+  assert.match(mensagemGerenciadas(["EDITOR_URL"]), /^EDITOR_URL não foi enviada: é gerenciada pela Unbox/);
+  const varias = mensagemGerenciadas(["EDITOR_URL", "NEXT_PUBLIC_EDITOR_ORIGIN"]);
+  assert.match(varias, /a Unbox as grava na hospedagem: EDITOR_URL, NEXT_PUBLIC_EDITOR_ORIGIN\. O valor do arquivo vale só para o next dev/);
+  assert.doesNotMatch(varias, /Atualize a CLI/);
 });

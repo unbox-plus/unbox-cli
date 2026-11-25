@@ -141,5 +141,14 @@ export async function createPartnerApi({ env, out }) {
       }
       return shopId;
     },
+
+    /**
+     * Slug da loja na plataforma, do claim do token: é o que a Unbox grava em `UNBOX_EDITOR_SHOP` na
+     * hospedagem, e o editor acha a loja por ele. "" quando o token não traz o claim.
+     */
+    async shopSlug() {
+      const client = conhece(await traduzido(() => store.getStoreClient()));
+      return sdk.shopClaimsFromToken(client.token).shopSlug;
+    },
   };
 }

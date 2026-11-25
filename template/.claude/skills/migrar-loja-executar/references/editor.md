@@ -23,6 +23,15 @@ dentro de um `[data-editor-path]`. Aprova com ≥ 80% por página (`--minimo`), 
 
 Saída `2` é "não rodou" (servidor fora, rota dinâmica sem exemplo, manifesto que não chegou). Nunca é aprovação.
 
+**Loja sem Shop na Unbox (vitrine).** Sem as três credenciais não há produto nem categoria para abrir, e a loja diz
+isso na lista (`semExemploPorque: "sem-credenciais"` em `/produto/[productSlug]` e `/categoria/[tagSlug]`). O gate
+continua saindo `2` por elas, e a mensagem sugere `--sem-api`: `npm run unbox:editavel -- --sem-api` deixa essas
+duas como "sem prova" (no relatório, no JSON em `rotasSemProva` e na frase de aprovação) e julga o resto. Quem diz
+que a loja não tem Shop é o cadastro dela (a análise, o orquestrador), nunca o `.env.local` desta máquina: numa
+loja com Shop, rode com as credenciais, porque é isso que mede a PDP e a categoria. Rota sem exemplo por outro
+motivo (catálogo vazio, fora do ar) continua `2` com ou sem a flag. Loja antiga com modo preview/fake próprio
+(chave `modoPrevia`) cujo client falso entrega o catálogo pode ter exemplo de verdade: aí a flag nem é usada.
+
 ## 2. Declarar rotas
 
 Toda rota de `app/(loja)/` que o `robots.ts` não bloqueia entra em `lib/rotas-editaveis.ts`:
@@ -33,6 +42,13 @@ Toda rota de `app/(loja)/` que o `robots.ts` não bloqueia entra em `lib/rotas-e
 - `CONTAINERS_POR_ROTA["/rota"] = []` mais a entrada em `SO_CHROME`, com o motivo ao lado, quando a página é
   texto legal (termos, privacidade, devoluções, política de entrega), rótulo de formulário/UI ou mecânica de
   compra (busca, carrinho, checkout, conta). O gate não infere isso do conteúdo: é a loja que declara.
+- **Componente da marca em página só chrome** (`/busca` é o caso comum: a loja antiga mostrava ali uma vitrine
+  ou um banner da marca): a página declara `[]`, então nenhum primitivo dela é editável, e todo `Editable.*` que
+  ela renderiza reprova como "editável fora de container". Não envolva o componente num container (a declaração
+  `[]` passaria a divergir) e não tire a rota de `SO_CHROME` para isso. Saídas: uma variante do componente sem
+  primitivo (o literal, com a mesma aparência) para essa página; ou, se o componente aparece em toda página, ele
+  é do chrome (container `chrome`). O gate imprime a dica certa para página só chrome e a "provável origem"
+  (`arquivo:linha` achado por `path=` e `label=`).
 - Container de rota do código não pode começar com `pagina-`, `artigo-` ou `colecao-`: esses prefixos são os
   das páginas do lojista (`PREFIXOS_DO_LOJISTA` em `document.ts`), a loja leria a seção como página dele, e o
   gate reprova (§1, item 4).
@@ -43,6 +59,18 @@ Coleção do lojista (`lib/paginas-do-lojista.ts`, `COLECOES_DO_CODIGO`, `blog` 
 um primeiro segmento de rota do código nem de uma entrada de `public/`. Se a loja criou `app/(loja)/blog/`, ou a
 coleção muda de handle (uma linha), ou o blog em código sai e o conteúdo vira artigos do lojista.
 
+**Tirar uma rota que a foundation declara** (o caso medido é `/oferta`, a landing de anúncio). O build passa e o
+`unbox:editavel` reprova, porque a rota sai do disco e as declarações ficam. A lista completa, para `/oferta`:
+`app/(loja)/oferta/`; a versão por público, `app/(loja)/%5Fpublico/[publico]/oferta/`; a entrada em
+`CONTAINERS_POR_ROTA`; `"oferta"` em `DECLARACAO_DA_PERSONALIZACAO` (`lib/personalizacao.ts`); a entrada em
+`OCULTA_CHROME_EM` (`lib/chrome-das-paginas.ts`), e, com a lista vazia, a prop `ocultaChromeEm` do `app/layout.tsx`;
+e os links da loja para `/oferta` (receita, menu, banners). Fica: `components/landing/` (`landing-recipe.ts` é
+importado pelo catálogo das seções da home, e `pedido-de-chrome.tsx` também é usado fora da oferta);
+`lib/publicos-da-borda.ts` (ele só decide a versão de um container que está na declaração); e
+`app/(loja)/carrinho/oferta/`, que é OUTRA rota (o funil do carrinho), nunca a landing. `ROTULOS` em
+`app/api/unbox/paginas/route.ts`, o `revalidate` de `/_publico/[publico]/oferta` e os níveis da oferta em
+`lib/store-config.ts` viram texto sem uso, que não quebra nada.
+
 ## 3. O que vira primitivo e o que não vira
 
 Vira: título, parágrafo, CTA, link, foto, ícone, pôster de vídeo, cor de fundo de seção, e a cópia que mora em
@@ -52,6 +80,26 @@ JSON do repositório (vira o `fallback`). Os primitivos, todos exportados por `l
 `Editable.Video`, `Editable.Vitrine` (lista de produtos escolhida pelo lojista), `Editable.Section` (com `kind` e
 `label`) e `Editable.Sections` (o container, com `layout`). Leia a assinatura em `lib/editable/primitives.tsx`
 antes de usar um que não conhece; o `path` de cada um é chave do documento publicado.
+
+**Ícone que era filho direto de uma linha flex.** `Editable.Icon` embrulha o ícone num
+`<span style="display:inline-flex">`, e o `min-width` automático do span é a largura do SVG: o ícone que na loja
+antiga encolhia no celular (SVG filho direto do flex, sem `shrink-0`) passa a ficar no tamanho cheio e empurra o
+texto ao lado. Passe `min-w-0` no `className` do `Editable.Icon`, que devolve o encolhimento. Com `shrink-0` no SVG,
+NÃO passe: o span encolheria e o SVG vazaria por cima do texto. Medido no Chromium, linha flex de 150px com
+`<svg viewBox="0 0 24 24" width="24" height="24">` e texto longo ao lado: filho direto, 12,8px; no span, 24px; no
+span com `min-w-0`, 12,8px; e com `shrink-0` no SVG, 24px filho direto e 24px no span, mas o span com `min-w-0` cai
+para 12,8px com o SVG de 24px por cima do texto. O estilo do span não muda na foundation por isso: o `ref` e o
+contorno do editor dependem da caixa dele (`display: contents` não tem caixa), e nenhum valor único acerta os dois
+casos.
+
+**Título portado com tamanho na classe.** `h1` a `h4` têm tamanho, entrelinha e peso na escada de
+`app/globals.css`, fora de `@layer`, e as utilitárias do Tailwind (`text-[34px]`, `leading-*`, `font-bold`) perdem
+para ela em silêncio: o título sai no tamanho da escada, e só a captura mostra. O `prebuild` (`unbox:medir`) lista
+esses títulos. Para manter o tamanho do desenho E o controle de títulos do lojista: uma classe da loja no bloco
+das exceções da escada, como `.titulo-heroi-*`, com o tamanho do desenho multiplicado pela escala, por exemplo
+`.titulo-faixa { font-size: calc(clamp(26px, 1.4rem + 1vw, 34px) * var(--unbox-escala-titulos)); line-height: 1.1; }`.
+Não use `revert-layer` nem `!important` (tiram o controle do lojista), e não leve o peso para a classe:
+`--unbox-sec-peso-titulo` é o controle de peso por seção.
 
 Não vira, por regra (`template/CLAUDE.md`, seção "Editor: o que não pode quebrar"; o comentário "§8" em
 `lib/rotas-editaveis.ts` aponta para uma numeração antiga do README do editor que não existe mais, a regra é a

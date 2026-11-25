@@ -44,7 +44,7 @@ const sans = Plus_Jakarta_Sans({ variable: "--font-sans", subsets: ["latin"], we
 const displayFont = Poppins({ variable: "--font-display", subsets: ["latin"], weight: ["500", "600", "700", "800"], display: "swap" });
 // UNBOX-FONTS-END
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // GTM CENTRAL DA UNBOX — OBRIGATÓRIO EM TODA LOJA. NÃO REMOVA NEM TROQUE O ID.

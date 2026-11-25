@@ -25,7 +25,7 @@ export async function POST(req: Request) {
     await withStoreClient((c) => c.setEmailOnCart(ref.cartId, ref.cartToken, parsed.data));
 
     // Fire-and-forget: falha de CRM nunca pode travar o checkout.
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
     dispatchCrm({
       type: "checkout_started",
       email: parsed.data,

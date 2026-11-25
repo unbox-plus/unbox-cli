@@ -38,6 +38,11 @@
 //         caminho   caminho CONCRETO para a prévia abrir ("/produto/<slug de um produto real>").
 //                   Igual a `rota` nas páginas estáticas. `null` = a rota existe e precisa ser
 //                   re-renderizada, mas hoje não há exemplo para abrir (catálogo vazio ou fora do ar).
+//         semExemploPorque OPCIONAL, e só aparece com `caminho: null`: o motivo de não haver exemplo quando ele é
+//                   da LOJA, e não do catálogo. Hoje um valor só: "sem-credenciais", nas rotas cujo exemplo vem da
+//                   API da Unbox (produto e categoria) numa loja sem as três credenciais, onde essas páginas nem
+//                   têm o que mostrar. O gate de cobertura lista essas rotas à parte e só as deixa sem prova com
+//                   `--sem-api` (loja sem Shop); falha ou prazo do catálogo COM credenciais sai sem o campo.
 //         label     nome que o lojista lê no seletor de página.
 //         dinamica  a rota tem segmento `[…]`: um `caminho` é um exemplo, não a página inteira.
 //         soChrome  OPCIONAL, e só aparece quando `true`: a página é, por regra (README do editor, §8), só
@@ -67,6 +72,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { ok, fail } from "@/lib/api";
 import { STORE_SLUG } from "@/lib/editable/config";
+import { hasUnboxCredentials } from "@/lib/config";
 import { containersDaRota, doLojista, rotasEditaveis, soChrome } from "@/lib/rotas-editaveis";
 import { getCatalog, getTopTags } from "@/lib/queries";
 // PÁGINAS DO LOJISTA (foundation 13): a declaração que libera a criação de páginas no editor, e os
@@ -135,6 +141,8 @@ function rotulo(rota: string): string {
 const PRAZO_EXEMPLO_MS = 3_000;
 const TTL_EXEMPLO_MS = 5 * 60_000;
 const TTL_SEM_EXEMPLO_MS = 60_000;
+// as rotas cujo exemplo sai da API da Unbox: sem credenciais, não há catálogo a consultar (o `semExemploPorque`)
+const EXEMPLO_DA_API = new Set(["/produto/[productSlug]", "/categoria/[tagSlug]"]);
 const EXEMPLOS: Record<string, () => Promise<string | null>> = {
   "/produto/[productSlug]": async () => {
     const pagina = await getCatalog({ first: 8, offset: 0 });
@@ -242,9 +250,10 @@ export async function GET() {
       const dinamica = rota.includes("[");
       const caminho = dinamica ? await exemploDe(rota) : rota;
       const containers = containersDaRota(rota);
+      const semCredenciais = caminho === null && !hasUnboxCredentials && EXEMPLO_DA_API.has(rota);
       // `soChrome` só quando é verdade, e `containers` só quando a tabela declara: quem lê a lista não precisa
       // saber dos campos para continuar certo, e o campo ausente é informação ("a loja não declarou")
-      return { rota, caminho, label: rotulo(rota), dinamica, ...(soChrome(rota) ? { soChrome: true } : {}), ...(doLojista(rota) ? { doLojista: true } : {}), ...(containers ? { containers: [...containers] } : {}) };
+      return { rota, caminho, ...(semCredenciais ? { semExemploPorque: "sem-credenciais" } : {}), label: rotulo(rota), dinamica, ...(soChrome(rota) ? { soChrome: true } : {}), ...(doLojista(rota) ? { doLojista: true } : {}), ...(containers ? { containers: [...containers] } : {}) };
     }),
   );
   // a home primeiro (é onde a prévia abre), depois as estáticas, depois as dinâmicas

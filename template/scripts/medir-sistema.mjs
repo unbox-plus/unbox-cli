@@ -21,6 +21,41 @@ const MEDIDORES = [
   { arquivo: "vocabulario.py", args: [], titulo: "Cobertura do vocabulário gráfico" },
 ];
 
+// TÍTULO COM TAMANHO NA CLASSE. h1..h4 têm tamanho, entrelinha e peso na escada de app/globals.css, FORA de
+// @layer, e utilitária do Tailwind mora em @layer utilities: `text-[34px]`, `leading-*` ou `font-bold` num título
+// perdem para a escada em silêncio, e só a captura mostra (é o título portado de uma loja antiga que sai menor).
+// Em JS, e antes do Python, para avisar também onde não há python3. Relatório: não reprova nada.
+function titulosComTamanhoNaClasse() {
+  const achados = [];
+  const UTIL = /(?:^|[\s"'`{(])(?:[a-z0-9-]+:)*(text-(?:\[(?:\d|clamp|calc|min|max)[^\]]*\]|xs|sm|base|lg|xl|[2-9]xl)|leading-[\w[\].-]+|font-(?:thin|extralight|light|normal|medium|semibold|bold|extrabold|black))(?=[\s"'`})]|$)/g;
+  const andar = (dir) => {
+    let entradas = [];
+    try { entradas = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    for (const e of entradas) {
+      if (e.name === "node_modules" || e.name === ".next") continue;
+      const p = path.join(dir, e.name);
+      if (e.isDirectory()) { andar(p); continue; }
+      if (!/\.(tsx|jsx)$/.test(e.name)) continue;
+      const fonte = fs.readFileSync(p, "utf8");
+      for (const m of fonte.matchAll(/<h([1-4])\b([^>]*)>/g)) {
+        const classes = [...m[2].matchAll(UTIL)].map((x) => x[1]);
+        if (!classes.length) continue;
+        const linha = fonte.slice(0, m.index).split("\n").length;
+        achados.push(`${path.relative(RAIZ, p)}:${linha} <h${m[1]}> ${[...new Set(classes)].join(" ")}`);
+      }
+    }
+  };
+  for (const d of ["app", "components"]) andar(path.join(RAIZ, d));
+  if (!achados.length) return;
+  console.log(`\n── Títulos com tamanho, entrelinha ou peso na classe (relatório, não bloqueia) ──`);
+  console.log(`   ${achados.length} título(s): a escada de h1..h4 (app/globals.css) vence essas classes, e o título sai no tamanho dela.`);
+  for (const a of achados.slice(0, 30)) console.log(`   ${a}`);
+  if (achados.length > 30) console.log(`   … +${achados.length - 30}`);
+  console.log("   Tamanho próprio de verdade: uma classe no bloco da escada, em clamp() e multiplicada por --unbox-escala-titulos");
+  console.log("   (como .titulo-heroi-*), para o controle de títulos do lojista continuar valendo. Nunca revert-layer nem !important.");
+}
+titulosComTamanhoNaClasse();
+
 function acharPython() {
   for (const cmd of ["python3", "python"]) {
     const r = spawnSync(cmd, ["--version"], { encoding: "utf8" });

@@ -77,6 +77,119 @@ De 0.22.0 em diante, refatorar, salvo três ou mais sinais da loja (os números 
 
 ---
 
+## próxima
+### Template
+~ `app/api/unbox/paginas/route.ts`: campo opcional `semExemploPorque: "sem-credenciais"` nas rotas de produto e
+  categoria quando a loja roda sem as três credenciais da Unbox (o exemplo dessas duas sai da API). Com
+  credenciais, nada muda: falha ou prazo do catálogo continua `caminho: null` sem motivo. O editor ignora o campo.
+~ `scripts/check-editable.mjs`: flag `--sem-api` (loja sem Shop): as rotas sem exemplo por falta de credenciais
+  saem como "sem prova" (relatório, `rotasSemProva` no JSON e a frase de aprovação) em vez de NÃO RODOU. Sem a
+  flag, o veredito, a frase "declarada(s) sem exemplo para abrir" e o `rotasSemExemplo` saem como antes, mais uma
+  linha que sugere a flag. O editável fora de container numa página só chrome (`SO_CHROME` ou `[]`) ganha a dica
+  certa (variante sem primitivo, ou chrome; nunca container novo), e todo editável fora de container ganha a
+  "provável origem" (`arquivo:linha` pelo último segmento do `path=` e pelo `label=` perto dele; sem rótulo, a
+  lista pode vir longa).
++ `app/api/previa/newsletter/route.ts`: a newsletter de vitrine. POST que, sem as credenciais da Unbox, responde
+  uma página curta "Cadastro simulado" (não lê nem guarda o e-mail, `noindex`, `no-store`, link de volta) e, com
+  elas, 404. Opt-in: só vale com `NEXT_PUBLIC_NEWSLETTER_ACTION=/api/previa/newsletter`.
+~ `scripts/check-unbox-brand.mjs`: item 10, reprova o build que tenha as três credenciais (processo ou `.env*` que o
+  `next build` lê, CRLF incluído) com a variável apontando para a rota de vitrine, e o destino de vitrine escrito
+  em `app/`, `components/` ou `lib/` (código ou JSON), o mesmo alcance da verificação da esteira.
+~ `lib/newsletter.ts`: comentário sobre a vitrine (o código não cai nela sozinho).
+~ `.env.example`: `NEXT_PUBLIC_SITE_URL` passa a vir COMENTADA (o `create` deixa de escrever
+  `http://localhost:3000` no `.env.local`); linha nova sobre a newsletter de vitrine; o bloco do editor diz que
+  as quatro variáveis dele são gravadas pela Unbox na hospedagem; o comentário de `UNBOX_EDITOR_SHOP` passa a
+  dizer que ela é o slug da loja na plataforma (antes: "variável própria, não é o `UNBOX_SHOP_SLUG`").
+~ `lib/editable/config.ts`: só o comentário, com a mesma regra: na hospedagem o slug do editor é o da plataforma,
+  e o literal vale no `next dev`.
+~ `app/layout.tsx`, `app/robots.ts`, `app/sitemap.ts`, `lib/paginas-seo.ts`, `app/api/checkout/email/route.ts`,
+  `app/(loja)/produto/[productSlug]/page.tsx`, `scripts/abandoned-cart.ts`: o fallback de `NEXT_PUBLIC_SITE_URL`
+  passa de `??` para `||`. Com a variável definida e VAZIA, o `??` mantinha o vazio e `new URL("")` no
+  `app/layout.tsx` derrubava o build; o link de recuperação de carrinho saía relativo.
+~ `scripts/medir-sistema.mjs`: relatório novo (não bloqueia), todo `h1`..`h4` com tamanho, entrelinha ou peso na
+  classe, que a escada de `app/globals.css` vence em silêncio.
+~ `CLAUDE.md`: uma frase sobre esse relatório.
+~ `app/(loja)/produto/[productSlug]/page.tsx` e `app/(loja)/conta/assinaturas/[referenceId]/page.tsx`: item `null`
+  dentro de `kitComponents` (a API devolve assim quando um item do kit aponta para um produto que não existe mais,
+  e o tipo do SDK não prevê) é ignorado. Antes, a PDP do kit lia `c.productId` do nulo e o prerender derrubava o
+  build inteiro da loja; a página da assinatura dava erro 500 no mesmo caso.
+~ `.claude/skills/migrar-loja-executar/SKILL.md` e `references/editor.md`: `--sem-api` e quem decide "sem Shop";
+  newsletter de vitrine; componente da marca em página só chrome; a lista completa para tirar `/oferta`; o
+  `min-w-0` do ícone portado; título portado com tamanho próprio.
+### Loja já gerada
+Copiar `scripts/check-editable.mjs`, `scripts/check-unbox-brand.mjs` e `scripts/medir-sistema.mjs` (os dois
+primeiros são travados, byte a byte; os três mudam relatório e regra, não a loja). Sem a rota de páginas nova, o
+`--sem-api` não tem efeito: o gate continua saindo 2 nas rotas de produto e categoria, que é o lado seguro.
+
+`app/api/unbox/paginas/route.ts`: reaplicar (é arquivo da loja e pode ter `ROTULOS` e `EXEMPLOS` próprios): o
+import de `hasUnboxCredentials`, o `EXEMPLO_DA_API` e o campo `semExemploPorque` no `GET`. Só faz diferença em
+loja sem Shop.
+
+Newsletter de vitrine, só em loja sem Shop que deva mostrar as faixas: copiar `app/api/previa/newsletter/route.ts`
+e definir a variável. Loja que a esteira já migrou com a rota escrita à mão no mesmo caminho: ficar com a do
+template (o `upgrade-template` mostra "novo nos dois"); a diferença é a régua das credenciais (as três, como o modo
+mockup, e não só `UNBOX_PASS`) e o nome da loja sem reserva própria.
+
+`NEXT_PUBLIC_SITE_URL`: nada obrigatório. Na hospedagem da Unbox o valor do `.env.local` nunca foi enviado (a
+variável é gerenciada, e `.env*` não vai ao git); a linha de localhost só fazia mal em quem copiava o
+`.env.local` para outra hospedagem ou prévia. Opcional: apagar a linha do `.env.local` e reaplicar os `||` nos
+sete arquivos acima (são da loja).
+
+Slug do editor: rodar `unbox provision` de novo (é seguro) com a CLI nova troca o literal de
+`lib/editable/config.ts` pelo slug da loja na plataforma quando eles diferem, e a troca vai no próximo
+`unbox deploy`. No ar não muda nada (a variável da Unbox já vencia o literal); muda o `next dev`, que pedia ao editor
+o conteúdo de outra loja. O comentário novo do arquivo é opcional (copiar mantendo o literal).
+
+Kit com item nulo: reaplicar o filtro nas duas páginas (são da loja). O `mapFlavors` da PDP passa a filtrar
+`c != null` antes do `.map`, e o filtro de `componentes` da assinatura lê `c?.productId`. Loja cujo build cai em
+`Cannot read properties of null (reading 'productId')` no prerender de `/produto/...` é este caso.
+
+`.claude/skills/migrar-loja-*`: copiar.
+### Ambiente
+A variável do endereço da loja deixa de vir preenchida no `.env.local` gerado; continua existindo e continua
+gerenciada pela Unbox na hospedagem. A da newsletter ganha um valor de vitrine documentado no `.env.example`.
+Nenhuma entra, nenhuma sai.
+
+CLI: o `unbox env` e o `unbox provision` passam a tratar `EDITOR_URL`, `NEXT_PUBLIC_EDITOR_ORIGIN`,
+`NEXT_PUBLIC_ADMIN_ORIGIN` e `UNBOX_EDITOR_SHOP` como gerenciadas, igual ao backend, que as grava em toda loja no
+provisionamento e recusa que a loja as defina. Antes, a CLI tentava enviar as três que vêm preenchidas no
+`.env.local`, a API recusava e o aviso pedia "Atualize a CLI" em todo envio; agora sai uma linha só, sem chamada a
+mais, e o `--unset` delas é recusado antes da API. Loja já gerada: nada a fazer, basta a CLI nova.
+
+CLI, slug do editor: vale o da plataforma (o que o backend grava em `UNBOX_EDITOR_SHOP` e o editor usa para achar a
+loja). O `unbox create` carimba o `UNBOX_SHOP_SLUG` respondido no wizard, que ganha do `--slug` (com aviso); o
+`unbox provision` lê o slug do token e troca o literal de `lib/editable/config.ts` quando for outro, exceto quando o
+`.env.local` traz `UNBOX_EDITOR_SHOP` (aí a variável já decide no `next dev`, o arquivo não é tocado e a árvore
+fica limpa; se ela for outra que não a da plataforma, o provision avisa).
+### Mudanças de comportamento
+nada para o comprador nem para o lojista sem escolha: a newsletter de vitrine é opt-in, e o resto é gate,
+relatório e documentação. O build passa a reprovar uma combinação que antes ia ao ar calada (credenciais da Unbox
+com a newsletter apontando para a vitrine): quem tiver isso troca pelo destino real ou esvazia a variável, e o
+bloco some.
+### Armadilhas
+- Refazer loja com `create --slug`: passe o slug da loja na PLATAFORMA (o `<slug>` de `<slug>.myunbox.com.br`), não o
+  literal da loja antiga (`slug` do `analyze-version --json`) quando os dois diferem. Na hospedagem só o da
+  plataforma vale, e o `provision` corrige o literal de qualquer forma; o `slug` da análise serve de conferência.
+- Ícone portado que era filho direto de um flex e encolhia no celular: dentro do `Editable.Icon` ele para de
+  encolher (o span tem `min-width` automático) e empurra o texto ao lado. `min-w-0` no `className` do
+  `Editable.Icon` devolve o encolhimento; com `shrink-0` no SVG, não ponha (o SVG vazaria sobre o texto). Medido
+  numa faixa de confiança da PDP: 4,8% de diferença em 390 px, 0% com `min-w-0`.
+- Título portado com `text-[34px]` (ou `leading-*`, `font-bold`) sai no tamanho da escada sem aviso, porque h1..h4
+  ficam fora de `@layer`. A saída é uma classe da loja no bloco das exceções da escada, com o tamanho do desenho
+  multiplicado por `--unbox-escala-titulos` (como `.titulo-heroi-*`). `revert-layer` e `!important` tiram o
+  controle de títulos do lojista; o peso fica com `--unbox-sec-peso-titulo`.
+- `/busca` é só chrome (`[]`): componente da marca renderizado ali com primitivos reprova como "editável fora de
+  container". Variante sem primitivo nessa página, ou o componente é do chrome; container novo não.
+- Tirar `/oferta`: o build passa e o `unbox:editavel` reprova. São a rota, a rota do público
+  (`app/(loja)/%5Fpublico/[publico]/oferta/`), a entrada de `CONTAINERS_POR_ROTA`, `"oferta"` em
+  `DECLARACAO_DA_PERSONALIZACAO` e em `OCULTA_CHROME_EM` (lista vazia: tirar a prop `ocultaChromeEm` do
+  `app/layout.tsx`) e os links. `components/landing/` fica (o catálogo das seções importa `landing-recipe.ts`), e
+  `app/(loja)/carrinho/oferta/` é outra rota.
+- Loja sem Shop: `npm run unbox:editavel` sai 2 por produto e categoria. É `-- --sem-api`, decidido pelo cadastro
+  da loja e nunca pelo `.env.local` da máquina, que numa loja com Shop só deixaria a PDP sem medir.
+- `NEXT_PUBLIC_SITE_URL=` VAZIA (em vez de ausente) derrubava o build até esta versão. Para não usar, apague a
+  linha.
+
 ## 0.32.0
 ### Template
 ~ `scripts/check-editable.mjs`: as reprovações de container declarado sem rota dizem onde tirar a declaração
