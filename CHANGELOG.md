@@ -1,5 +1,41 @@
 ## Changelog
 
+### v0.33.0 — o slug do editor é o da plataforma; `unbox:editavel --sem-api`, newsletter de vitrine e build que não cai por URL vazia ou kit com item nulo
+
+**O slug do editor segue a plataforma.**
+
+- Na hospedagem vale o slug da loja na plataforma, que a Unbox grava em `UNBOX_EDITOR_SHOP`. O `unbox create`
+  carimba em `lib/editable/config.ts` o `UNBOX_SHOP_SLUG` respondido no wizard, que ganha do `--slug` (com aviso).
+- O `unbox provision` lê o slug do token e troca o literal quando ele é outro, para o `next dev` não pedir ao
+  editor o conteúdo de outra loja. Com `UNBOX_EDITOR_SHOP` no `.env.local`, o arquivo não é tocado.
+
+**`unbox env` e `unbox provision` tratam como gerenciadas as variáveis que o backend grava.**
+
+- `EDITOR_URL`, `NEXT_PUBLIC_EDITOR_ORIGIN`, `NEXT_PUBLIC_ADMIN_ORIGIN` e `UNBOX_EDITOR_SHOP` se juntam a
+  `NEXT_PUBLIC_SITE_URL`: não são enviadas, saem num aviso só (sem o "Atualize a CLI" de todo envio) e o
+  `--unset` delas é recusado antes da API.
+
+**Gates da loja.**
+
+- `unbox:editavel -- --sem-api`: em loja sem Shop, as rotas de produto e categoria sem exemplo saem como "sem
+  prova" em vez de NÃO RODOU (a rota `app/api/unbox/paginas` passa a dizer `semExemploPorque`). O editável fora
+  de container ganha a provável origem (`arquivo:linha`) e a dica certa em página só chrome.
+- `unbox:medir` lista todo `h1`..`h4` com tamanho, entrelinha ou peso na classe, que a escada de títulos vence
+  em silêncio.
+
+**Newsletter de vitrine (opt-in).**
+
+- `app/api/previa/newsletter`: com `NEXT_PUBLIC_NEWSLETTER_ACTION=/api/previa/newsletter` e sem as credenciais da
+  Unbox, o formulário responde "Cadastro simulado" sem guardar o e-mail. O `check-unbox-brand` (no `prebuild`) reprova o build que
+  tenha as credenciais e aponte para a vitrine.
+
+**O build da loja deixa de cair.**
+
+- `NEXT_PUBLIC_SITE_URL` definida e vazia: o fallback passa de `??` para `||` (era `new URL("")` no layout). O
+  `create` deixa de escrever `http://localhost:3000` no `.env.local`.
+- Kit com item nulo (produto apagado): a PDP e a página da assinatura ignoram o item em vez de derrubar o
+  prerender ou responder 500.
+
 ### v0.32.0 — a frequência da assinatura mora no carrinho; `create --nome`/`--slug` e o contrato do `analyze-version --json`
 
 **A assinatura chega ao checkout hospedado com a frequência escolhida na loja.**

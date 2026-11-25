@@ -77,7 +77,7 @@ De 0.22.0 em diante, refatorar, salvo três ou mais sinais da loja (os números 
 
 ---
 
-## próxima
+## 0.33.0
 ### Template
 ~ `app/api/unbox/paginas/route.ts`: campo opcional `semExemploPorque: "sem-credenciais"` nas rotas de produto e
   categoria quando a loja roda sem as três credenciais da Unbox (o exemplo dessas duas sai da API). Com
